@@ -3,6 +3,9 @@
 import { test, expect } from '@playwright/test';
 
 test('spawn, ski, fall and get up, ride a lift, audio', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/?autostart=1&name=Tester');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
   // spawned at the base near the main lift, standing
@@ -71,4 +74,5 @@ test('spawn, ski, fall and get up, ride a lift, audio', async ({ page }) => {
   await page.keyboard.press('KeyM');
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => (window as any).game.trailMap.visible)).toBe(true);
+  expect(errors).toEqual([]);
 });

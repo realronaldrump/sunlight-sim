@@ -35,6 +35,28 @@ function hutMaterials() {
   return hutMats;
 }
 
+const riderMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, vertexColors: true });
+
+/** Low-poly seated skier (origin at the seat surface, facing -z). Jacket takes the instance colour. */
+function riderGeometry() {
+  const parts: THREE.BufferGeometry[] = [];
+  const paint = (g: THREE.BufferGeometry, c: number) => {
+    const col = new THREE.Color(c), n = g.getAttribute('position').count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = col.r; a[i * 3 + 1] = col.g; a[i * 3 + 2] = col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g.toNonIndexed();
+  };
+  const torso = new THREE.CapsuleGeometry(0.17, 0.42, 3, 8); torso.translate(0, 0.42, 0.14); parts.push(paint(torso, 0xffffff));
+  const head = new THREE.SphereGeometry(0.13, 10, 8); head.translate(0, 0.9, 0.1); parts.push(paint(head, 0xf2f2f2));
+  const thighs = new THREE.BoxGeometry(0.34, 0.16, 0.46); thighs.translate(0, 0.1, -0.12); parts.push(paint(thighs, 0x1d2330));
+  const shins = new THREE.BoxGeometry(0.3, 0.5, 0.14); shins.translate(0, -0.18, -0.36); parts.push(paint(shins, 0x1d2330));
+  for (const x of [-0.12, 0.12]) {
+    const ski = new THREE.BoxGeometry(0.09, 0.03, 1.5); ski.rotateX(0.3); ski.translate(x, -0.5, -0.42); parts.push(paint(ski, 0x1565c0));
+  }
+  const g = mergeGeometries(parts);
+  // instance colour multiplies vertex colour: keep pants/skis/helmet dark-ish so only the jacket reads the colour
+  return g;
+}
+
 function chairGeometry(seats: number) {
   const w = seats * 0.6 + 0.1;
   const parts: THREE.BufferGeometry[] = [];
@@ -57,6 +79,8 @@ export class LiftSystem {
   readonly paths: LiftPath[] = [];
   readonly colliders: Collider[] = [];
   private chairMeshes: { frame: THREE.InstancedMesh; seat: THREE.InstancedMesh }[] = [];
+  /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
+  private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[] }[] = [];
   clockOffset = 0; // seconds added to Date.now()/1000 to get the shared lift clock
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -73,6 +97,23 @@ export class LiftSystem {
       const sm = new THREE.InstancedMesh(seat, seatMat, path.chairCount);
       for (const m of [fm, sm]) { m.castShadow = true; m.frustumCulled = false; this.group.add(m); }
       this.chairMeshes.push({ frame: fm, seat: sm });
+      // about a third of the chairs carry 1-3 riders (deterministic per lift)
+      let seed = def.name.length * 7919;
+      const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      const slots: { chair: number; seat: number }[] = [];
+      for (let c = 0; c < path.chairCount; c++) {
+        if (rnd() > 0.34) continue;
+        const n = 1 + Math.floor(rnd() * Math.min(3, def.seats));
+        const start = Math.floor(rnd() * (def.seats - n + 1));
+        for (let k = 0; k < n; k++) slots.push({ chair: c, seat: start + k });
+      }
+      const rm = new THREE.InstancedMesh(riderGeometry(), riderMat, slots.length);
+      const col = new THREE.Color();
+      const palette = [0xd33a2c, 0x1f6fd1, 0xf2b705, 0x2e9e44, 0x7b3fbf, 0xff6f91, 0x222222, 0x1aa3a3, 0xe86a1a, 0x5b6b7a];
+      for (let i = 0; i < slots.length; i++) rm.setColorAt(i, col.setHex(palette[Math.floor(rnd() * palette.length)]));
+      rm.castShadow = true; rm.frustumCulled = false;
+      this.group.add(rm);
+      this.riders.push({ mesh: rm, slots });
     }
   }
 
@@ -210,6 +251,19 @@ export class LiftSystem {
       }
       frame.instanceMatrix.needsUpdate = true;
       seat.instanceMatrix.needsUpdate = true;
+      // ambient riders sit on their chairs on the way up; hidden on the way down
+      const R = this.riders[li];
+      if (R) {
+        const p = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+        R.slots.forEach((sl, k) => {
+          const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
+          if (!info.uphill || info.h < 12 || info.h > path.horiz - 10) { R.mesh.setMatrixAt(k, zero); return; }
+          this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
+          this.m4.compose(p, this.q, new THREE.Vector3(1, 1, 1));
+          R.mesh.setMatrixAt(k, this.m4);
+        });
+        R.mesh.instanceMatrix.needsUpdate = true;
+      }
     }
   }
 }

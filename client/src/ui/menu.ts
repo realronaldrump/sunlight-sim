@@ -27,8 +27,15 @@ const css = `
 #chatin { position: fixed; right: 16px; bottom: 36px; z-index: 13; width: min(320px, calc(100vw - 32px)); display: none; padding: 7px 10px; border-radius: 8px; border: 0; background: rgba(10,20,35,.85); color: #fff; font-size: 14px; }
 `;
 
-export function showMenu(defaults: { quality: QualityName }): Promise<MenuResult> {
+let cssInjected = false;
+function injectCss() {
+  if (cssInjected) return;
+  cssInjected = true;
   const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
+}
+
+export function showMenu(defaults: { quality: QualityName }): Promise<MenuResult> {
+  injectCss();
   const params = new URLSearchParams(location.search);
   const urlRoom = sanitizeRoom(params.get('room') ?? '');
   let name = '', color = COLORS[0];
@@ -74,6 +81,7 @@ export function showMenu(defaults: { quality: QualityName }): Promise<MenuResult
 }
 
 export function showRoomBox(room: string) {
+  injectCss();
   const box = document.createElement('div'); box.id = 'roombox';
   const url = new URL(location.href);
   url.searchParams.set('room', room);
@@ -92,6 +100,7 @@ export class ChatUI {
   readonly input = document.createElement('input');
   onSend?: (text: string) => void;
   constructor() {
+    injectCss();
     this.log.id = 'chatlog'; this.input.id = 'chatin'; this.input.maxLength = 200; this.input.placeholder = 'Say something, Enter to send';
     document.body.append(this.log, this.input);
     this.input.addEventListener('keydown', (e) => {

@@ -14,6 +14,8 @@ async function shot(page: Page, name: string) {
 }
 
 test('viewpoints', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
   await boot(page, '?autostart=1&name=Reviewer');
   const lifts = await page.evaluate(() => (window as any).game.resort.lifts.map((l: any) => ({ name: l.name, bottom: l.bottom, top: l.top })));
   const peaks = await page.evaluate(() => (window as any).game.resort.peaks);
@@ -59,4 +61,5 @@ test('viewpoints', async ({ page }) => {
   await page.keyboard.press('KeyM');
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'screenshots/07_trail_map.png' });
+  expect(errors).toEqual([]);
 });
