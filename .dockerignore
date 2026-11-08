@@ -1,0 +1,10 @@
+node_modules
+data
+dist
+.venv
+screenshots
+test-results
+tests
+client/public/world/*
+!client/public/world/resort.json
+.git

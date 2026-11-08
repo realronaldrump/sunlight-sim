@@ -1,0 +1,10 @@
+data
+.venv
+node_modules
+dist
+screenshots
+test-results
+playwright-report
+tests/harness/out
+tests/scratch
+.git

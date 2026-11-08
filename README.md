@@ -9,6 +9,8 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 - Physically based ski model (edging and sidecut carving, skidding, snowplow, tuck, drag, falls).
 - Multiplayer rooms by link, shared chairs, chat, trail map with other players.
 
+**Play now (solo):** https://sunlight-sim.vercel.app  (the multiplayer server is not hosted yet; see Deploy below. Multiplayer works locally and on a LAN.)
+
 ## Run it locally
 
 Requirements: Node 20.19+ (or 22+). A desktop browser with WebGPU (Chrome or Safari on macOS) or WebGL2.
@@ -65,27 +67,28 @@ npm run start:server   # multiplayer server (uses $PORT, default 8787)
 `vercel.json` is included. With the Vercel CLI logged in:
 
 ```bash
-VITE_SERVER_URL=wss://sunlight-sim-server.fly.dev npm run build
-vercel deploy --prod
+npx vercel@latest link --project sunlight-sim
+npx vercel@latest env add VITE_SERVER_URL production   # e.g. wss://sunlight-sim-server.fly.dev
+npx vercel@latest deploy --prod
 ```
 
 (or connect the GitHub repo in the Vercel dashboard with build command `npm run build` and output directory `dist`, and set the `VITE_SERVER_URL` environment variable).
 
 ### Multiplayer server on Fly.io
 
-`fly.toml` and `server/Dockerfile` are included.
+`hosting/fly.toml` and `server/Dockerfile` are included.
 
 ```bash
 brew install flyctl && fly auth login
-fly launch --no-deploy --copy-config --name sunlight-sim-server
-fly deploy
+fly launch --no-deploy --copy-config --config hosting/fly.toml --name sunlight-sim-server
+fly deploy --config hosting/fly.toml
 ```
 
 The server listens on `$PORT` and serves WebSocket connections on `/`. Health check: `GET /health`.
 
 ### Alternative: Render
 
-Create a Web Service from this repo with build command `npm install` and start command `npm run start:server`. Use the resulting `wss://<name>.onrender.com` as `VITE_SERVER_URL` for the client.
+`hosting/render.yaml` is included (Blueprint). Or create a Web Service from this repo with build command `npm install` and start command `npm run start:server`. Use the resulting `wss://<name>.onrender.com` as `VITE_SERVER_URL` for the client.
 
 ## Tests
 

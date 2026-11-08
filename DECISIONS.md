@@ -56,3 +56,8 @@ Collisions use a purpose-built spatial hash of vertical cylinders (trees, towers
 
 ## D11. Quality presets
 Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD split distance and tree near/far distances. Auto-detect: High on desktop with WebGPU and 8+ cores, Medium on WebGL2 fallback or fewer cores, Low on mobile. Changing quality in the start menu reloads the page.
+
+## D12. Deployment
+- Client deployed to Vercel (CLI credentials were present): https://sunlight-sim.vercel.app, project `sunlight-sim`. Use `npx vercel@latest` (the globally installed CLI is too old for the deploy endpoint).
+- No Fly.io/Render credentials on the machine, so the multiplayer server is not hosted; exact steps are in README.md (`hosting/fly.toml`, `hosting/render.yaml`, `server/Dockerfile`). Server deploy files live in `hosting/` because the new Vercel CLI auto-detects `fly.toml`/`render.yaml` at the repo root as extra services and refuses to deploy.
+- The deployed client falls back to solo play with a toast when the server is unreachable.

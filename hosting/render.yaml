@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: sunlight-sim-server
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run start:server
+    healthCheckPath: /health
