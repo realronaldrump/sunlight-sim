@@ -18,7 +18,7 @@ export class Environment {
   readonly hemi = new THREE.HemisphereLight(0xbcd4ff, 0xe8ecf2, 0.55);
   readonly sunDir = uniform(new THREE.Vector3(0, 1, 0));
   readonly hazeColor = uniform(new THREE.Color(0.66, 0.75, 0.88));
-  readonly hazeDensity = uniform(1.6e-5);
+  readonly hazeDensity = uniform(1.1e-5);
   hour = 11;
   snowing = false;
   csm: CSMShadowNode | null = null;
@@ -76,7 +76,7 @@ export class Environment {
   /** Weather: clear (default) or light snowfall (lower visibility, overcast light). */
   setSnowing(on: boolean) {
     this.snowing = on;
-    this.hazeDensity.value = on ? 3.2e-4 : 1.6e-5;
+    this.hazeDensity.value = on ? 3.2e-4 : 1.1e-5;
     this.hazeColor.value.setRGB(on ? 0.78 : 0.66, on ? 0.8 : 0.75, on ? 0.84 : 0.88);
     const sky = this.sky as unknown as { cloudCoverage?: { value: number }; cloudDensity?: { value: number } };
     if (sky.cloudCoverage) sky.cloudCoverage.value = on ? 0.95 : 0.15;

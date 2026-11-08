@@ -106,7 +106,9 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const tracks = abs(sin(dot(vec2(positionWorld.x, positionWorld.z), vec2(0.7, 0.7)).mul(3.1))).mul(0.06);
     const plowCol = vec3(0.58, 0.56, 0.53).mul(float(0.92).add(n1.mul(0.12)).sub(tracks));
     snow.assign(mix(snow, plowCol, plowed.mul(0.8)));
-    const rock = smoothstep(48.0, 58.0, slopeDeg).mul(float(1.0).sub(piste));
+    // coarse distant LODs smooth out cliffs, so the rock threshold drops with distance
+    const rockT = mix(float(48.0), float(33.0), smoothstep(1500.0, 15000.0, dist));
+    const rock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(float(1.0).sub(piste)).mul(0.85);
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
     snow.assign(mix(snow, rockCol, rock));
     // beginner slope-angle overlay
