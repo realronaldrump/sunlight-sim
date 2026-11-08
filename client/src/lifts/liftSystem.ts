@@ -13,6 +13,7 @@ const wood = new THREE.MeshStandardNodeMaterial({ color: 0x7a5a3a, roughness: 0.
 const roofMat = new THREE.MeshStandardNodeMaterial({ color: 0x4a2f22, roughness: 0.8 });
 const chairMat = new THREE.MeshStandardNodeMaterial({ color: 0x2f3338, roughness: 0.55, metalness: 0.4 });
 const seatMat = new THREE.MeshStandardNodeMaterial({ color: 0x1e4f8a, roughness: 0.7 });
+const terminalPaint = new THREE.MeshStandardNodeMaterial({ color: 0x24527a, roughness: 0.5, metalness: 0.3 });
 
 function chairGeometry(seats: number) {
   const w = seats * 0.6 + 0.1;
@@ -102,8 +103,18 @@ export class LiftSystem {
         wheel.rotation.x = Math.PI / 2;
         wheel.position.set(p.x, s.cable, p.z);
         g.add(wheel);
-        const housing = new THREE.Mesh(new THREE.BoxGeometry(GAUGE + 1.2, 1.4, 3.2), steel);
-        housing.position.set(p.x, s.cable + 0.9, p.z); housing.rotation.y = yaw; housing.castShadow = true; g.add(housing);
+        // bull wheel cover (a flat rounded hood) and, at the top drive terminal, the gearbox/motor house
+        const hood = new THREE.Mesh(new THREE.CylinderGeometry(GAUGE / 2 + 0.5, GAUGE / 2 + 0.8, 0.7, 28), terminalPaint);
+        hood.position.set(p.x, s.cable + 0.75, p.z); hood.castShadow = true; g.add(hood);
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.0, 12), darkSteel);
+        hub.position.set(p.x, s.cable + 0.2, p.z); g.add(hub);
+        if (top) {
+          const drive = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.6, 2.6), terminalPaint);
+          drive.position.set(p.x + path.ax * 1.8, s.cable + 1.6, p.z + path.az * 1.8); drive.rotation.y = yaw; drive.castShadow = true; g.add(drive);
+        }
+        // boom from the column frame to the wheel
+        const boom = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 3.4), steel);
+        boom.position.set(p.x + path.ax * (top ? 1.2 : -1.2), s.cable + 0.25, p.z + path.az * (top ? 1.2 : -1.2)); boom.rotation.y = yaw; g.add(boom);
         for (const side of [-1, 1]) {
           const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, s.cable - s.ground + 0.2, 0.4), steel);
           const off = top ? 2.4 : -2.4;

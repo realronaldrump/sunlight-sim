@@ -147,25 +147,39 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
   return mergeGeometries(parts);
 }
 
-/** Gambel oak clump: crooked grey-brown stems with a dense twiggy dome (bare, a few dead leaves). */
+/** Gambel oak thicket clump: many crooked grey-brown stems from the ground, each with twigs (bare in winter). */
 export function oakGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   const r = rand(41);
-  const stems = detail === 'high' ? 6 : 3;
+  const seg = (a: THREE.Vector3, b: THREE.Vector3, rad0: number, rad1: number, col: THREE.Color) => {
+    const d = b.clone().sub(a); const L = d.length();
+    const c = new THREE.CylinderGeometry(rad1, rad0, L, 3, 1, true);
+    c.translate(0, L / 2, 0);
+    c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+    c.translate(a.x, a.y, a.z);
+    parts.push(colorize(c.toNonIndexed(), () => col));
+  };
+  const stems = detail === 'high' ? 14 : 5;
   for (let i = 0; i < stems; i++) {
-    const h = 0.6 + r() * 0.35;
-    const s = new THREE.CylinderGeometry(0.02, 0.035, h, 4);
-    s.translate(0, h / 2, 0);
-    s.rotateZ((r() - 0.5) * 0.5); s.rotateX((r() - 0.5) * 0.5);
-    s.translate((r() - 0.5) * 0.4, 0, (r() - 0.5) * 0.4);
-    parts.push(colorize(s.toNonIndexed(), () => new THREE.Color(0x5b4e44)));
+    const bx = (r() - 0.5) * 0.7, bz = (r() - 0.5) * 0.7;
+    const lean = (r() - 0.5) * 0.9;
+    const ang = r() * Math.PI * 2;
+    const h = 0.55 + r() * 0.45;
+    const a = new THREE.Vector3(bx, 0, bz);
+    const mid = new THREE.Vector3(bx + Math.cos(ang) * lean * 0.4, h * 0.55, bz + Math.sin(ang) * lean * 0.4);
+    const top = new THREE.Vector3(bx + Math.cos(ang) * lean, h, bz + Math.sin(ang) * lean);
+    const col = new THREE.Color(0.33 + r() * 0.06, 0.29 + r() * 0.05, 0.26 + r() * 0.04);
+    seg(a, mid, 0.03, 0.022, col);
+    seg(mid, top, 0.022, 0.008, col);
+    if (detail === 'high') {
+      for (let k = 0; k < 4; k++) {
+        const p = mid.clone().lerp(top, r());
+        const a2 = r() * Math.PI * 2, l2 = 0.2 + r() * 0.3;
+        seg(p, new THREE.Vector3(p.x + Math.cos(a2) * l2, p.y + 0.05 + r() * 0.15, p.z + Math.sin(a2) * l2), 0.008, 0.003,
+          r() < 0.25 ? new THREE.Color(0.48, 0.34, 0.22) : col); // a few marcescent brown leaves
+      }
+    }
   }
-  const dome = new THREE.IcosahedronGeometry(0.8, detail === 'high' ? 1 : 0);
-  dome.scale(1, 0.55, 1); dome.translate(0, 0.62, 0);
-  parts.push(colorize(dome.toNonIndexed(), (p, n) => {
-    const snowy = Math.max(0, n.y - 0.5) * 1.2;
-    return new THREE.Color(0x6e5440).lerp(new THREE.Color(0xdfe5ec), Math.min(0.6, snowy));
-  }));
   return mergeGeometries(parts);
 }
 

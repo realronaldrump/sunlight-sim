@@ -13,7 +13,7 @@ import { RunSystem } from './runs/runs';
 import { TrailMap } from './ui/trailMap';
 import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
-import { detectQuality, PRESETS, QualityPreset } from './quality';
+import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
 import { SkiAudio } from './audio/audio';
 import { buildBuildings } from './world/buildings';
 import { ColliderGrid } from '../../shared/collision';
@@ -79,7 +79,6 @@ export class Game {
     this.quality = PRESETS[await detectQuality()];
     const Q = this.quality;
     this.renderer = new THREE.WebGPURenderer({ antialias: Q.antialias, forceWebGL });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, Q.pixelRatio));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
     this.renderer.shadowMap.enabled = Q.shadows;
@@ -146,6 +145,7 @@ export class Game {
     await this.hf.ensureArea(0, 0, 1000, 450);
     this.scene.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
+    this.camRig.blocked = (x, z) => this.colliders.query(x, z).some((c) => c.type === 'box' && Math.hypot(c.x - x, c.z - z) < 12);
     this.hud = new Hud();
 
     this.flyMode = this.params.get('fly') === '1';
@@ -227,6 +227,7 @@ export class Game {
 
   private onResize() {
     const w = window.innerWidth, h = window.innerHeight;
+    this.renderer.setPixelRatio(pixelRatioFor(this.quality, w, h));
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();

@@ -3,7 +3,8 @@ export type QualityName = 'low' | 'medium' | 'high' | 'ultra';
 
 export interface QualityPreset {
   name: QualityName;
-  pixelRatio: number;
+  pixelRatio: number;   // upper bound on device pixel ratio
+  targetMP: number;     // render-resolution budget in megapixels (1440p = 3.7 MP)
   shadows: boolean; shadowMapSize: number; cascades: number; shadowFar: number;
   terrainSplit: number;
   treeNear: number; treeFar: number;
@@ -11,10 +12,10 @@ export interface QualityPreset {
 }
 
 export const PRESETS: Record<QualityName, QualityPreset> = {
-  low: { name: 'low', pixelRatio: 1, shadows: false, shadowMapSize: 1024, cascades: 1, shadowFar: 300, terrainSplit: 1.15, treeNear: 110, treeFar: 1600, antialias: false },
-  medium: { name: 'medium', pixelRatio: 1, shadows: true, shadowMapSize: 1024, cascades: 2, shadowFar: 500, terrainSplit: 1.3, treeNear: 160, treeFar: 2400, antialias: true },
-  high: { name: 'high', pixelRatio: 1.5, shadows: true, shadowMapSize: 2048, cascades: 3, shadowFar: 900, terrainSplit: 1.5, treeNear: 210, treeFar: 3200, antialias: true },
-  ultra: { name: 'ultra', pixelRatio: 2, shadows: true, shadowMapSize: 4096, cascades: 4, shadowFar: 1400, terrainSplit: 1.9, treeNear: 280, treeFar: 4500, antialias: true },
+  low: { name: 'low', pixelRatio: 1, targetMP: 1.2, shadows: false, shadowMapSize: 1024, cascades: 1, shadowFar: 300, terrainSplit: 1.15, treeNear: 110, treeFar: 1600, antialias: false },
+  medium: { name: 'medium', pixelRatio: 1.25, targetMP: 2.4, shadows: true, shadowMapSize: 1024, cascades: 2, shadowFar: 500, terrainSplit: 1.3, treeNear: 160, treeFar: 2400, antialias: true },
+  high: { name: 'high', pixelRatio: 2, targetMP: 3.7, shadows: true, shadowMapSize: 2048, cascades: 3, shadowFar: 900, terrainSplit: 1.5, treeNear: 210, treeFar: 3200, antialias: true },
+  ultra: { name: 'ultra', pixelRatio: 2, targetMP: 8.3, shadows: true, shadowMapSize: 4096, cascades: 4, shadowFar: 1400, terrainSplit: 1.9, treeNear: 280, treeFar: 4500, antialias: true },
 };
 
 const KEY = 'sunlight.quality';
@@ -42,4 +43,11 @@ export async function detectQuality(): Promise<QualityName> {
     const cores = navigator.hardwareConcurrency ?? 4;
     return cores >= 8 ? 'high' : 'medium';
   } catch { return 'medium'; }
+}
+
+/** Pixel ratio that keeps the render target within the preset's megapixel budget. */
+export function pixelRatioFor(q: QualityPreset, cssW: number, cssH: number) {
+  const dpr = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
+  const budget = Math.sqrt((q.targetMP * 1e6) / Math.max(1, cssW * cssH));
+  return Math.max(0.5, Math.min(dpr, budget));
 }

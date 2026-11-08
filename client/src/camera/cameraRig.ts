@@ -12,6 +12,8 @@ export class CameraRig {
   private initialized = false;
   distance = 6.5;
   private dragging = false;
+  /** Optional obstacle test for camera placement. */
+  blocked: ((x: number, z: number) => boolean) | null = null;
 
   constructor(public camera: THREE.PerspectiveCamera, dom: HTMLElement, private ground: (x: number, z: number) => number) {
     let lx = 0, ly = 0;
@@ -68,7 +70,11 @@ export class CameraRig {
       // look across the fall line so the slope profile is seen side-on
       const fl = fallLine.lengthSq() > 1e-4 ? fallLine.clone().normalize() : dir.clone();
       const side = new THREE.Vector3(-fl.z, 0, fl.x);
-      if (side.dot(new THREE.Vector3(Math.cos(this.yawOffset), 0, Math.sin(this.yawOffset))) < -2) side.negate();
+      // pick the side whose camera spot is free of obstacles (buildings, huts, dense trees)
+      if (this.blocked) {
+        const a = target.clone().addScaledVector(side, this.distance * 2.2), b = target.clone().addScaledVector(side, -this.distance * 2.2);
+        if (this.blocked(a.x, a.z) && !this.blocked(b.x, b.z)) side.negate();
+      }
       desired = target.clone().addScaledVector(side, this.distance * 2.2).add(new THREE.Vector3(0, 1.2 + this.pitchOffset * 4, 0));
       look = target.clone().add(new THREE.Vector3(0, 1.0, 0));
     } else if (riding) {
