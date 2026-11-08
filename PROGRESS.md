@@ -43,8 +43,11 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Weather (light snowfall) and time-of-day slider in the options panel (P).
 - HUD: run average and steepest pitch on entry; arrow and distance to the nearest lift load line.
 - Draw calls cut ~35% by merging static geometry.
+- Click a friend on the trail map to join them; ambient riders on a third of the chairs; 8 ambient AI skiers (client/src/world/ambient.ts, `?ambient=0` disables).
+- Slope overlay partly self-lit so colours stay legible; rock exposure on steep distant peaks; WebKit + WebGL2 verified.
 
 ## Next steps (realism improvements, in priority order)
+0. Verify ambient skiers visually (added last, no screenshot review yet) and redeploy to Vercel (`npx vercel@latest deploy --prod --yes`); the live site predates ambient skiers/riders.
 1. Tree wells and wind-scoured ridges (surface shading near trunks and on convex ridgelines).
 2. Mid-distance tree shadows / ambient occlusion under the canopy.
 3. "Join friend" teleport from the trail map in multiplayer.

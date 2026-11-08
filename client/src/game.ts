@@ -17,6 +17,7 @@ import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality'
 import { SkiAudio } from './audio/audio';
 import { buildBuildings, buildResortExtras } from './world/buildings';
 import { mergeStatic } from './world/mergeStatic';
+import { AmbientSkiers } from './world/ambient';
 import { Snowfall } from './sky/snowfall';
 import { SkiTracks } from './skier/tracks';
 import { OptionsPanel } from './ui/options';
@@ -53,6 +54,7 @@ export class Game {
   audio = new SkiAudio();
   snowfall = new Snowfall();
   tracks = new SkiTracks();
+  ambient: AmbientSkiers | null = null;
   private trackFade = 0;
   options!: OptionsPanel;
   private lastMode = '';
@@ -178,6 +180,10 @@ export class Game {
     if (this.params.get('hour')) this.env.setHour(Number(this.params.get('hour')));
     this.scene.add(this.snowfall.mesh);
     this.scene.add(this.tracks.mesh);
+    if (this.params.get('ambient') !== '0') {
+      this.ambient = new AmbientSkiers(this.resort.runs, this.probe, this.quality.name === 'low' ? 4 : 8);
+      this.scene.add(this.ambient.group);
+    }
     if (this.params.get('snow') === '1') this.setSnow(true);
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
@@ -335,6 +341,7 @@ export class Game {
       this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
     }
     this.lifts.update();
+    this.ambient?.update(dt, this.player.position, this.camera.position);
     this.updateCamera(dt);
     for (const f of this.onFrame) f(dt);
     const p = this.flyMode ? this.camera.position : this.player.position;
