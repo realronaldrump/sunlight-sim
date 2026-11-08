@@ -5,7 +5,8 @@ import * as THREE from 'three/webgpu';
 import {
   Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorld, modelWorldMatrix,
   dot, mix, smoothstep, clamp, acos, texture, cameraPosition, normalize, hash, floor, fract, abs, sin,
-  max, length, select, step, pow, exp,
+  max, length, select, step, pow, exp, mx_noise_float, dFdx, dFdy, cross, sign, normalView, positionView,
+  transformNormalToView,
 } from 'three/tsl';
 import { EARTH_R_EFF } from '../../../shared/world';
 
@@ -78,9 +79,11 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     // groomed corduroy: ridges along the fall line, ~2.5 cm spacing, fade with distance
     const fall = normalize(vec2(nW.x, nW.z).add(vec2(1e-4, 0.0)));
     const across = dot(vec2(positionWorld.x, positionWorld.z), vec2(fall.y.negate(), fall.x));
-    const cord = abs(sin(across.mul(6.2831 / 0.025)));
-    const cordFade = float(1.0).sub(smoothstep(4.0, 22.0, dist));
-    snow.mulAssign(float(1.0).sub(groomed.mul(cordFade).mul(cord.mul(0.06))));
+    const cord = abs(sin(across.mul(6.2831 / 0.04)));
+    // fade the ridges once they get close to the pixel size (prevents moire)
+    const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
+    const cordFade = float(1.0).sub(smoothstep(0.006, 0.02, footprint));
+    snow.mulAssign(float(1.0).sub(groomed.mul(cordFade).mul(cord.mul(0.05))));
     // groomed snow is a touch brighter/smoother from far away
     snow.mulAssign(float(1.0).add(groomed.mul(0.015)));
     // forest from afar: trees darken the snow surface (only beyond near tree rendering range)
@@ -116,6 +119,27 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   });
   mat.colorNode = colorFn();
 
+  // micro relief: wind ripples and grain everywhere, corduroy ridges on groomed runs. Applied as a
+  // screen-space bump (derivative-based normal perturbation) that fades out with distance.
+  mat.normalNode = Fn(() => {
+    const p = positionWorld;
+    const near = float(1.0).sub(smoothstep(8.0, 60.0, dist));
+    const ripples = mx_noise_float(vec3(p.x.mul(0.9), 0.0, p.z.mul(2.6)).add(vec3(0.0, p.y.mul(0.3), 0.0))).mul(0.018);
+    const grain = mx_noise_float(p.mul(5.0)).mul(0.0022);
+    const fall = normalize(vec2(nW.x, nW.z).add(vec2(1e-4, 0.0)));
+    const across = dot(vec2(p.x, p.z), vec2(fall.y.negate(), fall.x));
+    const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
+    const cordFade = float(1.0).sub(smoothstep(0.005, 0.016, footprint));
+    const cord = abs(sin(across.mul(6.2831 / 0.04))).mul(0.005).mul(surf.r).mul(cordFade);
+    const h = ripples.mul(float(1.0).sub(surf.r.mul(0.8))).add(grain).mul(near).add(cord);
+    const dpx = dFdx(positionView), dpy = dFdy(positionView);
+    const nv = normalize(transformNormalToView(nW));
+    const r1 = cross(dpy, nv), r2 = cross(nv, dpx);
+    const det = dot(dpx, r1);
+    const grad = sign(det).mul(r1.mul(dFdx(h)).add(r2.mul(dFdy(h))));
+    return normalize(abs(det).mul(nv).sub(grad));
+  })();
+
   mat.roughnessNode = Fn(() => {
     const groomed = surf.r;
     return mix(float(0.72), float(0.6), groomed);
@@ -124,15 +148,15 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
 
   // sparkle: tiny glints that change with view direction, only in sun and nearby
   mat.emissiveNode = Fn(() => {
-    const cell = floor(positionWorld.mul(28.0));
+    const cell = floor(positionWorld.mul(70.0));
     const seed = dot(cell, vec3(1.0, 57.0, 113.0));
     const view = normalize(cameraPosition.sub(positionWorld));
     const vq = floor(view.mul(36.0));
     const h = hash(seed.add(dot(vq, vec3(7.0, 131.0, 977.0))));
     const sunlit = clamp(dot(nW, sunDir).mul(4.0), 0.0, 1.0);
-    const fade = float(1.0).sub(smoothstep(6.0, 45.0, dist));
-    const glint = smoothstep(0.9965, 1.0, h).mul(sunlit).mul(fade).mul(float(1.0).sub(slopeOverlay));
-    return vec3(1.0, 0.98, 0.92).mul(glint.mul(3.0));
+    const fade = float(1.0).sub(smoothstep(4.0, 25.0, dist));
+    const glint = smoothstep(0.996, 1.0, h).mul(sunlit).mul(fade).mul(float(1.0).sub(slopeOverlay));
+    return vec3(1.0, 0.98, 0.92).mul(glint.mul(2.2));
   })();
 
   void exp; void pow; void fract;

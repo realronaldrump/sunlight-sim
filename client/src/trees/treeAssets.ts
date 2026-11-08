@@ -117,12 +117,12 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
     c.translate(a.x, a.y, a.z);
     parts.push(colorize(c.toNonIndexed(), () => col));
   };
-  const trunk = new THREE.CylinderGeometry(0.035, 0.07, 1.0, detail === 'high' ? 8 : 5, 6, true);
+  const trunk = new THREE.CylinderGeometry(0.028, 0.05, 1.0, detail === 'high' ? 8 : 5, 6, true);
   trunk.translate(0, 0.5, 0);
   parts.push(colorize(trunk.toNonIndexed(), (p) => {
     const mark = Math.sin(p.y * 70 + Math.sin(p.x * 50) * 3) > 0.9 ? 0.35 : 1;
     const base = p.y < 0.07 ? 0.55 : 1;
-    return new THREE.Color(0.66, 0.66, 0.6).multiplyScalar(mark * base);
+    return new THREE.Color(0.62, 0.64, 0.58).multiplyScalar(mark * base);
   }));
   const nb = detail === 'high' ? 16 : 6;
   const branchCol = new THREE.Color(0.27, 0.25, 0.23), twigCol = new THREE.Color(0.2, 0.18, 0.17);

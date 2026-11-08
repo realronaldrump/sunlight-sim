@@ -17,6 +17,7 @@ import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality'
 import { SkiAudio } from './audio/audio';
 import { buildBuildings, buildResortExtras } from './world/buildings';
 import { Snowfall } from './sky/snowfall';
+import { SkiTracks } from './skier/tracks';
 import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
@@ -50,6 +51,8 @@ export class Game {
   quality!: QualityPreset;
   audio = new SkiAudio();
   snowfall = new Snowfall();
+  tracks = new SkiTracks();
+  private trackFade = 0;
   options!: OptionsPanel;
   private lastMode = '';
   private lastRideH = -1;
@@ -167,6 +170,7 @@ export class Game {
     if (this.params.get('pitch')) this.fly.pitch = Number(this.params.get('pitch')) * Math.PI / 180;
     if (this.params.get('hour')) this.env.setHour(Number(this.params.get('hour')));
     this.scene.add(this.snowfall.mesh);
+    this.scene.add(this.tracks.mesh);
     if (this.params.get('snow') === '1') this.setSnow(true);
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
@@ -340,6 +344,7 @@ export class Game {
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.updateHints();
     this.updateAudio(dt);
+    this.updateTracks(dt);
     this.renderer.render(this.scene, this.camera);
     this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
     if (Math.random() < 0.1) {
@@ -448,6 +453,24 @@ export class Game {
     this.player.teleport(x, z, Math.atan2(-top.dx, -top.dz));
     this.net?.markTeleport();
     this.hud.toast(`Top of ${name}`);
+  }
+
+  private updateTracks(dt: number) {
+    const st = this.player.st;
+    if (this.player.ride || st.mode === 'fallen' || st.mode === 'air' || st.speed < 1.2 || !st.grounded) { this.tracks.break(); }
+    else {
+      const d = new THREE.Vector3(-Math.sin(st.heading), 0, -Math.cos(st.heading));
+      const r = new THREE.Vector3(-d.z, 0, d.x);
+      const w = 0.14 + 0.2 * st.plow;
+      const l = new THREE.Vector3(st.pos.x - r.x * w, 0, st.pos.z - r.z * w);
+      const rr = new THREE.Vector3(st.pos.x + r.x * w, 0, st.pos.z + r.z * w);
+      l.y = this.hf.heightAt(l.x, l.z); rr.y = this.hf.heightAt(rr.x, rr.z);
+      const surf = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
+      // deeper, wider tracks in soft snow and when skidding
+      this.tracks.add(l, rr, d, 0.1 + 0.25 * st.skid, 0.6 + 0.6 * (1 - surf.groomed) + 0.4 * st.skid);
+    }
+    this.trackFade += dt;
+    if (this.trackFade > 1) { this.tracks.fade(this.trackFade); this.trackFade = 0; }
   }
 
   private updateAudio(dt: number) {
