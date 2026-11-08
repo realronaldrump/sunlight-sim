@@ -312,8 +312,8 @@ function substep(st: SkierState, input: SkiInput, terrain: TerrainProbe, dt: num
   const vnNow = dot(v, n2);
   if (above <= 0.0) {
     land(st, terrain, g2);
-  } else if (above < 0.25 && vnNow < 1.5) {
-    // stay glued over small undulations
+  } else if (above < 0.06 && vnNow < 0.8) {
+    // stay glued over tiny undulations (lidar noise); real crests and bumps launch the skier
     st.pos.y = g2;
     v.x -= n2.x * vnNow; v.y -= n2.y * vnNow; v.z -= n2.z * vnNow;
   } else {
@@ -331,7 +331,9 @@ function land(st: SkierState, terrain: TerrainProbe, g: number) {
   st.pos.y = g;
   if (vn < 0) {
     v.x -= n.x * vn; v.y -= n.y * vn; v.z -= n.z * vn;
-    if (!st.grounded && -vn > PARAMS.hardLanding && st.mode !== 'fallen') fall(st, -vn);
+    // legs absorb landings and bump compressions up to a limit
+    const limit = st.grounded ? PARAMS.hardLanding * 1.25 : PARAMS.hardLanding;
+    if (-vn > limit && st.mode !== 'fallen') fall(st, -vn);
   }
   st.grounded = true;
   if (st.mode === 'air') { st.mode = 'skiing'; st.modeTime = 0; }

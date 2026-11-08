@@ -14,6 +14,26 @@ const roofMat = new THREE.MeshStandardNodeMaterial({ color: 0x4a2f22, roughness:
 const chairMat = new THREE.MeshStandardNodeMaterial({ color: 0x2f3338, roughness: 0.55, metalness: 0.4 });
 const seatMat = new THREE.MeshStandardNodeMaterial({ color: 0x1e4f8a, roughness: 0.7 });
 const terminalPaint = new THREE.MeshStandardNodeMaterial({ color: 0x24527a, roughness: 0.5, metalness: 0.3 });
+const concrete = new THREE.MeshStandardNodeMaterial({ color: 0x77736c, roughness: 0.95 });
+let hutMats: THREE.Material[] | null = null;
+/** Operator hut walls: wood siding with a window on every side and a door on one. */
+function hutMaterials() {
+  if (hutMats) return hutMats;
+  const make = (door: boolean) => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const g = cv.getContext('2d')!;
+    g.fillStyle = '#7a5536'; g.fillRect(0, 0, 256, 256);
+    for (let x = 0; x < 256; x += 10) { g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(x, 0, 2, 256); }
+    g.fillStyle = '#efe9dc'; g.fillRect(door ? 128 : 60, 60, 100, 80);
+    g.fillStyle = '#26323d'; g.fillRect(door ? 134 : 66, 66, 88, 68);
+    if (door) { g.fillStyle = '#3b2a1e'; g.fillRect(28, 70, 70, 186); g.fillStyle = '#c9a54a'; g.fillRect(84, 160, 8, 8); }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const side = new THREE.MeshStandardNodeMaterial({ map: make(false), roughness: 0.85 });
+  const front = new THREE.MeshStandardNodeMaterial({ map: make(true), roughness: 0.85 });
+  hutMats = [side, side, wood, wood, front, side];
+  return hutMats;
+}
 
 function chairGeometry(seats: number) {
   const w = seats * 0.6 + 0.1;
@@ -65,7 +85,8 @@ export class LiftSystem {
       if (!kind) return;
       let gmax = -Infinity;
       for (const [dx, dz] of [[-1.6, -1.8], [1.6, -1.8], [-1.6, 1.8], [1.6, 1.8], [0, 0]]) gmax = Math.max(gmax, height(o.position.x + dx, o.position.z + dz));
-      if (kind === 'hut') o.position.y = gmax + 1.3 - 1.5;
+      if (kind === 'hut') o.position.y = gmax + 1.3;
+      else if (kind === 'footing') o.position.y = gmax - 1.6;
       else o.position.y = gmax + 3.2;
     });
   }
@@ -125,9 +146,12 @@ export class LiftSystem {
         // operator hut beside the terminal (left side, away from the loading side)
         const hutX = p.x - path.rx * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
         const hutZ = p.z - path.rz * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
-        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6 + 3, 3.6), wood);
-        hut.position.set(hutX, s.ground + 1.3 - 1.5, hutZ);
-        hut.userData.settle = 'hut'; hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
+        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 3.6), hutMaterials());
+        hut.position.set(hutX, s.ground + 1.3, hutZ);
+        hut.userData.settle = 'hut';
+        const footing = new THREE.Mesh(new THREE.BoxGeometry(3.3, 3.2, 3.7), concrete);
+        footing.position.set(hutX, s.ground - 1.6, hutZ); footing.rotation.y = yaw; footing.userData.settle = 'footing';
+        g.add(footing); hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
         g.add(hut);
         const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.2, 4), roofMat);
         roof.position.set(hutX, s.ground + 3.2, hutZ); roof.rotation.y = yaw + Math.PI / 4; roof.castShadow = true; g.add(roof);

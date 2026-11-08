@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Heightfield } from '../../client/src/terrain/heightfield';
 import type { TerrainProbe, Vec3, SurfaceInfo } from '../../shared/skiPhysics';
 import { SurfaceMap } from '../../shared/surface';
+import { mogulOffset } from '../../shared/moguls';
 
 export const WORLD_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/public/world');
 
@@ -27,6 +28,7 @@ export async function loadWorld() {
   try {
     surface = await SurfaceMap.load('/world', fsLoader);
   } catch { surface = null; }
+  if (surface) { const s = surface; hf.modifier = (x, n) => mogulOffset(x, n, s.mogulsLocal(x, n)); }
   return { hf, resort, surface };
 }
 

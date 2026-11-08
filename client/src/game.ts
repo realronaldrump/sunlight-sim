@@ -15,13 +15,14 @@ import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
 import { SkiAudio } from './audio/audio';
-import { buildBuildings } from './world/buildings';
+import { buildBuildings, buildResortExtras } from './world/buildings';
 import { Snowfall } from './sky/snowfall';
 import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
 import type { LiftDef } from '../../shared/lifts';
+import { mogulOffset } from '../../shared/moguls';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
@@ -100,6 +101,7 @@ export class Game {
     void _;
     this.resort = resort;
     this.surface = surface;
+    if (surface) this.hf.modifier = (x, n) => mogulOffset(x, n, surface.mogulsLocal(x, n));
     this.probe = {
       height: (x, z) => this.hf.heightAt(x, z),
       normal: (x, z, out: Vec3) => { const n = this.hf.normalAt(x, z, 1); out.x = n.x; out.y = n.y; out.z = n.z; return out; },
@@ -148,6 +150,7 @@ export class Game {
     await Promise.all([this.loadBaseMask(), this.loadLandcover()]);
     await this.hf.ensureArea(0, 0, 1000, 450);
     this.scene.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
+    this.scene.add(buildResortExtras(this.resort.lifts, (x, z) => this.hf.heightAt(x, z), (x, z) => this.hf.slopeDeg(x, z, 3), this.colliders));
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.camRig.blocked = (x, z) => this.colliders.query(x, z).some((c) => c.type === 'box' && Math.hypot(c.x - x, c.z - z) < 12);
     this.hud = new Hud();

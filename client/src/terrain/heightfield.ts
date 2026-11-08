@@ -37,6 +37,9 @@ export class Heightfield {
   private tiles = new Map<string, HeightTile>();
   private pending = new Map<string, Promise<HeightTile | null>>();
   loadedBytes = 0;
+  /** Optional height modifier baked into fine tiles on load (moguls). */
+  modifier: ((x: number, n: number) => number) | null = null;
+  modifierMaxLevel = 1;
 
   constructor(private base: string, private loader: Loader = browserLoader) {}
 
@@ -77,6 +80,16 @@ export class Heightfield {
         this.loadedBytes += buf.byteLength;
         const d = await decodeTile(buf);
         const tile: HeightTile = { level: L, tx, tn, n: d.n, r: 2 ** L, S: 256 * 2 ** L, heights: d.heights, min: d.min, max: d.max };
+        if (this.modifier && L <= this.modifierMaxLevel) {
+          const r = tile.r, N = tile.n, H = tile.heights, x0 = tx * tile.S - r, n0 = tn * tile.S - r;
+          // coarser level gets damped bumps (it cannot represent 4.6 m waves well)
+          const k = L === 0 ? 1 : 0.35;
+          for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+            const dh = this.modifier(x0 + i * r, n0 + j * r) * k;
+            if (dh) { H[j * N + i] += dh; }
+          }
+          tile.max += 0.5;
+        }
         this.tiles.set(k, tile);
         this.pending.delete(k);
         return tile;

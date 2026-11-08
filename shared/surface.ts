@@ -41,4 +41,14 @@ export class SurfaceMap {
   }
 
   canopy(x: number, z: number) { return this.rgba(x, z)[2] / 255; }
+
+  /** Bilinear mogul mask (0..1) at local (x, n). */
+  mogulsLocal(x: number, n: number): number {
+    const fx = (x - this.x0) / this.res - 0.5, fy = (n - this.n0) / this.res - 0.5;
+    const i = Math.floor(fx), j = Math.floor(fy);
+    if (i < 0 || j < 0 || i >= this.w - 1 || j >= this.h - 1) return 0;
+    const u = fx - i, v = fy - j, d = this.data, w = this.w;
+    const a = d[(j * w + i) * 4 + 3], b = d[(j * w + i + 1) * 4 + 3], c = d[((j + 1) * w + i) * 4 + 3], e = d[((j + 1) * w + i + 1) * 4 + 3];
+    return ((a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + e * u) * v) / 255;
+  }
 }
