@@ -16,6 +16,8 @@ export interface TerrainMaterialHandles {
   sunDir: { value: THREE.Vector3 };
   setSurface(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setLandcover(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
+  setLandcoverMid(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
+  setBase(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
 }
 
 export const viewerUniform = uniform(new THREE.Vector3());
@@ -36,6 +38,8 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   placeholder.needsUpdate = true;
   const surfBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
   const landBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
+  const baseBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
+  const midBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
 
   mat.positionNode = curvedPosition();
 
@@ -47,7 +51,14 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const surf = surfTex.mul(inSurf);
   const landUV = xn.sub(landBounds.xy).div(landBounds.zw);
   const landTex = texture(placeholder, landUV);
-  const land = landTex;
+  const midUV = xn.sub(midBounds.xy).div(midBounds.zw);
+  const inMid = step(0.0, midUV.x).mul(step(midUV.x, 1.0)).mul(step(0.0, midUV.y)).mul(step(midUV.y, 1.0));
+  const midTex = texture(placeholder, midUV);
+  const land = mix(landTex, midTex, inMid);
+  const baseUV = xn.sub(baseBounds.xy).div(baseBounds.zw);
+  const inBase = step(0.0, baseUV.x).mul(step(baseUV.x, 1.0)).mul(step(0.0, baseUV.y)).mul(step(baseUV.y, 1.0));
+  const baseTex = texture(placeholder, baseUV);
+  const plowed = baseTex.r.mul(inBase);
 
   const nW = normalize(normalWorld);
   const slopeDeg = acos(clamp(nW.y, 0.0, 1.0)).mul(57.29578);
@@ -56,7 +67,8 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const colorFn = Fn(() => {
     const groomed = surf.r;
     const piste = surf.g;
-    const canopy = max(surf.b, land.r.mul(float(1.0).sub(inSurf)));
+    const canopy = surf.b;
+    const landCanopy = land.r.mul(float(1.0).sub(inSurf)); // forest where no tree instances are drawn
     const moguls = surf.a;
     // base Colorado snow: very slightly blue-white
     const snow = vec3(0.90, 0.93, 0.97).toVar();
@@ -77,12 +89,20 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const farForest = smoothstep(1500.0, 4000.0, dist).mul(canopy).mul(0.45);
     const forestCol = vec3(0.13, 0.17, 0.15);
     snow.assign(mix(snow, forestCol, midForest.add(farForest)));
+    // distant forests (ESA WorldCover): dark conifer/aspen stands with some snow showing through
+    const speck = hash(floor(xn.mul(0.08)).dot(vec2(13.0, 71.0)));
+    const farCol = vec3(0.11, 0.145, 0.13).add(vec3(0.08).mul(speck));
+    snow.assign(mix(snow, farCol, landCanopy.mul(0.78)));
     // exposed rock on very steep faces that are not runs
     // mogul fields: soft light/shade pattern of bumps (about 4 m spacing) where the run is not groomed
     const mp = vec2(positionWorld.x, positionWorld.z).mul(0.26);
     const bump = sin(mp.x.add(sin(mp.y.mul(0.7)))).mul(sin(mp.y.add(sin(mp.x.mul(0.6)))));
     const mogFade = float(1.0).sub(smoothstep(60.0, 400.0, dist));
     snow.mulAssign(float(1.0).add(bump.mul(moguls).mul(mogFade).mul(0.06)));
+    // plowed roads and parking lots: packed snow over gravel with tyre tracks
+    const tracks = abs(sin(dot(vec2(positionWorld.x, positionWorld.z), vec2(0.7, 0.7)).mul(3.1))).mul(0.06);
+    const plowCol = vec3(0.58, 0.56, 0.53).mul(float(0.92).add(n1.mul(0.12)).sub(tracks));
+    snow.assign(mix(snow, plowCol, plowed.mul(0.8)));
     const rock = smoothstep(48.0, 58.0, slopeDeg).mul(float(1.0).sub(piste));
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
     snow.assign(mix(snow, rockCol, rock));
@@ -125,6 +145,14 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     setSurface(tex, x0, n0, sx, sn) {
       surfTex.value = tex;
       surfBounds.value.set(x0, n0, sx, sn);
+    },
+    setBase(tex, x0, n0, sx, sn) {
+      baseTex.value = tex;
+      baseBounds.value.set(x0, n0, sx, sn);
+    },
+    setLandcoverMid(tex, x0, n0, sx, sn) {
+      midTex.value = tex;
+      midBounds.value.set(x0, n0, sx, sn);
     },
     setLandcover(tex, x0, n0, sx, sn) {
       landTex.value = tex;

@@ -121,7 +121,7 @@ export class LiftSystem {
         const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.2, 4), roofMat);
         roof.position.set(hutX, s.ground + 3.2, hutZ); roof.rotation.y = yaw + Math.PI / 4; roof.castShadow = true; g.add(roof);
         roof.userData.settle = 'roof';
-        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: 1.7, hz: 1.9, yaw: -yaw, top: s.ground + 3 });
+        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: 1.7, hz: 1.9, yaw, top: s.ground + 3 });
       }
     }
     // haul rope: two lines + bull wheel arcs, as thin tubes

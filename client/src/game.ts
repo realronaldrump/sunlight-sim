@@ -14,6 +14,8 @@ import { TrailMap } from './ui/trailMap';
 import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset } from './quality';
+import { SkiAudio } from './audio/audio';
+import { buildBuildings } from './world/buildings';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
@@ -43,6 +45,9 @@ export class Game {
   net: NetClient | null = null;
   chat!: ChatUI;
   quality!: QualityPreset;
+  audio = new SkiAudio();
+  private lastMode = '';
+  private lastRideH = -1;
   input = new InputManager();
   camRig!: CameraRig;
   hud!: Hud;
@@ -137,6 +142,9 @@ export class Game {
       tex.needsUpdate = true;
       this.terrainMat.setSurface(tex, s.x0, s.n0, s.w * s.res, s.h * s.res);
     }
+    await Promise.all([this.loadBaseMask(), this.loadLandcover()]);
+    await this.hf.ensureArea(0, 0, 1000, 450);
+    this.scene.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.hud = new Hud();
 
@@ -165,6 +173,9 @@ export class Game {
     this.setLoading(1, 'Ready');
     document.getElementById('loading')?.classList.add('done');
     this.chat = new ChatUI();
+    const startAudio = () => { if (this.params.get('mute') !== '1') this.audio.start(); };
+    window.addEventListener('keydown', startAudio);
+    window.addEventListener('pointerdown', startAudio);
     this.renderer.setAnimationLoop(() => this.frame());
     // start menu (skipped by ?autostart=1 for tests: name/color/room come from the URL)
     let choice: { name: string; color: string; room: string | null };
@@ -285,6 +296,7 @@ export class Game {
       }
     }
     if (actions.help) this.hud.toggleHelp();
+    if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
     if (this.trailMap.visible) {
       const st2 = this.player.st;
@@ -308,15 +320,52 @@ export class Game {
     this.env.update(p);
 
     const st = this.player.st;
-    const run = this.runAt(st.pos.x, st.pos.z);
+    const run = this.player.ride ? null : this.runAt(st.pos.x, st.pos.z);
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.updateHints();
+    this.updateAudio(dt);
     this.renderer.render(this.scene, this.camera);
     this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
     if (Math.random() < 0.1) {
       const info = this.renderer.info;
       this.hud.stats(`${this.fps.toFixed(0)} fps  cpu ${this.frameMs.toFixed(1)} ms\nterrain ${this.terrain.visibleCount} chunks\ncalls ${info.render.drawCalls} tris ${(info.render.triangles / 1e6).toFixed(2)}M`);
     }
+  }
+
+  private async loadGrid(file: string, magic: string) {
+    const buf = await (await fetch(`${WORLD_BASE}/${file}`)).arrayBuffer();
+    const u8 = new Uint8Array(buf);
+    const raw = u8[0] === 0x1f ? await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : buf;
+    const dv = new DataView(raw);
+    const m = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+    if (m !== magic) throw new Error('bad grid ' + file);
+    const x0 = dv.getFloat32(4, true), n0 = dv.getFloat32(8, true), res = dv.getFloat32(12, true);
+    const w = dv.getUint16(16, true), h = dv.getUint16(18, true);
+    const tex = new THREE.DataTexture(new Uint8Array(raw, 20, w * h), w, h, THREE.RedFormat);
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.needsUpdate = true;
+    return { tex, x0, n0, sx: w * res, sn: h * res };
+  }
+
+  private async loadLandcover() {
+    try {
+      const [far, mid] = await Promise.all([this.loadGrid('landcover_far.bin.gz', 'SLL1'), this.loadGrid('landcover_mid.bin.gz', 'SLL1')]);
+      this.terrainMat.setLandcover(far.tex, far.x0, far.n0, far.sx, far.sn);
+      this.terrainMat.setLandcoverMid(mid.tex, mid.x0, mid.n0, mid.sx, mid.sn);
+    } catch (e) { console.warn('landcover failed', e); }
+  }
+
+  private async loadBaseMask() {
+    try {
+      const buf = await (await fetch(`${WORLD_BASE}/base.bin.gz`)).arrayBuffer();
+      const u8 = new Uint8Array(buf);
+      const raw = u8[0] === 0x1f ? await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : buf;
+      const dv = new DataView(raw);
+      const x0 = dv.getFloat32(4, true), n0 = dv.getFloat32(8, true), res = dv.getFloat32(12, true);
+      const w = dv.getUint16(16, true), h = dv.getUint16(18, true);
+      const tex = new THREE.DataTexture(new Uint8Array(raw, 20, w * h), w, h, THREE.RedFormat);
+      tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true; tex.needsUpdate = true;
+      this.terrainMat.setBase(tex, x0, n0, w * res, h * res);
+    } catch (e) { console.warn('base mask failed', e); }
   }
 
   async joinRoom(room: string) {
@@ -378,6 +427,29 @@ export class Game {
     this.player.teleport(x, z, Math.atan2(-top.dx, -top.dz));
     this.net?.markTeleport();
     this.hud.toast(`Top of ${name}`);
+  }
+
+  private updateAudio(dt: number) {
+    const pl = this.player, st = pl.st;
+    const surf = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
+    let near = Infinity;
+    for (const l of this.resort.lifts) {
+      near = Math.min(near, Math.hypot(st.pos.x - l.bottom[0], st.pos.z - l.bottom[2]), Math.hypot(st.pos.x - l.top[0], st.pos.z - l.top[2]));
+    }
+    let towerPass = false;
+    if (pl.ride) {
+      const path = this.lifts.paths[pl.ride.lift];
+      const b = path.def.bottom;
+      const h = (st.pos.x - b[0]) * path.ax + (st.pos.z - b[2]) * path.az;
+      if (this.lastRideH >= 0) for (const sup of path.def.supports) if (sup.kind === 'tower' && this.lastRideH < sup.s && h >= sup.s) towerPass = true;
+      this.lastRideH = h;
+    } else this.lastRideH = -1;
+    const fell = st.mode === 'fallen' && this.lastMode !== 'fallen';
+    this.lastMode = st.mode;
+    this.audio.update(dt, {
+      speed: st.speed, skid: st.skid, edge: st.edge, grounded: st.grounded, groomed: surf.groomed, moguls: surf.moguls,
+      plow: st.plow, riding: !!pl.ride, nearTerminal: near, towerPass, fell, inAir: st.mode === 'air',
+    });
   }
 
   private modeLabel() {

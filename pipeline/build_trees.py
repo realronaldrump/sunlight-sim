@@ -82,15 +82,28 @@ def main():
         bright = (R + G + B) / 3
         warm = (R - B) / (bright + 1)
         valid = bright > 5
-        # fall imagery: aspen golden/yellow, oak orange/red/brown, conifers dark green
-        decid = valid & (((warm > 0.42) & (bright > 62)) | ((bright > 95) & (warm > 0.25)))
+        # fall imagery (late Sep / early Oct 2023): aspen and oak are bright yellow-green to gold with high NIR,
+        # spruce/fir/Douglas-fir are dark blue-green. Two-cluster k-means on (brightness, warmth, NIR) of trees > 4 m.
+        from scipy.cluster.vq import kmeans2
+        X = np.c_[bright, warm * 100, NIR]
+        m4 = valid & (hmax > 4)
+        mu, sd = X[m4].mean(0), X[m4].std(0) + 1e-6
+        centers, _ = kmeans2((X[m4] - mu) / sd, 2, seed=1, minit="++")
+        Z = (X - mu) / sd
+        d0 = ((Z - centers[0]) ** 2).sum(1); d1 = ((Z - centers[1]) ** 2).sum(1)
+        bright_cluster = 0 if (centers[0][0] > centers[1][0]) else 1
+        d_dec, d_con = (d0, d1) if bright_cluster == 0 else (d1, d0)
+        # elevation prior: aspen thins out toward the spruce-fir zone near the summit
+        prior = 1.0 - 0.3 * np.clip((ground - 2800) / 250, 0, 1)
+        decid = valid & (d_dec < d_con * prior)
+        print("k-means centers (bright, warm*100, NIR):", np.round(centers * sd + mu, 1).tolist())
         np.savez(PROC / "tree_colors.npz", R=R, G=G, B=B, NIR=NIR, h=hmax)
         print(f"NAIP: deciduous fraction {decid.mean():.2f}")
     if decid is None:
         # fallback heuristic: aspen stands on moderate slopes 2450-3050 m, more on north/east aspects
         p = 0.25 * ((ground > 2450) & (ground < 3050)) * (1 - 0.5 * np.clip(south, 0, 1))
         decid = rng.random(len(xs)) < p
-    oak = decid & (hmax < 6.5) & (ground < 2800)
+    oak = decid & (hmax < 5.5) & (ground < 2650)
     aspen = decid & ~oak
     douglas = ~decid & ((ground < 2650) | ((south > 0.4) & (ground < 2850)))
     species[douglas] = 1

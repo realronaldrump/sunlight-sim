@@ -3,7 +3,7 @@ import type { SkiInput } from '../../../shared/skiPhysics';
 
 export interface Actions {
   getUp: boolean; camera: boolean; map: boolean; slope: boolean; skipLift: boolean; help: boolean;
-  chat: boolean; respawn: boolean;
+  chat: boolean; respawn: boolean; mute: boolean;
 }
 
 export class InputManager {
@@ -78,6 +78,7 @@ export class InputManager {
       help: pr.has('KeyH') || pr.has('Slash'),
       chat: pr.has('Enter') || pr.has('KeyT'),
       respawn: pr.has('KeyB') || btn(9),
+      mute: pr.has('KeyN'),
     };
     pr.clear();
     return a;

@@ -3,7 +3,7 @@
 // shadows and have collision; farther trees are crossed-quad impostors grouped per 512 m tile.
 import * as THREE from 'three/webgpu';
 import { texture, uv, vec2, vec3, float, attribute, transformNormalToView, mix, positionWorld, cameraPosition, length, smoothstep } from 'three/tsl';
-import { coniferGeometry, aspenGeometry, oakGeometry, impostorAtlas, crossQuadGeometry } from './treeAssets';
+import { coniferGeometry, aspenGeometry, oakGeometry, impostorAtlas, crossQuadGeometry, branchTexture } from './treeAssets';
 import type { ColliderGrid } from '../../../shared/collision';
 
 const CELL = 64;
@@ -62,9 +62,13 @@ export class TreeSystem {
     this.impostorMat = mat;
 
     const nearMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9 });
+    const coniferMat = new THREE.MeshStandardNodeMaterial({
+      vertexColors: true, map: branchTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95,
+    });
+    coniferMat.envMapIntensity = 0.5;
     const geos = [coniferGeometry(0, 'high'), coniferGeometry(1, 'high'), aspenGeometry('high'), oakGeometry('high')];
     for (let s = 0; s < 4; s++) {
-      const m = new THREE.InstancedMesh(geos[s], nearMat, 24000);
+      const m = new THREE.InstancedMesh(geos[s], s <= 1 ? coniferMat : nearMat, 24000);
       m.count = 0;
       m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
       this.nearMeshes.push(m);

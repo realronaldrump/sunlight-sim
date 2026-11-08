@@ -66,7 +66,7 @@ export class Hud {
       <kbd>O</kbd>: slope angle overlay<br>
       <kbd>F</kbd>: skip the lift ride<br>
       <kbd>B</kbd>: back to the base area<br>
-      <kbd>T</kbd>: chat &nbsp; <kbd>H</kbd>: hide this help<br>
+      <kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera<br>
       Ski into the red load line under a chairlift and wait for the chair. Drag the mouse to look around.`;
     document.body.appendChild(help);
     this.speedEl = document.getElementById('h-speed')!; this.slopeEl = document.getElementById('h-slope')!;
