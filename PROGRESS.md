@@ -18,6 +18,9 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 10. README.md, CREDITS.md, ACCURACY.md, DECISIONS.md complete.
 11. Final visual review pass: done (review 4 below). Continue reviewing after every visual change.
 
+## Browser coverage
+- Chromium (WebGPU and forced WebGL2 via `?webgl=1`) and WebKit (Safari engine, WebGPU) verified by tests/e2e/smoke.spec.ts and probes: 60 fps, no console errors. Windows Chrome not tested (no Windows machine); it uses the same Chromium code path.
+
 ## How to run / test
 - `npm install && npm run dev`, open http://localhost:5173.
 - `npm test` (30 unit tests), `npm run test:pipeline`, `npx playwright test` (viewpoints, gameplay, multiplayer, performance; needs `npm run dev` free ports or reuses a running dev server).
