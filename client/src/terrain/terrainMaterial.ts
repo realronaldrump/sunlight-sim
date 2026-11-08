@@ -66,6 +66,16 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const slopeDeg = acos(clamp(nW.y, 0.0, 1.0)).mul(57.29578);
   const dist = length(positionWorld.sub(cameraPosition));
 
+  const overlayColor = Fn(() => {
+    const ov = vec3(0.10, 0.75, 0.18).toVar(); // < 15 deg  green
+    ov.assign(select(slopeDeg.greaterThan(15.0), vec3(0.08, 0.35, 1.0), ov)); // 15-25 blue
+    ov.assign(select(slopeDeg.greaterThan(25.0), vec3(0.05, 0.05, 0.07), ov)); // 25-35 black
+    ov.assign(select(slopeDeg.greaterThan(35.0), vec3(1.0, 0.32, 0.0), ov)); // 35-45 orange
+    ov.assign(select(slopeDeg.greaterThan(45.0), vec3(0.95, 0.05, 0.05), ov)); // > 45 red
+    return ov;
+  });
+  const overlay = overlayColor();
+
   const colorFn = Fn(() => {
     const groomed = surf.r;
     const piste = surf.g;
@@ -112,12 +122,7 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
     snow.assign(mix(snow, rockCol, rock));
     // beginner slope-angle overlay
-    const ov = vec3(0.10, 0.75, 0.18).toVar(); // < 15 deg  green
-    ov.assign(select(slopeDeg.greaterThan(15.0), vec3(0.08, 0.35, 1.0), ov)); // 15-25 blue
-    ov.assign(select(slopeDeg.greaterThan(25.0), vec3(0.05, 0.05, 0.07), ov)); // 25-35 black
-    ov.assign(select(slopeDeg.greaterThan(35.0), vec3(1.0, 0.45, 0.0), ov)); // 35-45 orange
-    ov.assign(select(slopeDeg.greaterThan(45.0), vec3(0.95, 0.05, 0.05), ov)); // > 45 red
-    return mix(snow, ov, slopeOverlay.mul(0.78));
+    return mix(snow, overlay, slopeOverlay.mul(0.9));
   });
   mat.colorNode = colorFn();
 
@@ -157,7 +162,8 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const sunlit = clamp(dot(nW, sunDir).mul(4.0), 0.0, 1.0);
     const fade = float(1.0).sub(smoothstep(4.0, 25.0, dist));
     const glint = smoothstep(0.996, 1.0, h).mul(sunlit).mul(fade).mul(float(1.0).sub(slopeOverlay));
-    return vec3(1.0, 0.98, 0.92).mul(glint.mul(2.2));
+    // overlay partly self-lit so its colours stay readable in sun and shade
+    return vec3(1.0, 0.98, 0.92).mul(glint.mul(2.2)).add(overlay.mul(slopeOverlay).mul(0.5));
   })();
 
   void exp; void pow; void fract;
