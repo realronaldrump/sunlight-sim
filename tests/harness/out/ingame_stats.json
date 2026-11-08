@@ -1,0 +1,662 @@
+{
+ "Zephyr": {
+  "difficulty": "black",
+  "lengthM": 658,
+  "horizM": 619,
+  "top": 2912,
+  "bottom": 2705,
+  "dropM": 207,
+  "avgDeg": 18.5,
+  "maxCenterline10mDeg": 32.5
+ },
+ "Rebel": {
+  "difficulty": "blue",
+  "lengthM": 874,
+  "horizM": 837,
+  "top": 2894,
+  "bottom": 2662,
+  "dropM": 232,
+  "avgDeg": 15.5,
+  "maxCenterline10mDeg": 25.9
+ },
+ "Grizzly Face": {
+  "difficulty": "blue",
+  "lengthM": 370,
+  "horizM": 363,
+  "top": 2853,
+  "bottom": 2797,
+  "dropM": 55,
+  "avgDeg": 8.7,
+  "maxCenterline10mDeg": 18.7
+ },
+ "Grizzly Road": {
+  "difficulty": "green",
+  "lengthM": 2571,
+  "horizM": 2541,
+  "top": 3002,
+  "bottom": 2662,
+  "dropM": 340,
+  "avgDeg": 7.6,
+  "maxCenterline10mDeg": 21
+ },
+ "The Parks": {
+  "difficulty": "green",
+  "lengthM": 590,
+  "horizM": 585,
+  "top": 2942,
+  "bottom": 2870,
+  "dropM": 72,
+  "avgDeg": 7,
+  "maxCenterline10mDeg": 12.5
+ },
+ "Ute": {
+  "difficulty": "green",
+  "lengthM": 3394,
+  "horizM": 3340,
+  "top": 3002,
+  "bottom": 2484,
+  "dropM": 518,
+  "avgDeg": 8.8,
+  "maxCenterline10mDeg": 24
+ },
+ "Beaujolais": {
+  "difficulty": "blue",
+  "lengthM": 1515,
+  "horizM": 1466,
+  "top": 2894,
+  "bottom": 2566,
+  "dropM": 328,
+  "avgDeg": 12.6,
+  "maxCenterline10mDeg": 28.7
+ },
+ "Defiance": {
+  "difficulty": "black",
+  "lengthM": 984,
+  "horizM": 920,
+  "top": 2871,
+  "bottom": 2554,
+  "dropM": 317,
+  "avgDeg": 19,
+  "maxCenterline10mDeg": 31.1
+ },
+ "Midland Traverse": {
+  "difficulty": "black",
+  "lengthM": 971,
+  "horizM": 965,
+  "top": 2574,
+  "bottom": 2501,
+  "dropM": 73,
+  "avgDeg": 4.3,
+  "maxCenterline10mDeg": 14.4
+ },
+ "Deception": {
+  "difficulty": "double",
+  "lengthM": 594,
+  "horizM": 543,
+  "top": 2796,
+  "bottom": 2574,
+  "dropM": 222,
+  "avgDeg": 22.2,
+  "maxCenterline10mDeg": 40.1
+ },
+ "Teeds Run": {
+  "difficulty": "double",
+  "lengthM": 326,
+  "horizM": 283,
+  "top": 2708,
+  "bottom": 2551,
+  "dropM": 157,
+  "avgDeg": 29.1,
+  "maxCenterline10mDeg": 42.2
+ },
+ "The Heathen": {
+  "difficulty": "double",
+  "lengthM": 138,
+  "horizM": 111,
+  "top": 2712,
+  "bottom": 2632,
+  "dropM": 80,
+  "avgDeg": 35.7,
+  "maxCenterline10mDeg": 46.9
+ },
+ "Tod's Ride": {
+  "difficulty": "double",
+  "lengthM": 144,
+  "horizM": 125,
+  "top": 2628,
+  "bottom": 2563,
+  "dropM": 66,
+  "avgDeg": 27.8,
+  "maxCenterline10mDeg": 38.3
+ },
+ "Banzai": {
+  "difficulty": "double",
+  "lengthM": 165,
+  "horizM": 142,
+  "top": 2657,
+  "bottom": 2576,
+  "dropM": 81,
+  "avgDeg": 29.8,
+  "maxCenterline10mDeg": 41.4
+ },
+ "Devil's Dare": {
+  "difficulty": "double",
+  "lengthM": 162,
+  "horizM": 141,
+  "top": 2619,
+  "bottom": 2543,
+  "dropM": 76,
+  "avgDeg": 28.3,
+  "maxCenterline10mDeg": 37.1
+ },
+ "Gnarly Knob": {
+  "difficulty": "black",
+  "lengthM": 481,
+  "horizM": 450,
+  "top": 2766,
+  "bottom": 2617,
+  "dropM": 150,
+  "avgDeg": 18.4,
+  "maxCenterline10mDeg": 32.7
+ },
+ "Inspiration": {
+  "difficulty": "black",
+  "lengthM": 435,
+  "horizM": 388,
+  "top": 2742,
+  "bottom": 2550,
+  "dropM": 192,
+  "avgDeg": 26.3,
+  "maxCenterline10mDeg": 34.5
+ },
+ "The Alamo": {
+  "difficulty": "double",
+  "lengthM": 476,
+  "horizM": 427,
+  "top": 2748,
+  "bottom": 2546,
+  "dropM": 202,
+  "avgDeg": 25.3,
+  "maxCenterline10mDeg": 35.3
+ },
+ "Rapid Transit": {
+  "difficulty": "double",
+  "lengthM": 156,
+  "horizM": 128,
+  "top": 2741,
+  "bottom": 2653,
+  "dropM": 88,
+  "avgDeg": 34.4,
+  "maxCenterline10mDeg": 40.5
+ },
+ "Loop": {
+  "difficulty": "green",
+  "lengthM": 696,
+  "horizM": 687,
+  "top": 2637,
+  "bottom": 2536,
+  "dropM": 102,
+  "avgDeg": 8.4,
+  "maxCenterline10mDeg": 14.4
+ },
+ "Midway": {
+  "difficulty": "green",
+  "lengthM": 984,
+  "horizM": 967,
+  "top": 2662,
+  "bottom": 2484,
+  "dropM": 179,
+  "avgDeg": 10.5,
+  "maxCenterline10mDeg": 20.2
+ },
+ "Sun King": {
+  "difficulty": "blue",
+  "lengthM": 973,
+  "horizM": 924,
+  "top": 2954,
+  "bottom": 2662,
+  "dropM": 291,
+  "avgDeg": 17.5,
+  "maxCenterline10mDeg": 28.3
+ },
+ "Little Max": {
+  "difficulty": "blue",
+  "lengthM": 277,
+  "horizM": 263,
+  "top": 2985,
+  "bottom": 2905,
+  "dropM": 80,
+  "avgDeg": 16.9,
+  "maxCenterline10mDeg": 25.6
+ },
+ "Blue Catwalk": {
+  "difficulty": "blue",
+  "lengthM": 772,
+  "horizM": 753,
+  "top": 2986,
+  "bottom": 2835,
+  "dropM": 150,
+  "avgDeg": 11.3,
+  "maxCenterline10mDeg": 25.2
+ },
+ "Lower Beaujolais": {
+  "difficulty": "blue",
+  "lengthM": 362,
+  "horizM": 355,
+  "top": 2575,
+  "bottom": 2519,
+  "dropM": 57,
+  "avgDeg": 9.1,
+  "maxCenterline10mDeg": 23
+ },
+ "Sundown": {
+  "difficulty": "blue",
+  "lengthM": 287,
+  "horizM": 278,
+  "top": 2607,
+  "bottom": 2545,
+  "dropM": 62,
+  "avgDeg": 12.6,
+  "maxCenterline10mDeg": 27.5
+ },
+ "Enchanted Forest": {
+  "difficulty": "blue",
+  "lengthM": 341,
+  "horizM": 338,
+  "top": 2604,
+  "bottom": 2578,
+  "dropM": 27,
+  "avgDeg": 4.5,
+  "maxCenterline10mDeg": 17.4
+ },
+ "Tercero": {
+  "difficulty": "green",
+  "lengthM": 162,
+  "horizM": 158,
+  "top": 2612,
+  "bottom": 2577,
+  "dropM": 35,
+  "avgDeg": 12.5,
+  "maxCenterline10mDeg": 15.7
+ },
+ "Ferret's Hollow": {
+  "difficulty": "blue",
+  "lengthM": 542,
+  "horizM": 532,
+  "top": 2908,
+  "bottom": 2816,
+  "dropM": 92,
+  "avgDeg": 9.8,
+  "maxCenterline10mDeg": 19.8
+ },
+ "Segundo Road": {
+  "difficulty": "green",
+  "lengthM": 503,
+  "horizM": 498,
+  "top": 2835,
+  "bottom": 2782,
+  "dropM": 53,
+  "avgDeg": 6.1,
+  "maxCenterline10mDeg": 12.6
+ },
+ "Ute Cutoff": {
+  "difficulty": "blue",
+  "lengthM": 566,
+  "horizM": 555,
+  "top": 2835,
+  "bottom": 2736,
+  "dropM": 99,
+  "avgDeg": 10.1,
+  "maxCenterline10mDeg": 25.3
+ },
+ "Fliprock": {
+  "difficulty": "blue",
+  "lengthM": 380,
+  "horizM": 369,
+  "top": 2725,
+  "bottom": 2639,
+  "dropM": 85,
+  "avgDeg": 13,
+  "maxCenterline10mDeg": 18.8
+ },
+ "White River": {
+  "difficulty": "blue",
+  "lengthM": 930,
+  "horizM": 901,
+  "top": 2776,
+  "bottom": 2565,
+  "dropM": 211,
+  "avgDeg": 13.2,
+  "maxCenterline10mDeg": 28.3
+ },
+ "Sundance": {
+  "difficulty": "blue",
+  "lengthM": 488,
+  "horizM": 474,
+  "top": 2979,
+  "bottom": 2878,
+  "dropM": 101,
+  "avgDeg": 12,
+  "maxCenterline10mDeg": 28
+ },
+ "Holiday Hill": {
+  "difficulty": "black",
+  "lengthM": 401,
+  "horizM": 368,
+  "top": 2649,
+  "bottom": 2498,
+  "dropM": 151,
+  "avgDeg": 22.3,
+  "maxCenterline10mDeg": 34.8
+ },
+ "Frying Pan Alley": {
+  "difficulty": "black",
+  "lengthM": 343,
+  "horizM": 314,
+  "top": 2637,
+  "bottom": 2508,
+  "dropM": 129,
+  "avgDeg": 22.3,
+  "maxCenterline10mDeg": 34.6
+ },
+ "W. Wishbone": {
+  "difficulty": "black",
+  "lengthM": 340,
+  "horizM": 318,
+  "top": 2631,
+  "bottom": 2523,
+  "dropM": 108,
+  "avgDeg": 18.7,
+  "maxCenterline10mDeg": 35
+ },
+ "E. Wishbone Alley": {
+  "difficulty": "black",
+  "lengthM": 258,
+  "horizM": 236,
+  "top": 2612,
+  "bottom": 2511,
+  "dropM": 101,
+  "avgDeg": 23.2,
+  "maxCenterline10mDeg": 31.6
+ },
+ "Sherman Forest": {
+  "difficulty": "black",
+  "lengthM": 193,
+  "horizM": 173,
+  "top": 2595,
+  "bottom": 2517,
+  "dropM": 78,
+  "avgDeg": 24.4,
+  "maxCenterline10mDeg": 42.5
+ },
+ "Blue Finger": {
+  "difficulty": "black",
+  "lengthM": 275,
+  "horizM": 256,
+  "top": 2927,
+  "bottom": 2830,
+  "dropM": 97,
+  "avgDeg": 20.7,
+  "maxCenterline10mDeg": 31.7
+ },
+ "Peace Pipe": {
+  "difficulty": "blue",
+  "lengthM": 506,
+  "horizM": 475,
+  "top": 2835,
+  "bottom": 2669,
+  "dropM": 166,
+  "avgDeg": 19.2,
+  "maxCenterline10mDeg": 27.9
+ },
+ "Segundo": {
+  "difficulty": "black",
+  "lengthM": 1174,
+  "horizM": 1124,
+  "top": 2814,
+  "bottom": 2513,
+  "dropM": 301,
+  "avgDeg": 15,
+  "maxCenterline10mDeg": 35.9
+ },
+ "Primo": {
+  "difficulty": "black",
+  "lengthM": 719,
+  "horizM": 667,
+  "top": 2985,
+  "bottom": 2732,
+  "dropM": 252,
+  "avgDeg": 20.7,
+  "maxCenterline10mDeg": 35.6
+ },
+ "Showdown": {
+  "difficulty": "black",
+  "lengthM": 456,
+  "horizM": 422,
+  "top": 2660,
+  "bottom": 2493,
+  "dropM": 167,
+  "avgDeg": 21.6,
+  "maxCenterline10mDeg": 31.6
+ },
+ "Cornice": {
+  "difficulty": "blue",
+  "lengthM": 1299,
+  "horizM": 1273,
+  "top": 2835,
+  "bottom": 2613,
+  "dropM": 222,
+  "avgDeg": 9.9,
+  "maxCenterline10mDeg": 21
+ },
+ "Dawson": {
+  "difficulty": "blue",
+  "lengthM": 516,
+  "horizM": 488,
+  "top": 2748,
+  "bottom": 2595,
+  "dropM": 153,
+  "avgDeg": 17.4,
+  "maxCenterline10mDeg": 30.4
+ },
+ "Crystal": {
+  "difficulty": "blue",
+  "lengthM": 585,
+  "horizM": 554,
+  "top": 2737,
+  "bottom": 2566,
+  "dropM": 171,
+  "avgDeg": 17.2,
+  "maxCenterline10mDeg": 27.6
+ },
+ "Joslin": {
+  "difficulty": "blue",
+  "lengthM": 1007,
+  "horizM": 953,
+  "top": 2909,
+  "bottom": 2595,
+  "dropM": 314,
+  "avgDeg": 18.2,
+  "maxCenterline10mDeg": 28.4
+ },
+ "Blue Tango": {
+  "difficulty": "blue",
+  "lengthM": 321,
+  "horizM": 300,
+  "top": 2785,
+  "bottom": 2674,
+  "dropM": 111,
+  "avgDeg": 20.3,
+  "maxCenterline10mDeg": 29.8
+ },
+ "Sunburst": {
+  "difficulty": "blue",
+  "lengthM": 628,
+  "horizM": 607,
+  "top": 2731,
+  "bottom": 2566,
+  "dropM": 165,
+  "avgDeg": 15.2,
+  "maxCenterline10mDeg": 25.9
+ },
+ "Columbine": {
+  "difficulty": "green",
+  "lengthM": 796,
+  "horizM": 786,
+  "top": 2816,
+  "bottom": 2697,
+  "dropM": 119,
+  "avgDeg": 8.6,
+  "maxCenterline10mDeg": 13.4
+ },
+ "Lower Columbine": {
+  "difficulty": "blue",
+  "lengthM": 583,
+  "horizM": 557,
+  "top": 2697,
+  "bottom": 2532,
+  "dropM": 166,
+  "avgDeg": 16.6,
+  "maxCenterline10mDeg": 27.1
+ },
+ "Ivy's Run": {
+  "difficulty": "green",
+  "lengthM": 354,
+  "horizM": 345,
+  "top": 2697,
+  "bottom": 2621,
+  "dropM": 76,
+  "avgDeg": 12.4,
+  "maxCenterline10mDeg": 20.7
+ },
+ "Buckmaster": {
+  "difficulty": "green",
+  "lengthM": 169,
+  "horizM": 167,
+  "top": 2606,
+  "bottom": 2581,
+  "dropM": 25,
+  "avgDeg": 8.4,
+  "maxCenterline10mDeg": 14.5
+ },
+ "Lower Que Pasa": {
+  "difficulty": "double",
+  "lengthM": 401,
+  "horizM": 371,
+  "top": 2559,
+  "bottom": 2415,
+  "dropM": 144,
+  "avgDeg": 21.2,
+  "maxCenterline10mDeg": 32.6
+ },
+ "Lower Deception": {
+  "difficulty": "double",
+  "lengthM": 503,
+  "horizM": 477,
+  "top": 2574,
+  "bottom": 2422,
+  "dropM": 153,
+  "avgDeg": 17.8,
+  "maxCenterline10mDeg": 27.1
+ },
+ "Lower Defiance": {
+  "difficulty": "double",
+  "lengthM": 392,
+  "horizM": 367,
+  "top": 2554,
+  "bottom": 2421,
+  "dropM": 133,
+  "avgDeg": 19.9,
+  "maxCenterline10mDeg": 28.5
+ },
+ "Vortex": {
+  "difficulty": "double",
+  "lengthM": 360,
+  "horizM": 341,
+  "top": 2548,
+  "bottom": 2440,
+  "dropM": 108,
+  "avgDeg": 17.6,
+  "maxCenterline10mDeg": 26.6
+ },
+ "Perry's Plunge": {
+  "difficulty": "double",
+  "lengthM": 653,
+  "horizM": 606,
+  "top": 2802,
+  "bottom": 2574,
+  "dropM": 228,
+  "avgDeg": 20.6,
+  "maxCenterline10mDeg": 38.6
+ },
+ "Dotsero": {
+  "difficulty": "blue",
+  "lengthM": 202,
+  "horizM": 195,
+  "top": 2553,
+  "bottom": 2501,
+  "dropM": 52,
+  "avgDeg": 15,
+  "maxCenterline10mDeg": 19.9
+ },
+ "Que Pasa": {
+  "difficulty": "double",
+  "lengthM": 315,
+  "horizM": 277,
+  "top": 2707,
+  "bottom": 2559,
+  "dropM": 148,
+  "avgDeg": 28.2,
+  "maxCenterline10mDeg": 35.1
+ },
+ "Aligator Alley A1": {
+  "difficulty": "double",
+  "lengthM": 545,
+  "horizM": 498,
+  "top": 2772,
+  "bottom": 2569,
+  "dropM": 202,
+  "avgDeg": 22.1,
+  "maxCenterline10mDeg": 40.1
+ },
+ "Aligator Alley A2": {
+  "difficulty": "double",
+  "lengthM": 334,
+  "horizM": 292,
+  "top": 2728,
+  "bottom": 2569,
+  "dropM": 159,
+  "avgDeg": 28.5,
+  "maxCenterline10mDeg": 37.4
+ },
+ "Aligator Alley A3": {
+  "difficulty": "double",
+  "lengthM": 385,
+  "horizM": 343,
+  "top": 2734,
+  "bottom": 2563,
+  "dropM": 171,
+  "avgDeg": 26.4,
+  "maxCenterline10mDeg": 38
+ },
+ "Hike-Out Only": {
+  "difficulty": "hike",
+  "lengthM": 426,
+  "horizM": 421,
+  "top": 2451,
+  "bottom": 2413,
+  "dropM": 38,
+  "avgDeg": 5.2,
+  "maxCenterline10mDeg": 17
+ },
+ "Sherick Park": {
+  "difficulty": "park",
+  "lengthM": 302,
+  "horizM": 297,
+  "top": 2583,
+  "bottom": 2536,
+  "dropM": 48,
+  "avgDeg": 9.1,
+  "maxCenterline10mDeg": 15.9
+ }
+}
