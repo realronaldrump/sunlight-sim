@@ -16,6 +16,7 @@ import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
 import { SkiAudio } from './audio/audio';
 import { buildBuildings, buildResortExtras } from './world/buildings';
+import { mergeStatic } from './world/mergeStatic';
 import { Snowfall } from './sky/snowfall';
 import { SkiTracks } from './skier/tracks';
 import { OptionsPanel } from './ui/options';
@@ -152,8 +153,13 @@ export class Game {
     }
     await Promise.all([this.loadBaseMask(), this.loadLandcover()]);
     await this.hf.ensureArea(0, 0, 1000, 450);
-    this.scene.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
-    this.scene.add(buildResortExtras(this.resort.lifts, (x, z) => this.hf.heightAt(x, z), (x, z) => this.hf.slopeDeg(x, z, 3), this.colliders));
+    const staticGroup = new THREE.Group(); staticGroup.name = 'static';
+    staticGroup.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
+    staticGroup.add(buildResortExtras(this.resort.lifts, (x, z) => this.hf.heightAt(x, z), (x, z) => this.hf.slopeDeg(x, z, 3), this.colliders));
+    mergeStatic(staticGroup);
+    this.scene.add(staticGroup);
+    for (const g of this.lifts.group.children) if (!(g as THREE.InstancedMesh).isInstancedMesh) mergeStatic(g);
+    mergeStatic(this.runs.group);
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.camRig.blocked = (x, z) => this.colliders.query(x, z).some((c) => c.type === 'box' && Math.hypot(c.x - x, c.z - z) < 12);
     this.hud = new Hud();
