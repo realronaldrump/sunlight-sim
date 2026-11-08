@@ -19,6 +19,9 @@ const css = `
 .diff.double::before { left: 1px; } .diff.double::after { left: 18px; }
 .diff.park { background: #f08a1c; border-radius: 9px; width: 26px; height: 12px; }
 .diff.hike { background: #7a5230; border-radius: 3px; width: 22px; height: 8px; }
+#runlabel small { font-size: 12px; font-weight: 500; opacity: .85; margin-left: 4px; }
+#liftdir { position: fixed; bottom: 136px; left: 16px; z-index: 10; pointer-events: none; background: rgba(10,20,35,.55); backdrop-filter: blur(6px); padding: 6px 12px; border-radius: 18px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+#liftdir i { display: inline-block; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 14px solid #ff4d6d; transition: transform .2s; }
 #hint { position: fixed; bottom: 22%; left: 50%; transform: translateX(-50%); z-index: 10; pointer-events: none; background: rgba(10,20,35,.6); padding: 8px 16px; border-radius: 8px; font-size: 15px; opacity: 0; transition: opacity .3s; text-align: center; }
 #hint.show { opacity: 1; }
 #help { position: fixed; right: 16px; top: 16px; z-index: 11; background: rgba(10,20,35,.72); backdrop-filter: blur(6px); border-radius: 10px; padding: 12px 16px; font-size: 13px; line-height: 1.6; max-width: 300px; }
@@ -39,6 +42,7 @@ export class Hud {
   private runEl: HTMLElement; private hintEl: HTMLElement; private helpEl: HTMLElement; private toastEl: HTMLElement;
   private statsEl: HTMLElement; private modeEl: HTMLElement;
   private lastRun = ''; private runTimer = 0; private toastTimer = 0;
+  private liftEl: HTMLElement;
 
   constructor() {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
@@ -54,6 +58,8 @@ export class Hud {
     const hint = document.createElement('div'); hint.id = 'hint'; document.body.appendChild(hint);
     const toast = document.createElement('div'); toast.id = 'toast'; document.body.appendChild(toast);
     const stats = document.createElement('div'); stats.id = 'stats'; document.body.appendChild(stats);
+    const lift = document.createElement('div'); lift.id = 'liftdir'; document.body.appendChild(lift);
+    this.liftEl = lift;
     const help = document.createElement('div'); help.id = 'help';
     help.innerHTML = `<h3>Controls</h3>
       <kbd>A</kbd>/<kbd>D</kbd> or arrows: edge and turn<br>
@@ -85,7 +91,15 @@ export class Hud {
 
   stats(text: string) { this.statsEl.textContent = text; }
 
-  update(dt: number, speed: number, slopeDeg: number, altitude: number, mode: string, run: { name: string; difficulty: string } | null) {
+  /** Arrow toward the nearest lift load line (relative to where the camera looks). */
+  liftDirection(name: string | null, dist: number, relAngle: number) {
+    if (!name || this.liftEl.parentElement?.querySelector('#help:not(.hidden)') && false) { this.liftEl.style.display = 'none'; return; }
+    this.liftEl.style.display = 'flex';
+    this.liftEl.innerHTML = `<i style="transform:rotate(${(relAngle * 180) / Math.PI}deg)"></i><span>${name} lift ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'}</span>`;
+  }
+  hideLiftDirection() { this.liftEl.style.display = 'none'; }
+
+  update(dt: number, speed: number, slopeDeg: number, altitude: number, mode: string, run: { name: string; difficulty: string; stats?: { avgDeg: number; maxDeg: number } } | null) {
     this.speedEl.textContent = String(Math.round(speed * 3.6));
     this.slopeEl.textContent = String(Math.round(slopeDeg));
     this.marker.style.left = `${Math.min(100, (slopeDeg / 50) * 100)}%`;
@@ -95,7 +109,8 @@ export class Hud {
     if (key !== this.lastRun) {
       this.lastRun = key;
       if (run) {
-        this.runEl.innerHTML = `${diffIcon(run.difficulty)}<span>${run.name}</span>`;
+        const st = run.stats ? `<small>avg ${Math.round(run.stats.avgDeg)}&deg;, steepest ${Math.round(run.stats.maxDeg)}&deg;</small>` : '';
+        this.runEl.innerHTML = `${diffIcon(run.difficulty)}<span>${run.name}</span>${st}`;
         this.runEl.classList.add('show');
         this.runTimer = 5;
       }

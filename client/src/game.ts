@@ -346,9 +346,10 @@ export class Game {
     this.env.update(p);
 
     const st = this.player.st;
-    const run = this.player.ride ? null : this.runAt(st.pos.x, st.pos.z);
+    const run = this.player.ride ? null : (this.runAt(st.pos.x, st.pos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.updateHints();
+    this.updateLiftArrow();
     this.updateAudio(dt);
     this.updateTracks(dt);
     this.renderer.render(this.scene, this.camera);
@@ -459,6 +460,22 @@ export class Game {
     this.player.teleport(x, z, Math.atan2(-top.dx, -top.dz));
     this.net?.markTeleport();
     this.hud.toast(`Top of ${name}`);
+  }
+
+  private updateLiftArrow() {
+    const st = this.player.st;
+    if (this.player.ride || this.flyMode) { this.hud.hideLiftDirection(); return; }
+    let best: { name: string; d: number; x: number; z: number } | null = null;
+    for (const p of this.lifts.paths) {
+      const lp = p.loadPoint();
+      const d = Math.hypot(lp.x - st.pos.x, lp.z - st.pos.z);
+      if (!best || d < best.d) best = { name: p.def.name, d, x: lp.x, z: lp.z };
+    }
+    if (!best || best.d < 12) { this.hud.hideLiftDirection(); return; }
+    const camDir = new THREE.Vector3(); this.camera.getWorldDirection(camDir);
+    const camYaw = Math.atan2(camDir.x, -camDir.z);
+    const tgtYaw = Math.atan2(best.x - st.pos.x, -(best.z - st.pos.z));
+    this.hud.liftDirection(best.name, best.d, tgtYaw - camYaw);
   }
 
   private updateTracks(dt: number) {
