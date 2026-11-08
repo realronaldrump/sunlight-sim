@@ -109,6 +109,9 @@ export class TerrainRenderer {
     const count = VERTS * VERTS + SKIRT_VERTS;
     const pos = new Float32Array(count * 3);
     const nrm = new Float32Array(count * 3);
+    const flow = new Float32Array(count * 2); // smoothed downhill direction (x, z) for grooming lines
+    const W = Math.max(1, Math.round(5 / r));
+    const cl = (v: number) => Math.min(N - 1, Math.max(0, v));
     let minH = Infinity, maxH = -Infinity;
     for (let j = 0; j < VERTS; j++) {
       for (let i = 0; i < VERTS; i++) {
@@ -122,6 +125,11 @@ export class TerrainRenderer {
         const gx = (hr - hl) / (2 * r), gn = (hn - hs) / (2 * r);
         const inv = 1 / Math.hypot(gx, 1, gn);
         nrm[k] = -gx * inv; nrm[k + 1] = inv; nrm[k + 2] = gn * inv;
+        const sgx = H[tj * N + cl(ti + W)] - H[tj * N + cl(ti - W)];
+        const sgn = H[cl(tj + W) * N + ti] - H[cl(tj - W) * N + ti];
+        const fl = Math.hypot(sgx, sgn) || 1;
+        const kf = (j * VERTS + i) * 2;
+        flow[kf] = -sgx / fl; flow[kf + 1] = sgn / fl; // downhill in game x/z (z = -n)
         if (h < minH) minH = h; if (h > maxH) maxH = h;
       }
     }
@@ -134,10 +142,13 @@ export class TerrainRenderer {
       const src = (j * VERTS + i) * 3, dst = (VERTS * VERTS + k) * 3;
       pos[dst] = pos[src]; pos[dst + 1] = pos[src + 1] - skirt; pos[dst + 2] = pos[src + 2];
       nrm[dst] = nrm[src]; nrm[dst + 1] = nrm[src + 1]; nrm[dst + 2] = nrm[src + 2];
+      const fs = (j * VERTS + i) * 2, fd = (VERTS * VERTS + k) * 2;
+      flow[fd] = flow[fs]; flow[fd + 1] = flow[fs + 1];
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+    g.setAttribute('flow', new THREE.BufferAttribute(flow, 2));
     g.setIndex(getIndex());
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minH - skirt, -C), new THREE.Vector3(C, maxH, 0));
     g.boundingSphere = new THREE.Sphere();

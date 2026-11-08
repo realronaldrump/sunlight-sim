@@ -47,6 +47,9 @@ export class SkierModel {
   readonly jacketMat: THREE.MeshStandardNodeMaterial;
   private fallSide = 1;
   private lastFallen = 0;
+  private lastEdgeSign = 0;
+  private plant = 0;      // 0..1 pole plant animation phase
+  private plantSide = 1;  // which pole (+1 right, -1 left)
 
   constructor(jacket = new THREE.Color('#d33a2c')) {
     const jacketMat = new THREE.MeshStandardNodeMaterial({ color: jacket, roughness: 0.75 });
@@ -63,6 +66,8 @@ export class SkierModel {
     this.root.add(this.body);
     const add = (name: string, m: THREE.Mesh) => { this.parts[name] = m; this.body.add(m); return m; };
     add('torso', limb(0.16, jacketMat));
+    add('shoulders', limb(0.1, jacketMat));
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.09, 12), jacketMat); add('collar', collar);
     add('pelvis', limb(0.14, pantsMat));
     for (const s of ['L', 'R']) {
       add('thigh' + s, limb(0.075, pantsMat));
@@ -70,7 +75,8 @@ export class SkierModel {
       add('upper' + s, limb(0.055, jacketMat));
       add('fore' + s, limb(0.05, jacketMat));
       const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), gloveMat); hand.castShadow = true; add('hand' + s, hand);
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.32), bootMat); boot.castShadow = true; add('boot' + s, boot);
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.26, 0.33), bootMat); boot.castShadow = true; add('boot' + s, boot);
+      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.03, 0.12), poleMat); buckle.position.set(0, 0.04, -0.03); boot.add(buckle);
       const ski = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.025, 1.65), skiMat);
       ski.castShadow = true;
       // turned-up tip
@@ -78,6 +84,8 @@ export class SkierModel {
       tip.position.set(0, 0.03, -0.86); tip.rotation.x = 0.45; ski.add(tip);
       this.skis.push(ski); this.body.add(ski);
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 1.2, 6), poleMat);
+      const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.01, 10), new THREE.MeshStandardNodeMaterial({ color: 0x222222 }));
+      basket.position.y = -0.52; pole.add(basket);
       pole.castShadow = true; this.poles.push(pole); this.body.add(pole);
     }
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 16, 12), skinMat); head.castShadow = true; add('head', head);
@@ -107,6 +115,11 @@ export class SkierModel {
     if (p.fallen > 0.01 && this.lastFallen <= 0.01) this.fallSide = p.edge >= 0 ? 1 : -1;
     this.lastFallen = p.fallen;
 
+    // pole plant: when the edges change sign at speed, plant the new inside pole
+    const es = Math.abs(p.edge) > 0.12 ? Math.sign(p.edge) : 0;
+    if (es !== 0 && es !== this.lastEdgeSign && p.speed > 3 && p.tuck < 0.3 && sit === 0) { this.plant = 1; this.plantSide = es; }
+    if (es !== 0) this.lastEdgeSign = es;
+    this.plant = Math.max(0, this.plant - 0.035);
     // ---- stance parameters ----
     const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow;
     const incline = THREE.MathUtils.clamp(p.edge * 0.75, -0.75, 0.75) * Math.min(1, p.speed / 4) * (1 - sit);
@@ -163,6 +176,9 @@ export class SkierModel {
     this.place(this.parts.pelvis, hipL.clone().add(V(0, 0.04, 0)), hipR.clone().add(V(0, 0.04, 0)), 0.14);
     this.parts.pelvis.position.y += 0.02;
     this.place(this.parts.torso, pelvis.clone().add(V(0, 0.08, 0)), neck.clone().add(V(0, -0.1, 0)), 0.16);
+    this.place(this.parts.shoulders, shL, shR, 0.1);
+    this.parts.collar.position.copy(neck).add(V(0, -0.02, 0));
+    this.parts.collar.rotation.x = -lean * 0.5;
     this.parts.head.position.copy(head);
     this.parts.head.rotation.set(-0.15 + 0.5 * p.tuck, 0, -incline * 0.3);
     this.place(this.parts.thighL, hipL, kneeL, 0.075);
@@ -193,6 +209,11 @@ export class SkierModel {
     // poles from hands angled back
     const placePole = (pole: THREE.Mesh, hand: THREE.Vector3, side: number) => {
       const tipPos = hand.clone().add(V(side * 0.12, -1.05, 0.55 + 0.3 * p.tuck));
+      if (this.plant > 0 && side === this.plantSide) {
+        // swing the tip forward and down beside the ski tip, then let it trail
+        const k = Math.sin(this.plant * Math.PI);
+        tipPos.lerp(hand.clone().add(V(side * 0.25, -1.0, -0.45)), k);
+      }
       if (p.tuck > 0.3) tipPos.lerp(hand.clone().add(V(side * 0.1, -0.35, 1.0)), p.tuck);
       if (p.pushing) tipPos.z += push * side * 0.25;
       const d = tipPos.clone().sub(hand);

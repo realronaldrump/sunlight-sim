@@ -6,7 +6,7 @@ import {
   Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorld, modelWorldMatrix,
   dot, mix, smoothstep, clamp, acos, texture, cameraPosition, normalize, hash, floor, fract, abs, sin,
   max, length, select, step, pow, exp, mx_noise_float, dFdx, dFdy, cross, sign, normalView, positionView,
-  transformNormalToView,
+  transformNormalToView, attribute,
 } from 'three/tsl';
 import { EARTH_R_EFF } from '../../../shared/world';
 
@@ -62,6 +62,7 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const plowed = baseTex.r.mul(inBase);
 
   const nW = normalize(normalWorld);
+  const flowDir = normalize(attribute('flow', 'vec2').add(vec2(1e-5, 0.0)));
   const slopeDeg = acos(clamp(nW.y, 0.0, 1.0)).mul(57.29578);
   const dist = length(positionWorld.sub(cameraPosition));
 
@@ -77,12 +78,11 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const n1 = hash(floor(xn.mul(0.25)).dot(vec2(1.0, 157.0)));
     snow.mulAssign(float(0.985).add(n1.mul(0.03)));
     // groomed corduroy: ridges along the fall line, ~2.5 cm spacing, fade with distance
-    const fall = normalize(vec2(nW.x, nW.z).add(vec2(1e-4, 0.0)));
-    const across = dot(vec2(positionWorld.x, positionWorld.z), vec2(fall.y.negate(), fall.x));
+    const across = dot(vec2(positionWorld.x, positionWorld.z), vec2(flowDir.y.negate(), flowDir.x));
     const cord = abs(sin(across.mul(6.2831 / 0.04)));
     // fade the ridges once they get close to the pixel size (prevents moire)
     const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
-    const cordFade = float(1.0).sub(smoothstep(0.006, 0.02, footprint));
+    const cordFade = float(1.0).sub(smoothstep(0.003, 0.009, footprint));
     snow.mulAssign(float(1.0).sub(groomed.mul(cordFade).mul(cord.mul(0.05))));
     // groomed snow is a touch brighter/smoother from far away
     snow.mulAssign(float(1.0).add(groomed.mul(0.015)));
@@ -126,10 +126,9 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const near = float(1.0).sub(smoothstep(8.0, 60.0, dist));
     const ripples = mx_noise_float(vec3(p.x.mul(0.9), 0.0, p.z.mul(2.6)).add(vec3(0.0, p.y.mul(0.3), 0.0))).mul(0.018);
     const grain = mx_noise_float(p.mul(5.0)).mul(0.0022);
-    const fall = normalize(vec2(nW.x, nW.z).add(vec2(1e-4, 0.0)));
-    const across = dot(vec2(p.x, p.z), vec2(fall.y.negate(), fall.x));
+    const across = dot(vec2(p.x, p.z), vec2(flowDir.y.negate(), flowDir.x));
     const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
-    const cordFade = float(1.0).sub(smoothstep(0.005, 0.016, footprint));
+    const cordFade = float(1.0).sub(smoothstep(0.003, 0.008, footprint));
     const cord = abs(sin(across.mul(6.2831 / 0.04))).mul(0.005).mul(surf.r).mul(cordFade);
     const h = ripples.mul(float(1.0).sub(surf.r.mul(0.8))).add(grain).mul(near).add(cord);
     const dpx = dFdx(positionView), dpy = dFdy(positionView);
