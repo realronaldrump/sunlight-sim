@@ -144,7 +144,7 @@ export class TreeSystem {
     const h = t.h[i], r = t.r[i];
     const rot = (t.seed[i] / 255) * Math.PI;
     this.q.setFromAxisAngle(this.v.set(0, 1, 0), rot);
-    const w = t.s[i] === 2 ? r * 1.05 : t.s[i] === 3 ? r : r * 1.18;
+    const w = t.s[i] === 2 ? r * 1.1 : t.s[i] === 3 ? r : r * 1.45;
     this.sc.set(hide ? 0 : w, hide ? 0 : h * 1.04, hide ? 0 : w);
     this.m4.compose(this.v.set(t.x[i], t.y[i] - 0.15, t.z[i]), this.q, this.sc);
     m.setMatrixAt(i, this.m4);

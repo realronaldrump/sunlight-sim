@@ -213,8 +213,8 @@ export function impostorAtlas(): THREE.CanvasTexture {
       g.beginPath(); g.ellipse(x, y, 4 + r() * 5, 2 + r() * 2, 0, 0, Math.PI * 2); g.fill();
     }
   };
-  conifer(0, S * 0.3, 0.85);
-  conifer(S, S * 0.38, 0.7);
+  conifer(0, S * 0.36, 0.8);
+  conifer(S, S * 0.42, 0.68);
   {
     const ox = S * 2;
     g.strokeStyle = '#d9d6cc'; g.lineWidth = 8;
