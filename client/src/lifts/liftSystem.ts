@@ -1,0 +1,166 @@
+// Chairlift rendering (towers, terminals, bull wheels, sagging haul rope, moving chairs) and chair
+// transforms for riders. Chair motion comes from shared/lifts.ts on the shared lift clock.
+import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
+import type { Collider } from '../../../shared/collision';
+
+
+const steel = new THREE.MeshStandardNodeMaterial({ color: 0x6f7780, roughness: 0.45, metalness: 0.7 });
+const darkSteel = new THREE.MeshStandardNodeMaterial({ color: 0x3a3f45, roughness: 0.5, metalness: 0.6 });
+const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
+const wood = new THREE.MeshStandardNodeMaterial({ color: 0x7a5a3a, roughness: 0.9 });
+const roofMat = new THREE.MeshStandardNodeMaterial({ color: 0x4a2f22, roughness: 0.8 });
+const chairMat = new THREE.MeshStandardNodeMaterial({ color: 0x2f3338, roughness: 0.55, metalness: 0.4 });
+const seatMat = new THREE.MeshStandardNodeMaterial({ color: 0x1e4f8a, roughness: 0.7 });
+
+function chairGeometry(seats: number) {
+  const w = seats * 0.6 + 0.1;
+  const parts: THREE.BufferGeometry[] = [];
+  // hanger: vertical bar from grip (y=0) to seat (y=-HANGER), slightly offset back
+  const hanger = new THREE.BoxGeometry(0.07, HANGER, 0.07); hanger.translate(0, -HANGER / 2, 0.1); parts.push(hanger);
+  const frame = new THREE.BoxGeometry(w, 0.06, 0.06); frame.translate(0, -HANGER + 0.55, 0.38); parts.push(frame);
+  const back = new THREE.BoxGeometry(w, 0.5, 0.06); back.translate(0, -HANGER + 0.3, 0.38); parts.push(back);
+  const sideL = new THREE.BoxGeometry(0.05, 0.6, 0.55); sideL.translate(-w / 2, -HANGER + 0.15, 0.12); parts.push(sideL);
+  const sideR = sideL.clone(); sideR.translate(w, 0, 0); parts.push(sideR);
+  // restraint bar (raised) and footrest
+  const bar = new THREE.BoxGeometry(w, 0.04, 0.04); bar.translate(0, -HANGER + 0.9, 0.05); parts.push(bar);
+  const foot = new THREE.BoxGeometry(w * 0.8, 0.04, 0.12); foot.translate(0, -HANGER - 0.42, -0.35); parts.push(foot);
+  const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
+  const seat = new THREE.BoxGeometry(w, 0.07, 0.48); seat.translate(0, -HANGER, 0.12);
+  return { frame: g, seat };
+}
+
+export class LiftSystem {
+  readonly group = new THREE.Group();
+  readonly paths: LiftPath[] = [];
+  readonly colliders: Collider[] = [];
+  private chairMeshes: { frame: THREE.InstancedMesh; seat: THREE.InstancedMesh }[] = [];
+  clockOffset = 0; // seconds added to Date.now()/1000 to get the shared lift clock
+  private m4 = new THREE.Matrix4();
+  private q = new THREE.Quaternion();
+  private e = new THREE.Euler();
+
+  constructor(defs: LiftDef[]) {
+    this.group.name = 'lifts';
+    for (const def of defs) {
+      const path = new LiftPath(def);
+      this.paths.push(path);
+      this.buildStatic(path);
+      const { frame, seat } = chairGeometry(def.seats);
+      const fm = new THREE.InstancedMesh(frame, chairMat, path.chairCount);
+      const sm = new THREE.InstancedMesh(seat, seatMat, path.chairCount);
+      for (const m of [fm, sm]) { m.castShadow = true; m.frustumCulled = false; this.group.add(m); }
+      this.chairMeshes.push({ frame: fm, seat: sm });
+    }
+  }
+
+  now() { return Date.now() / 1000 + this.clockOffset; }
+
+  private buildStatic(path: LiftPath) {
+    const def = path.def;
+    const g = new THREE.Group();
+    g.name = def.name;
+    const yaw = Math.atan2(-path.ax, -path.az); // heading facing uphill
+    // towers
+    for (const s of def.supports) {
+      const p = path.ropePoint(s.s, 0);
+      if (s.kind === 'tower') {
+        const h = s.cable - s.ground + 0.4;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.4, h, 10), steel);
+        pole.position.set(p.x, s.ground + h / 2 - 0.3, p.z);
+        pole.castShadow = true;
+        g.add(pole);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(GAUGE + 1.4, 0.35, 0.35), steel);
+        arm.position.set(p.x, s.cable + 0.55, p.z); arm.rotation.y = yaw; arm.castShadow = true;
+        g.add(arm);
+        for (const side of [-1, 1]) {
+          const sheave = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 2.4), darkSteel);
+          sheave.position.set(p.x + path.rx * side * GAUGE / 2, s.cable + 0.2, p.z + path.rz * side * GAUGE / 2);
+          sheave.rotation.y = yaw; sheave.castShadow = true; g.add(sheave);
+        }
+        // service ladder hint
+        const ladder = new THREE.Mesh(new THREE.BoxGeometry(0.3, h * 0.9, 0.05), darkSteel);
+        ladder.position.set(p.x - path.ax * 0.42, s.ground + h * 0.45, p.z - path.az * 0.42); ladder.rotation.y = yaw; g.add(ladder);
+        this.colliders.push({ type: 'cyl', x: p.x, z: p.z, r: 0.45, top: s.cable });
+      } else {
+        // terminal: bull wheel on a frame + operator hut + ramp
+        const top = s.kind === 'top';
+        const wheel = new THREE.Mesh(new THREE.TorusGeometry(GAUGE / 2, 0.12, 8, 40), darkSteel);
+        wheel.rotation.x = Math.PI / 2;
+        wheel.position.set(p.x, s.cable, p.z);
+        g.add(wheel);
+        const housing = new THREE.Mesh(new THREE.BoxGeometry(GAUGE + 1.2, 1.4, 3.2), steel);
+        housing.position.set(p.x, s.cable + 0.9, p.z); housing.rotation.y = yaw; housing.castShadow = true; g.add(housing);
+        for (const side of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, s.cable - s.ground + 0.2, 0.4), steel);
+          const off = top ? 2.4 : -2.4;
+          leg.position.set(p.x + path.ax * off + path.rx * side * 0.9, (s.cable + s.ground) / 2, p.z + path.az * off + path.rz * side * 0.9);
+          leg.castShadow = true; g.add(leg);
+          this.colliders.push({ type: 'cyl', x: leg.position.x, z: leg.position.z, r: 0.35, top: s.cable });
+        }
+        // operator hut beside the terminal (left side, away from the loading side)
+        const hutX = p.x - path.rx * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
+        const hutZ = p.z - path.rz * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
+        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 3.6), wood);
+        hut.position.set(hutX, s.ground + 1.3, hutZ); hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
+        g.add(hut);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.2, 4), roofMat);
+        roof.position.set(hutX, s.ground + 3.2, hutZ); roof.rotation.y = yaw + Math.PI / 4; roof.castShadow = true; g.add(roof);
+        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: 1.7, hz: 1.9, yaw: -yaw, top: s.ground + 3 });
+      }
+    }
+    // haul rope: two lines + bull wheel arcs, as thin tubes
+    for (const side of [-1, 1]) {
+      const pts: THREE.Vector3[] = [];
+      const n = Math.ceil(path.horiz / 3);
+      for (let i = 0; i <= n; i++) {
+        const p = path.ropePoint((path.horiz * i) / n, side);
+        pts.push(new THREE.Vector3(p.x, p.y, p.z));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, n, 0.03, 4, false), rope);
+      g.add(tube);
+    }
+    // load line marker (painted stripe on the snow)
+    const lp = path.ropePoint(LOAD_OFFSET, 1);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.02, 0.18), new THREE.MeshStandardNodeMaterial({ color: 0xd42020, roughness: 0.6 }));
+    stripe.position.set(lp.x, def.supports[0].ground + 0.03, lp.z); stripe.rotation.y = yaw;
+    g.add(stripe);
+    g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
+    this.group.add(g);
+  }
+
+  /** Seat transform of a chair at time t. Returns position of the seat surface center for seatIndex. */
+  seatTransform(lift: number, chair: number, seat: number, t: number, outPos: THREE.Vector3) {
+    const path = this.paths[lift];
+    const lp = path.loopPoint(path.chairU(chair, t));
+    const seats = path.def.seats;
+    const off = (seat - (seats - 1) / 2) * 0.6;
+    const h = lp.heading;
+    const rx = Math.cos(h), rz = -Math.sin(h); // right vector for heading h
+    outPos.set(lp.p.x + rx * off, lp.p.y - HANGER + 0.04, lp.p.z + rz * off);
+    // seat is slightly behind the hanger line
+    outPos.x += Math.sin(h) * 0.12; outPos.z += Math.cos(h) * 0.12;
+    return { heading: h, uphill: lp.uphill, h: lp.h };
+  }
+
+  update() {
+    const t = this.now();
+    for (let li = 0; li < this.paths.length; li++) {
+      const path = this.paths[li];
+      const { frame, seat } = this.chairMeshes[li];
+      for (let i = 0; i < path.chairCount; i++) {
+        const lp = path.loopPoint(path.chairU(i, t));
+        // gentle swing when going around the wheels
+        this.e.set(0, lp.heading, 0, 'YXZ');
+        this.q.setFromEuler(this.e);
+        this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
+        frame.setMatrixAt(i, this.m4);
+        seat.setMatrixAt(i, this.m4);
+      }
+      frame.instanceMatrix.needsUpdate = true;
+      seat.instanceMatrix.needsUpdate = true;
+    }
+  }
+}

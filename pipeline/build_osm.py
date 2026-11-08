@@ -18,7 +18,7 @@ LIFT_SPECS = {
     "Segundo": {"seats": 3, "speed": 2.3, "capacity": 1200, "type": "Fixed-grip triple chair (ex Arapahoe Basin, 2025)"},
     "Tercero": {"seats": 3, "speed": 1.8, "capacity": 1000, "type": "Fixed-grip triple chair (1987)"},
 }
-STATION_CABLE_H = 5.0     # cable height above ground at bull wheels (m)
+STATION_CABLE_H = 3.6     # cable height above ground at bull wheels (m); seat ~0.6 m above snow at load
 MIN_CLEAR = 7.5           # minimum cable height above ground along spans (m)
 SAG_FRAC = 0.018          # midspan sag as fraction of span length
 

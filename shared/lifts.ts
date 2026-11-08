@@ -1,0 +1,185 @@
+// Chairlift geometry and timing shared by client, server and tests.
+// A lift is a closed haul-rope loop: uphill line, top bull wheel, downhill line, bottom bull wheel.
+// Chair positions are a pure function of (lift clock time), so every client and the server agree.
+
+export interface LiftSupport { s: number; kind: 'bottom' | 'tower' | 'top'; ground: number; cable: number }
+export interface LiftDef {
+  name: string; kind: string; seats: number; speed: number; capacity: number; chairSpacing: number;
+  bottom: [number, number, number]; top: [number, number, number];
+  horizontalLength: number; slopeLength: number; vertical: number;
+  supports: LiftSupport[];
+}
+
+export const GAUGE = 5.2;        // m between uphill and downhill rope
+export const HANGER = 3.0;       // m from rope to seat surface
+export const SAG_FRAC = 0.018;   // must match pipeline/build_osm.py
+export const LOAD_OFFSET = 7.0;  // m from bottom bull wheel center to the load line
+export const UNLOAD_OFFSET = 6.5; // m before the top bull wheel center where riders stand up
+
+export interface P3 { x: number; y: number; z: number }
+
+export class LiftPath {
+  readonly def: LiftDef;
+  readonly ax: number; readonly az: number;      // unit horizontal axis bottom->top (game x,z)
+  readonly rx: number; readonly rz: number;      // unit right-hand side when facing uphill
+  readonly horiz: number;
+  readonly lineLen: number;                      // 3D rope length along one line (approx)
+  readonly loopLen: number;
+  readonly chairCount: number;
+  readonly spacing: number;
+  private sTable: number[] = [];                 // cumulative 3D length at sample i
+  private hTable: number[] = [];                 // horizontal distance at sample i
+
+  constructor(def: LiftDef) {
+    this.def = def;
+    const dx = def.top[0] - def.bottom[0], dz = def.top[2] - def.bottom[2];
+    this.horiz = Math.hypot(dx, dz);
+    this.ax = dx / this.horiz; this.az = dz / this.horiz;
+    // facing uphill along (ax, az); right = (-az, ax) rotated: right of forward f=(fx,fz) in x/z with y up is (-fz, fx)?
+    // forward (0,-1) (north) -> right is east (1,0) => right = (-fz, fx)
+    this.rx = -this.az; this.rz = this.ax;
+    // tabulate rope length vs horizontal distance
+    const N = Math.max(200, Math.ceil(this.horiz / 2));
+    let acc = 0, prevY = this.cableY(0);
+    this.sTable.push(0); this.hTable.push(0);
+    for (let i = 1; i <= N; i++) {
+      const h = (this.horiz * i) / N;
+      const y = this.cableY(h);
+      acc += Math.hypot(this.horiz / N, y - prevY);
+      prevY = y;
+      this.sTable.push(acc); this.hTable.push(h);
+    }
+    this.lineLen = acc;
+    this.loopLen = 2 * this.lineLen + Math.PI * GAUGE;
+    this.chairCount = Math.max(2, Math.round(this.loopLen / def.chairSpacing));
+    this.spacing = this.loopLen / this.chairCount;
+  }
+
+  /** Rope height (absolute y) at horizontal distance h from the bottom bull wheel. */
+  cableY(h: number): number {
+    const S = this.def.supports;
+    if (h <= S[0].s) return S[0].cable;
+    for (let i = 0; i < S.length - 1; i++) {
+      const a = S[i], b = S[i + 1];
+      if (h <= b.s) {
+        const L = b.s - a.s;
+        const t = L > 0 ? (h - a.s) / L : 0;
+        return a.cable + (b.cable - a.cable) * t - 4 * SAG_FRAC * L * t * (1 - t);
+      }
+    }
+    return S[S.length - 1].cable;
+  }
+
+  /** Horizontal distance for a rope arc length along one line. */
+  hAtS(s: number): number {
+    const T = this.sTable, H = this.hTable;
+    if (s <= 0) return 0;
+    if (s >= this.lineLen) return this.horiz;
+    let lo = 0, hi = T.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (T[m] < s) lo = m; else hi = m; }
+    const t = (s - T[lo]) / (T[hi] - T[lo]);
+    return H[lo] + (H[hi] - H[lo]) * t;
+  }
+
+  /** Point on the rope at horizontal distance h, side +1 = uphill line (right), -1 = downhill line. */
+  ropePoint(h: number, side: number, out: P3 = { x: 0, y: 0, z: 0 }): P3 {
+    const b = this.def.bottom;
+    out.x = b[0] + this.ax * h + this.rx * side * GAUGE / 2;
+    out.z = b[2] + this.az * h + this.rz * side * GAUGE / 2;
+    out.y = this.cableY(h);
+    return out;
+  }
+
+  /**
+   * Chair grip position and travel direction for loop parameter u in [0, loopLen).
+   * u = 0 at the bottom bull wheel on the uphill side; increases in the direction of travel.
+   */
+  loopPoint(u: number, out: P3 = { x: 0, y: 0, z: 0 }): { p: P3; heading: number; uphill: boolean; h: number } {
+    const L = this.lineLen, R = GAUGE / 2;
+    u = ((u % this.loopLen) + this.loopLen) % this.loopLen;
+    const fwdHeading = Math.atan2(-this.ax, -this.az); // heading facing uphill
+    if (u < L) {
+      const h = this.hAtS(u);
+      this.ropePoint(h, 1, out);
+      return { p: out, heading: fwdHeading, uphill: true, h };
+    }
+    u -= L;
+    const arc = Math.PI * R;
+    if (u < arc) {
+      // around the top bull wheel from right side to left side
+      const a = u / R; // 0..pi
+      const t = this.def.top;
+      const cx = t[0], cz = t[2];
+      const ox = Math.cos(a) * R, of = Math.sin(a) * R; // along right axis, forward axis
+      out.x = cx + this.rx * ox + this.ax * of;
+      out.z = cz + this.rz * ox + this.az * of;
+      out.y = this.cableY(this.horiz);
+      return { p: out, heading: fwdHeading + a, uphill: false, h: this.horiz };
+    }
+    u -= arc;
+    if (u < L) {
+      const h = this.hAtS(L - u);
+      this.ropePoint(h, -1, out);
+      return { p: out, heading: fwdHeading + Math.PI, uphill: false, h };
+    }
+    u -= L;
+    const a = Math.min(Math.PI, u / R);
+    const bt = this.def.bottom;
+    const ox = -Math.cos(a) * R, of = -Math.sin(a) * R;
+    out.x = bt[0] + this.rx * ox + this.ax * of;
+    out.z = bt[2] + this.rz * ox + this.az * of;
+    out.y = this.cableY(0);
+    return { p: out, heading: fwdHeading + Math.PI + a, uphill: true, h: 0 };
+  }
+
+  /** Loop parameter of chair i at lift clock time t (seconds). */
+  chairU(i: number, t: number) {
+    return (((t * this.def.speed + i * this.spacing) % this.loopLen) + this.loopLen) % this.loopLen;
+  }
+
+  /** Loop parameter of the load line (where riders are scooped up). */
+  get loadU() { return this.sAtH(LOAD_OFFSET); }
+  get unloadU() { return this.sAtH(this.horiz - UNLOAD_OFFSET); }
+  sAtH(h: number) {
+    const T = this.sTable, H = this.hTable;
+    let lo = 0, hi = H.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (H[m] < h) lo = m; else hi = m; }
+    const t = (h - H[lo]) / ((H[hi] - H[lo]) || 1);
+    return T[lo] + (T[hi] - T[lo]) * t;
+  }
+
+  /** Index of the next chair to reach loop parameter u after time t, and when it arrives. */
+  nextChairAt(u: number, t: number): { index: number; arrive: number } {
+    const base = (t * this.def.speed) % this.loopLen;
+    // chair i at u_i = base + i*spacing (mod loop). Want smallest dt >= 0 with u_i + v*dt = u.
+    let best = -1, bestDt = Infinity;
+    for (let i = 0; i < this.chairCount; i++) {
+      let d = u - ((base + i * this.spacing) % this.loopLen);
+      d = ((d % this.loopLen) + this.loopLen) % this.loopLen;
+      const dt = d / this.def.speed;
+      if (dt < bestDt) { bestDt = dt; best = i; }
+    }
+    return { index: best, arrive: t + bestDt };
+  }
+
+  /** The load zone: world point where a rider should stand, and the uphill heading. */
+  loadPoint(): { x: number; z: number; heading: number } {
+    const p = this.ropePoint(LOAD_OFFSET, 1);
+    return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
+  }
+  unloadPoint(): { x: number; z: number; heading: number } {
+    const p = this.ropePoint(this.horiz - UNLOAD_OFFSET + 3, 1);
+    return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
+  }
+
+  /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
+  inLoadZone(x: number, z: number): boolean {
+    const b = this.def.bottom;
+    const dx = x - b[0], dz = z - b[2];
+    const along = dx * this.ax + dz * this.az;
+    const across = dx * this.rx + dz * this.rz;
+    return along > LOAD_OFFSET - 4.5 && along < LOAD_OFFSET + 1.2 && Math.abs(across - GAUGE / 2) < 1.8;
+  }
+
+  rideTime() { return this.lineLen / this.def.speed; }
+}

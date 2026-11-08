@@ -3,25 +3,55 @@ import { Heightfield } from './terrain/heightfield';
 import { TerrainRenderer } from './terrain/terrainRenderer';
 import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrainMaterial';
 import { Environment } from './sky/environment';
+import { LiftSystem } from './lifts/liftSystem';
+import { Player } from './skier/player';
+import { InputManager } from './skier/input';
+import { CameraRig } from './camera/cameraRig';
+import { Hud } from './ui/hud';
+import { TreeSystem } from './trees/trees';
+import { ColliderGrid } from '../../shared/collision';
+import { SurfaceMap } from '../../shared/surface';
+import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
+import type { LiftDef } from '../../shared/lifts';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
+
+export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][] }
+export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[] }
 
 export class Game {
   renderer!: THREE.WebGPURenderer;
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(60, 1, 0.3, 300000);
+  camera = new THREE.PerspectiveCamera(62, 1, 0.25, 300000);
   hf = new Heightfield(WORLD_BASE);
   terrain!: TerrainRenderer;
   terrainMat!: TerrainMaterialHandles;
   env!: Environment;
+  resort!: ResortData;
+  lifts!: LiftSystem;
+  surface: SurfaceMap | null = null;
+  colliders = new ColliderGrid(8);
+  player!: Player;
+  trees!: TreeSystem;
+  input = new InputManager();
+  camRig!: CameraRig;
+  hud!: Hud;
   params = new URLSearchParams(location.search);
-  clock = new THREE.Clock();
-  fps = 0;
+  timer = new THREE.Timer();
+  fps = 60;
+  frameMs = 16;
+  flyMode = false;
+  slopeOverlay = false;
   private fly = { yaw: 0, pitch: -0.2, keys: new Set<string>() };
+  private tmpV = new THREE.Vector3();
+  private tmpV2 = new THREE.Vector3();
+  probe!: TerrainProbe;
+  onFrame: ((dt: number) => void)[] = [];
+  ready = false;
 
   constructor(private container: HTMLElement) {}
 
-  private setLoading(frac: number, text: string) {
+  setLoading(frac: number, text: string) {
     const b = document.getElementById('load-bar');
     const t = document.getElementById('load-text');
     if (b) b.style.width = `${Math.round(frac * 100)}%`;
@@ -31,48 +61,111 @@ export class Game {
   async start() {
     this.setLoading(0.05, 'Starting renderer');
     const forceWebGL = this.params.get('webgl') === '1';
-    this.renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL, logarithmicDepthBuffer: false });
+    this.renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
     await this.renderer.init();
     this.onResize();
     window.addEventListener('resize', () => this.onResize());
 
-    this.setLoading(0.15, 'Loading terrain index');
-    await this.hf.init();
+    this.setLoading(0.12, 'Loading resort data');
+    const [_, resort, surface] = await Promise.all([
+      this.hf.init(),
+      fetch(`${WORLD_BASE}/resort.json`).then((r) => r.json()),
+      SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
+    ]);
+    void _;
+    this.resort = resort;
+    this.surface = surface;
+    this.probe = {
+      height: (x, z) => this.hf.heightAt(x, z),
+      normal: (x, z, out: Vec3) => { const n = this.hf.normalAt(x, z, 1); out.x = n.x; out.y = n.y; out.z = n.z; return out; },
+      surface: (x, z) => this.surface ? this.surface.at(x, z) : { groomed: 1, piste: 1, moguls: 0 },
+    };
+
     this.terrainMat = createTerrainMaterial();
     this.terrain = new TerrainRenderer(this.hf, this.terrainMat.material);
     this.scene.add(this.terrain.group);
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: true, shadowMapSize: 2048, cascades: 3, shadowFar: 900 });
     this.terrainMat.sunDir.value.copy(this.env.sunDir.value);
 
-    // initial camera
+    this.lifts = new LiftSystem(this.resort.lifts);
+    this.scene.add(this.lifts.group);
+    for (const c of this.lifts.colliders) this.colliders.add(c);
+
+    // spawn near the main base lift (Segundo/Tercero bottom terminals by the base lodge)
+    const seg = this.resort.lifts.find((l) => l.name === 'Segundo') ?? this.resort.lifts[0];
+    this.setLoading(0.25, 'Loading terrain near the base');
+    await this.hf.ensureArea(0, seg.bottom[0], -seg.bottom[2], 300);
+    const spawn = this.spawnPoint();
+    this.setLoading(0.35, 'Loading trees');
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders);
+    this.scene.add(this.trees.group);
+    await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
+    this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
+    this.scene.add(this.player.model.root);
+    this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
+    this.hud = new Hud();
+
+    this.flyMode = this.params.get('fly') === '1';
     const cam = this.params.get('cam');
-    let x = 0, z = 0, y = 0;
-    if (cam) { [x, y, z] = cam.split(',').map(Number); }
-    await this.hf.ensureArea(0, x, -z, 300);
-    const ground = this.hf.heightAt(x, z);
-    if (!cam) y = ground + 40;
-    this.camera.position.set(x, y, z);
+    if (cam) {
+      const [x, y, z] = cam.split(',').map(Number);
+      this.camera.position.set(x, y, z);
+      this.flyMode = true;
+      await this.hf.ensureArea(0, x, -z, 300);
+    } else this.camera.position.copy(this.player.position).add(new THREE.Vector3(0, 3, 6));
     if (this.params.get('yaw')) this.fly.yaw = Number(this.params.get('yaw')) * Math.PI / 180;
     if (this.params.get('pitch')) this.fly.pitch = Number(this.params.get('pitch')) * Math.PI / 180;
+    if (this.params.get('hour')) this.env.setHour(Number(this.params.get('hour')));
     this.setupFlyControls();
 
-    this.setLoading(0.5, 'Building terrain');
-    // warm up terrain until nearby chunks are built
-    for (let i = 0; i < 200; i++) {
-      this.updateFlyCamera(0);
+    this.setLoading(0.55, 'Building terrain');
+    for (let i = 0; i < 300; i++) {
+      this.updateCamera(1 / 60);
       this.terrain.update(this.camera.position);
+      this.trees.update(this.camera.position);
       if (i > 5 && this.terrain.idle) break;
+      this.setLoading(0.55 + 0.4 * (i / 300), 'Building terrain');
       await new Promise((r) => setTimeout(r, 16));
     }
     this.setLoading(1, 'Ready');
     document.getElementById('loading')?.classList.add('done');
+    this.ready = true;
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  private spawnCache: { x: number; z: number; heading: number } | null = null;
+  /** A gentle spot near the Segundo load line (main base lift), facing the load line. */
+  spawnPoint() {
+    if (this.spawnCache) return this.spawnCache;
+    const li = Math.max(0, this.resort.lifts.findIndex((l) => l.name === 'Segundo'));
+    const path = this.lifts.paths[li];
+    const lp = path.loadPoint();
+    // preferred spot: 14 m before the load line on the loading side
+    const px = lp.x - path.ax * 14 + path.rx * 3, pz = lp.z - path.az * 14 + path.rz * 3;
+    let best = { x: px, z: pz, score: Infinity };
+    for (let i = -20; i <= 20; i++) for (let j = -20; j <= 20; j++) {
+      const x = px + i * 1.5, z = pz + j * 1.5;
+      if (this.hf.bestLevel(x, -z) !== 0) continue;
+      const slope = this.hf.slopeDeg(x, z, 2.5);
+      if (slope > 4.5 || path.inLoadZone(x, z)) continue;
+      if (this.colliders.query(x, z).some((c) => Math.hypot(c.x - x, c.z - z) < 4)) continue;
+      const score = Math.hypot(x - px, z - pz) + slope * 2;
+      if (score < best.score) best = { x, z, score };
+    }
+    const heading = Math.atan2(-(lp.x - best.x), -(lp.z - best.z));
+    if (best.score < Infinity) this.spawnCache = { x: best.x, z: best.z, heading };
+    return { x: best.x, z: best.z, heading };
+  }
+
+  respawn() {
+    const s = this.spawnPoint();
+    this.player.teleport(s.x, s.z, s.heading);
+    this.hud.toast('Back at the base area');
   }
 
   private onResize() {
@@ -84,14 +177,13 @@ export class Game {
   }
 
   private setupFlyControls() {
-    const el = this.renderer.domElement;
     window.addEventListener('keydown', (e) => this.fly.keys.add(e.code));
     window.addEventListener('keyup', (e) => this.fly.keys.delete(e.code));
     let drag = false, lx = 0, ly = 0;
-    el.addEventListener('mousedown', (e) => { drag = true; lx = e.clientX; ly = e.clientY; });
+    this.renderer.domElement.addEventListener('mousedown', (e) => { drag = true; lx = e.clientX; ly = e.clientY; });
     window.addEventListener('mouseup', () => (drag = false));
     window.addEventListener('mousemove', (e) => {
-      if (!drag) return;
+      if (!drag || !this.flyMode) return;
       this.fly.yaw -= (e.clientX - lx) * 0.004;
       this.fly.pitch = THREE.MathUtils.clamp(this.fly.pitch - (e.clientY - ly) * 0.004, -1.5, 1.5);
       lx = e.clientX; ly = e.clientY;
@@ -112,16 +204,81 @@ export class Game {
     const g = this.hf.heightAt(this.camera.position.x, this.camera.position.z);
     if (this.camera.position.y < g + 1.5) this.camera.position.y = g + 1.5;
     this.camera.rotation.set(this.fly.pitch, this.fly.yaw, 0, 'YXZ');
-    void this.hf.ensureArea(0, this.camera.position.x, -this.camera.position.z, 200);
   }
 
+  private updateCamera(dt: number) {
+    if (this.flyMode) { this.updateFlyCamera(dt); return; }
+    const st = this.player.st;
+    this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
+    this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride);
+  }
+
+  runAt(x: number, z: number): RunInfo | null {
+    return this.runLookup ? this.runLookup(x, z) : null;
+  }
+  runLookup: ((x: number, z: number) => RunInfo | null) | null = null;
+
   private frame() {
-    const dt = Math.min(this.clock.getDelta(), 0.1);
-    this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 0) * 0.05;
-    this.updateFlyCamera(dt);
+    this.timer.update();
+    const t0 = performance.now();
+    const dt = Math.min(this.timer.getDelta(), 0.1);
+    this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
+    const actions = this.input.actions();
+    if (!this.flyMode) {
+      const inp = this.input.ski(dt);
+      if (actions.getUp) this.player.getUp();
+      if (actions.skipLift) this.player.skipRide();
+      if (actions.respawn) this.respawn();
+      if (actions.camera) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
+      this.player.update(dt, inp);
+    }
+    if (actions.help) this.hud.toggleHelp();
+    if (actions.slope) {
+      this.slopeOverlay = !this.slopeOverlay;
+      this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
+      this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
+    }
+    this.lifts.update();
+    this.updateCamera(dt);
+    for (const f of this.onFrame) f(dt);
+    const p = this.flyMode ? this.camera.position : this.player.position;
+    void this.hf.ensureArea(0, p.x, -p.z, 160);
+    if (Math.random() < 0.01) this.hf.evict(p.x, -p.z, 900);
+    this.trees.update(this.camera.position);
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
-    this.env.update(this.camera.position);
+    this.env.update(p);
+
+    const st = this.player.st;
+    const run = this.runAt(st.pos.x, st.pos.z);
+    this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
+    this.updateHints();
     this.renderer.render(this.scene, this.camera);
+    this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
+    if (Math.random() < 0.1) {
+      const info = this.renderer.info;
+      this.hud.stats(`${this.fps.toFixed(0)} fps  cpu ${this.frameMs.toFixed(1)} ms\nterrain ${this.terrain.visibleCount} chunks\ncalls ${info.render.drawCalls} tris ${(info.render.triangles / 1e6).toFixed(2)}M`);
+    }
+  }
+
+  private modeLabel() {
+    const st = this.player.st;
+    if (this.player.ride) return `Riding ${this.lifts.paths[this.player.ride.lift].def.name}`;
+    return { skiing: '', standing: '', air: 'Airborne', fallen: 'Fallen: press R', gettingUp: 'Getting up', riding: '' }[st.mode] ?? '';
+  }
+
+  private updateHints() {
+    const pl = this.player;
+    if (pl.ride) {
+      const path = this.lifts.paths[pl.ride.lift];
+      const b = path.def.bottom;
+      const along = (pl.st.pos.x - b[0]) * path.ax + (pl.st.pos.z - b[2]) * path.az;
+      const remain = Math.max(0, (path.horiz - along) / path.def.speed);
+      this.hud.hint(`${path.def.name} lift: ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')} to the top. Press <b>F</b> to skip.`);
+    } else if (pl.inLoadZone >= 0) {
+      this.hud.hint(`Wait on the red line, the ${this.lifts.paths[pl.inLoadZone].def.name} chair is coming`);
+    } else if (pl.st.mode === 'fallen' && pl.st.speed < 1) {
+      this.hud.hint('You fell. Press <b>R</b> to get up');
+    } else this.hud.hint(null);
   }
 }

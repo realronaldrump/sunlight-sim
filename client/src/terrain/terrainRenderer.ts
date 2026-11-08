@@ -53,9 +53,9 @@ export class TerrainRenderer {
   readonly group = new THREE.Group();
   private chunks = new Map<string, Chunk>();
   private frame = 0;
-  splitFactor = 2.2;
+  splitFactor = 1.5;
   maxBuildsPerFrame = 6;
-  shadowMaxLevel = 3;
+  shadowMaxLevel = 2;
   visibleCount = 0;
   triangles = 0;
   private roots: [number, number][] = [];
