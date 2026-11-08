@@ -58,7 +58,9 @@ export class TreeSystem {
     mat.normalNode = transformNormalToView(vec3(0, 1, 0)).normalize();
     // fade out impostors beyond farDist
     const d = length(positionWorld.sub(cameraPosition));
-    mat.opacityNode = texel.a.mul(float(1).sub(smoothstep(this.farDist * 0.85, this.farDist, d)));
+    // keep coverage at distance (mipmapped alpha thins out foliage) and fade out at the far limit
+    const cover = float(1).add(d.div(450.0));
+    mat.opacityNode = texel.a.mul(cover).mul(float(1).sub(smoothstep(this.farDist * 0.85, this.farDist, d)));
     this.impostorMat = mat;
 
     const nearMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9 });

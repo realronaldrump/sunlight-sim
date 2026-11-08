@@ -29,10 +29,10 @@ export class Environment {
 
   constructor(private scene: THREE.Scene, private renderer: THREE.WebGPURenderer, private camera: THREE.PerspectiveCamera, opts: EnvOptions) {
     this.sky.scale.setScalar(450000);
-    this.sky.turbidity.value = 2.2;
-    this.sky.rayleigh.value = 1.1;
-    this.sky.mieCoefficient.value = 0.004;
-    this.sky.mieDirectionalG.value = 0.85;
+    this.sky.turbidity.value = 1.6;
+    this.sky.rayleigh.value = 1.35;
+    this.sky.mieCoefficient.value = 0.0018;
+    this.sky.mieDirectionalG.value = 0.78;
     (this.sky as unknown as { cloudCoverage?: { value: number } }).cloudCoverage && ((this.sky as unknown as { cloudCoverage: { value: number } }).cloudCoverage.value = 0.15);
     (this.sky.material as THREE.Material).fog = false;
     this.sky.frustumCulled = false;

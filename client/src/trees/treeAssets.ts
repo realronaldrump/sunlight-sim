@@ -51,9 +51,12 @@ export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.Buff
     cone.translate(0, y0 + h / 2, 0);
     parts.push(colorize(cone.toNonIndexed(), (p, n) => {
       // snow on the top surfaces, dark needles below
-      const snowy = Math.max(0, n.y - 0.25) * 1.5 * (0.6 + 0.4 * Math.sin(p.x * 40 + p.z * 31));
-      const base = kind === 0 ? new THREE.Color(0x1d3324) : new THREE.Color(0x24382a);
-      return base.lerp(new THREE.Color(0xe8eef5), Math.min(0.85, snowy));
+      // snow sits in clumps on the upper side of the branch layers; needles stay dark underneath
+      const clump = 0.5 + 0.5 * Math.sin(p.x * 37 + p.z * 29 + p.y * 53);
+      const snowy = n.y > 0.62 ? (n.y - 0.62) * 2.4 * clump : 0;
+      const base = kind === 0 ? new THREE.Color(0x1a2e21) : new THREE.Color(0x22362a);
+      base.multiplyScalar(0.85 + 0.3 * ((p.x * 13.7 + p.z * 7.1) % 1 + 1) % 1);
+      return base.lerp(new THREE.Color(0xe4ebf2), Math.min(0.7, snowy));
     }));
   }
   const g = mergeGeometries(parts);
@@ -71,11 +74,11 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
     const mark = Math.sin(p.y * 90) > 0.93 ? 0.35 : 1;
     return new THREE.Color(0xd8d6cc).multiplyScalar(mark * (p.y < 0.08 ? 0.6 : 1));
   }));
-  const nb = detail === 'high' ? 14 : 5;
+  const nb = detail === 'high' ? 26 : 6;
   for (let i = 0; i < nb; i++) {
-    const y = 0.45 + r() * 0.5;
-    const len = 0.25 + r() * 0.35 * (1 - (y - 0.45));
-    const br = new THREE.CylinderGeometry(0.004, 0.01, len, 3);
+    const y = 0.42 + r() * 0.52;
+    const len = 0.3 + r() * 0.45 * (1 - (y - 0.42));
+    const br = new THREE.CylinderGeometry(0.005, 0.012, len, 3);
     br.translate(0, len / 2, 0);
     br.rotateZ(0.5 + r() * 0.6);
     br.rotateY(r() * Math.PI * 2);
@@ -83,12 +86,15 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
     parts.push(colorize(br.toNonIndexed(), () => new THREE.Color(0x8a8578)));
   }
   if (detail === 'high') {
-    // fine twig haze: a few grey translucent-looking planes approximated by dark thin boxes
-    for (let i = 0; i < 6; i++) {
-      const tw = new THREE.ConeGeometry(0.25 + r() * 0.1, 0.25, 5, 1, true);
-      tw.translate(0, 0.78 + r() * 0.18, 0);
-      parts.push(colorize(tw.toNonIndexed(), () => new THREE.Color(0x6f675e)));
-      break;
+    // secondary branches: short twigs off the main branches give the grey winter crown
+    for (let i = 0; i < 40; i++) {
+      const y = 0.55 + r() * 0.42;
+      const len = 0.12 + r() * 0.18;
+      const tw = new THREE.CylinderGeometry(0.002, 0.005, len, 3);
+      tw.translate(0, len / 2, 0);
+      tw.rotateZ(0.3 + r() * 1.0); tw.rotateY(r() * Math.PI * 2);
+      tw.translate((r() - 0.5) * 0.35, y, (r() - 0.5) * 0.35);
+      parts.push(colorize(tw.toNonIndexed(), () => new THREE.Color(0x6d665e)));
     }
   }
   return mergeGeometries(parts);

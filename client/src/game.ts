@@ -9,6 +9,8 @@ import { InputManager } from './skier/input';
 import { CameraRig } from './camera/cameraRig';
 import { Hud } from './ui/hud';
 import { TreeSystem } from './trees/trees';
+import { RunSystem } from './runs/runs';
+import { TrailMap } from './ui/trailMap';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
@@ -33,6 +35,8 @@ export class Game {
   colliders = new ColliderGrid(8);
   player!: Player;
   trees!: TreeSystem;
+  runs!: RunSystem;
+  trailMap!: TrailMap;
   input = new InputManager();
   camRig!: CameraRig;
   hud!: Hud;
@@ -92,6 +96,9 @@ export class Game {
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: true, shadowMapSize: 2048, cascades: 3, shadowFar: 900 });
     this.terrainMat.sunDir.value.copy(this.env.sunDir.value);
 
+    this.runs = new RunSystem(this.resort);
+    await this.runs.load(WORLD_BASE).catch((e) => console.warn('runs raster failed', e));
+    this.runLookup = (x, z) => this.runs.runAt(x, z);
     this.lifts = new LiftSystem(this.resort.lifts);
     this.scene.add(this.lifts.group);
     for (const c of this.lifts.colliders) this.colliders.add(c);
@@ -100,6 +107,8 @@ export class Game {
     const seg = this.resort.lifts.find((l) => l.name === 'Segundo') ?? this.resort.lifts[0];
     this.setLoading(0.25, 'Loading terrain near the base');
     await this.hf.ensureArea(0, seg.bottom[0], -seg.bottom[2], 300);
+    await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
+    this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
     this.trees = new TreeSystem(WORLD_BASE, this.colliders);
@@ -107,6 +116,18 @@ export class Game {
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
     this.scene.add(this.player.model.root);
+    this.runs.buildSigns((x, z) => this.hf.heightAt(x, z), this.colliders);
+    this.runs.buildBoundary((x, z) => this.hf.heightAt(x, z));
+    this.scene.add(this.runs.group);
+    this.trailMap = new TrailMap(this.resort, WORLD_BASE);
+    this.trailMap.onTeleport = (name) => this.teleportToRun(name);
+    if (this.surface) {
+      const s = this.surface;
+      const tex = new THREE.DataTexture(s.data, s.w, s.h, THREE.RGBAFormat);
+      tex.flipY = false; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+      tex.needsUpdate = true;
+      this.terrainMat.setSurface(tex, s.x0, s.n0, s.w * s.res, s.h * s.res);
+    }
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.hud = new Hud();
 
@@ -233,6 +254,12 @@ export class Game {
       this.player.update(dt, inp);
     }
     if (actions.help) this.hud.toggleHelp();
+    if (actions.map) this.trailMap.toggle();
+    if (this.trailMap.visible) {
+      const st2 = this.player.st;
+      this.trailMap.players = [{ name: this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true }, ...this.remoteMapPlayers()];
+      if (Math.random() < 0.2) this.trailMap.draw();
+    }
     if (actions.slope) {
       this.slopeOverlay = !this.slopeOverlay;
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
@@ -259,6 +286,53 @@ export class Game {
       const info = this.renderer.info;
       this.hud.stats(`${this.fps.toFixed(0)} fps  cpu ${this.frameMs.toFixed(1)} ms\nterrain ${this.terrain.visibleCount} chunks\ncalls ${info.render.drawCalls} tris ${(info.render.triangles / 1e6).toFixed(2)}M`);
     }
+  }
+
+  playerName = 'You';
+  playerColor = '#d33a2c';
+  remoteMapPlayers: () => { name: string; color: string; x: number; z: number; heading: number }[] = () => [];
+
+  /** Test hook: put a free camera at (x, y, z) looking along yaw/pitch (degrees). y < 0 = meters above ground. */
+  async setView(x: number, y: number, z: number, yawDeg: number, pitchDeg: number) {
+    this.flyMode = true;
+    await this.hf.ensureArea(0, x, -z, 250);
+    const gy = this.hf.heightAt(x, z);
+    this.camera.position.set(x, y < 0 ? gy - y : y, z);
+    this.fly.yaw = yawDeg * Math.PI / 180;
+    this.fly.pitch = pitchDeg * Math.PI / 180;
+    this.fly.keys.clear();
+  }
+
+  /** Test hook: resolves when terrain and nearby trees have finished streaming. */
+  async waitIdle(timeoutMs = 20000) {
+    const t0 = performance.now();
+    let calm = 0;
+    while (performance.now() - t0 < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 100));
+      const busy = !this.terrain.idle || this.trees.loaded < this.trees.total;
+      calm = busy ? 0 : calm + 1;
+      if (calm >= 5) return true;
+    }
+    return false;
+  }
+
+  /** Test hook: look from (x,z) toward a target point (game coords). */
+  lookAt(x: number, z: number, tx: number, ty: number, tz: number, eyeAbove = 1.7) {
+    const gy = this.hf.heightAt(x, z);
+    const dx = tx - x, dz = tz - z, dy = ty - (gy + eyeAbove);
+    const yaw = Math.atan2(-dx, -dz) * 180 / Math.PI;
+    const pitch = Math.atan2(dy, Math.hypot(dx, dz)) * 180 / Math.PI;
+    return this.setView(x, -eyeAbove, z, yaw, pitch);
+  }
+
+  async teleportToRun(name: string) {
+    const top = this.runs.runTops().get(name);
+    if (!top) return;
+    // start a few meters down the run, facing down it
+    const x = top.x + top.dx * 4, z = top.z + top.dz * 4;
+    await this.hf.ensureArea(0, x, -z, 200);
+    this.player.teleport(x, z, Math.atan2(-top.dx, -top.dz));
+    this.hud.toast(`Top of ${name}`);
   }
 
   private modeLabel() {

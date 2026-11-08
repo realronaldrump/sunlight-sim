@@ -47,7 +47,8 @@ export class CameraRig {
     const want = speed > 2 && !riding ? new THREE.Vector3(vel.x, 0, vel.z).normalize()
       : new THREE.Vector3(-Math.sin(heading), 0, -Math.cos(heading));
     const k = Math.min(1, dt * (speed > 2 ? 2.2 : 1.2));
-    this.smoothDir.lerp(want, k).normalize();
+    if (!this.initialized || this.smoothDir.dot(want) < -0.9) this.smoothDir.copy(want);
+    else this.smoothDir.lerp(want, k).normalize();
     if (!this.dragging) { this.yawOffset *= Math.pow(0.4, dt); }
     const dir = this.smoothDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawOffset);
 
@@ -70,6 +71,12 @@ export class CameraRig {
       if (side.dot(new THREE.Vector3(Math.cos(this.yawOffset), 0, Math.sin(this.yawOffset))) < -2) side.negate();
       desired = target.clone().addScaledVector(side, this.distance * 2.2).add(new THREE.Vector3(0, 1.2 + this.pitchOffset * 4, 0));
       look = target.clone().add(new THREE.Vector3(0, 1.0, 0));
+    } else if (riding) {
+      // beside and behind the chair so the hanger does not block the view up the lift line
+      const right = new THREE.Vector3(-dir.z, 0, dir.x);
+      desired = target.clone().addScaledVector(dir, -this.distance * 0.7).addScaledVector(right, -3.2)
+        .add(new THREE.Vector3(0, 1.6 + this.pitchOffset * 4, 0));
+      look = target.clone().add(new THREE.Vector3(0, 0.6, 0)).addScaledVector(dir, 8);
     } else {
       const height = 2.2 + this.pitchOffset * this.distance * 0.6;
       desired = target.clone().addScaledVector(dir, -this.distance).add(new THREE.Vector3(0, height, 0));
@@ -78,6 +85,7 @@ export class CameraRig {
     // keep the camera above the snow
     const g = this.ground(desired.x, desired.z);
     if (desired.y < g + 1.0) desired.y = g + 1.0;
+    if (riding && this.mode === 'chase') { this.pos.copy(desired); this.initialized = true; }
     if (!this.initialized) { this.pos.copy(desired); this.initialized = true; }
     this.pos.lerp(desired, Math.min(1, dt * 6));
     const g2 = this.ground(this.pos.x, this.pos.z);

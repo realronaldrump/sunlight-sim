@@ -57,7 +57,7 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const groomed = surf.r;
     const piste = surf.g;
     const canopy = max(surf.b, land.r.mul(float(1.0).sub(inSurf)));
-    const rockMask = surf.a; // cliffs/rock from lidar where available
+    const moguls = surf.a;
     // base Colorado snow: very slightly blue-white
     const snow = vec3(0.90, 0.93, 0.97).toVar();
     // subtle large-scale variation (wind packing, sun crust)
@@ -72,20 +72,27 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     // groomed snow is a touch brighter/smoother from far away
     snow.mulAssign(float(1.0).add(groomed.mul(0.015)));
     // forest from afar: trees darken the snow surface (only beyond near tree rendering range)
-    const farForest = smoothstep(1200.0, 3500.0, dist).mul(canopy);
-    const forestCol = vec3(0.16, 0.20, 0.17);
-    snow.assign(mix(snow, forestCol, farForest.mul(0.75)));
+    // forest floor under the canopy is in shade; from afar the trees themselves dominate
+    const midForest = smoothstep(120.0, 700.0, dist).mul(canopy).mul(0.38);
+    const farForest = smoothstep(1500.0, 4000.0, dist).mul(canopy).mul(0.45);
+    const forestCol = vec3(0.13, 0.17, 0.15);
+    snow.assign(mix(snow, forestCol, midForest.add(farForest)));
     // exposed rock on very steep faces that are not runs
-    const rock = smoothstep(48.0, 58.0, slopeDeg).mul(float(1.0).sub(piste)).max(rockMask.mul(0.8));
+    // mogul fields: soft light/shade pattern of bumps (about 4 m spacing) where the run is not groomed
+    const mp = vec2(positionWorld.x, positionWorld.z).mul(0.26);
+    const bump = sin(mp.x.add(sin(mp.y.mul(0.7)))).mul(sin(mp.y.add(sin(mp.x.mul(0.6)))));
+    const mogFade = float(1.0).sub(smoothstep(60.0, 400.0, dist));
+    snow.mulAssign(float(1.0).add(bump.mul(moguls).mul(mogFade).mul(0.06)));
+    const rock = smoothstep(48.0, 58.0, slopeDeg).mul(float(1.0).sub(piste));
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
     snow.assign(mix(snow, rockCol, rock));
     // beginner slope-angle overlay
-    const ov = vec3(0.30, 0.85, 0.35).toVar(); // < 15 deg  green
-    ov.assign(select(slopeDeg.greaterThan(15.0), vec3(0.25, 0.55, 1.0), ov)); // 15-25 blue
-    ov.assign(select(slopeDeg.greaterThan(25.0), vec3(0.15, 0.15, 0.18), ov)); // 25-35 black
-    ov.assign(select(slopeDeg.greaterThan(35.0), vec3(1.0, 0.55, 0.1), ov)); // 35-45 orange
-    ov.assign(select(slopeDeg.greaterThan(45.0), vec3(0.9, 0.12, 0.12), ov)); // > 45 red
-    return mix(snow, ov, slopeOverlay.mul(0.55));
+    const ov = vec3(0.10, 0.75, 0.18).toVar(); // < 15 deg  green
+    ov.assign(select(slopeDeg.greaterThan(15.0), vec3(0.08, 0.35, 1.0), ov)); // 15-25 blue
+    ov.assign(select(slopeDeg.greaterThan(25.0), vec3(0.05, 0.05, 0.07), ov)); // 25-35 black
+    ov.assign(select(slopeDeg.greaterThan(35.0), vec3(1.0, 0.45, 0.0), ov)); // 35-45 orange
+    ov.assign(select(slopeDeg.greaterThan(45.0), vec3(0.95, 0.05, 0.05), ov)); // > 45 red
+    return mix(snow, ov, slopeOverlay.mul(0.78));
   });
   mat.colorNode = colorFn();
 

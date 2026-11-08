@@ -57,6 +57,18 @@ export class LiftSystem {
 
   now() { return Date.now() / 1000 + this.clockOffset; }
 
+  /** Re-seat ground-standing props once fine terrain is loaded (huts sit on the uphill corner of their footprint). */
+  settle(height: (x: number, z: number) => number) {
+    this.group.traverse((o) => {
+      const kind = o.userData.settle;
+      if (!kind) return;
+      let gmax = -Infinity;
+      for (const [dx, dz] of [[-1.6, -1.8], [1.6, -1.8], [-1.6, 1.8], [1.6, 1.8], [0, 0]]) gmax = Math.max(gmax, height(o.position.x + dx, o.position.z + dz));
+      if (kind === 'hut') o.position.y = gmax + 1.3 - 1.5;
+      else o.position.y = gmax + 3.2;
+    });
+  }
+
   private buildStatic(path: LiftPath) {
     const def = path.def;
     const g = new THREE.Group();
@@ -102,11 +114,13 @@ export class LiftSystem {
         // operator hut beside the terminal (left side, away from the loading side)
         const hutX = p.x - path.rx * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
         const hutZ = p.z - path.rz * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
-        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 3.6), wood);
-        hut.position.set(hutX, s.ground + 1.3, hutZ); hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
+        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6 + 3, 3.6), wood);
+        hut.position.set(hutX, s.ground + 1.3 - 1.5, hutZ);
+        hut.userData.settle = 'hut'; hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
         g.add(hut);
         const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.2, 4), roofMat);
         roof.position.set(hutX, s.ground + 3.2, hutZ); roof.rotation.y = yaw + Math.PI / 4; roof.castShadow = true; g.add(roof);
+        roof.userData.settle = 'roof';
         this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: 1.7, hz: 1.9, yaw: -yaw, top: s.ground + 3 });
       }
     }
