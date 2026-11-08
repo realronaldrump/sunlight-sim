@@ -65,7 +65,16 @@ export class SkierModel {
 
     this.root.add(this.body);
     const add = (name: string, m: THREE.Mesh) => { this.parts[name] = m; this.body.add(m); return m; };
-    add('torso', limb(0.16, jacketMat));
+    // jacket body: lathe profile hips -> waist -> chest -> shoulders, oval cross-section, unit height
+    const prof = [[0.0, 0.0], [0.155, 0.0], [0.16, 0.12], [0.15, 0.3], [0.17, 0.55], [0.175, 0.75], [0.15, 0.9], [0.08, 1.0], [0.0, 1.0]]
+      .map(([r, y]) => new THREE.Vector2(r, y));
+    const torsoGeo = new THREE.LatheGeometry(prof, 18);
+    torsoGeo.scale(1.12, 1, 0.8);
+    const torso = new THREE.Mesh(torsoGeo, jacketMat); torso.castShadow = true; torso.userData.lathe = true;
+    add('torso', torso);
+    // zipper and hem details
+    const zip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.9, 0.01), new THREE.MeshStandardNodeMaterial({ color: 0x222222 }));
+    zip.position.set(0, 0.5, -0.142); torso.add(zip);
     add('shoulders', limb(0.1, jacketMat));
     const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.09, 12), jacketMat); add('collar', collar);
     add('pelvis', limb(0.14, pantsMat));
@@ -101,6 +110,13 @@ export class SkierModel {
   private place(m: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, radius: number) {
     const d = b.clone().sub(a);
     const len = d.length();
+    if (m.userData.lathe) {
+      // lathe meshes are unit height from their base: position at a, stretch to b
+      m.position.copy(a);
+      m.quaternion.setFromUnitVectors(UP, d.normalize());
+      m.scale.set(1, len, 1);
+      return;
+    }
     m.position.copy(a).add(b).multiplyScalar(0.5);
     m.quaternion.setFromUnitVectors(UP, d.normalize());
     // capsule geometry has length 1 + 2r: scale the cylinder part only approximately
@@ -175,7 +191,7 @@ export class SkierModel {
     // ---- place meshes ----
     this.place(this.parts.pelvis, hipL.clone().add(V(0, 0.04, 0)), hipR.clone().add(V(0, 0.04, 0)), 0.14);
     this.parts.pelvis.position.y += 0.02;
-    this.place(this.parts.torso, pelvis.clone().add(V(0, 0.08, 0)), neck.clone().add(V(0, -0.1, 0)), 0.16);
+    this.place(this.parts.torso, pelvis.clone().add(V(0, -0.02, 0)), neck.clone().add(V(0, 0.0, 0)), 0.16);
     this.place(this.parts.shoulders, shL, shR, 0.1);
     this.parts.collar.position.copy(neck).add(V(0, -0.02, 0));
     this.parts.collar.rotation.x = -lean * 0.5;
