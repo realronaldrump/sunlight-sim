@@ -13,7 +13,8 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 6. Ski physics harness passes (tests/harness/runBots.ts; physics.test.ts): beginner 15 to 21 km/h on greens/blues.
 7. Two clients join one room by link, ski, ride one chair, see each other on the map, chat. VERIFIED (tests/e2e/multiplayer.spec.ts).
 8. Map overlay, slope overlay, first/third/side cameras, quality presets, audio (WebAudio, synthesized) work. VERIFIED (gameplay.spec.ts checks audio context running and wind gain while moving).
-9. Performance on High at 2560x1440: 60 fps vsync-capped in all scenes; uncapped 147 to 188 fps (6.7 ms/frame, CPU ~6.3 ms) on an M3 Pro. Estimated base M1 (about 2.5x less GPU): ~60 to 75 fps. Measured by tests/e2e/performance.spec.ts. Not measured on real M1 hardware (none available).
+9. Performance on High at 2560x1440: 60 fps vsync-capped in all scenes; uncapped 147 to 176 fps (about 6 ms/frame) on an M3 Pro after merging static geometry (draw calls ~1100 to 1300). Estimated base M1 (about 2.5x less GPU): ~60 to 75 fps. Measured by tests/e2e/performance.spec.ts (uncapped: tests/scratch config with --disable-gpu-vsync). Not measured on real M1 hardware (none available).
+   Load: production site ready in 2.3 s with 8 MB downloaded; 12.9 MB once every tree tile has streamed in (well under 30 s on a typical connection).
 10. README.md, CREDITS.md, ACCURACY.md, DECISIONS.md complete.
 11. Final visual review pass: done (review 4 below). Continue reviewing after every visual change.
 
@@ -28,14 +29,24 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Review 1 (01..07): Sopris placement correct; trail map works. Problems: paper-cone conifers, white distant mountains, big sun halo, faint slope overlay, floating huts. All fixed in later commits.
 - Review 2 (08): two players seated on one chair, correct.
 - Review 3 (after branch-card conifers, WorldCover): conifers read as snowy spruce; distant ranges show forest with snowy openings under haze; aspens were feather-like (fixed: branches built in normalized radius space) and too white (darkened).
+- Review 5 (15..21): moguls visible on Segundo; snow close-up without moire; skier turn shows straight corduroy and tracks; start menu and first-person view correct.
 - Review 4 (01..14, final pass): base area with buildings, parking and plowed roads; lift terminals with bull wheel hoods; signs now two-post; Gambel oak thickets replace balloon shapes; trail map now oriented like the official map (view from the base, toggle to north-up); snowfall and late-afternoon light look right; side camera avoids buildings.
 
+## Improvements done after Definition of Done
+- Real mogul geometry baked into 1 m/2 m tiles (render and physics agree); airtime off crests; compression falls.
+- Ski patrol HQ at the summit, ticket booth at the base, lift huts with windows/doors and footings, bull wheel hoods.
+- Skier polish (shoulders, collar, boots, pole baskets, pole plants at edge changes).
+- Snow micro relief (wind ripples, grain, anti-aliased corduroy following a smoothed fall line), finer sparkles, ski tracks.
+- Weather (light snowfall) and time-of-day slider in the options panel (P).
+- HUD: run average and steepest pitch on entry; arrow and distance to the nearest lift load line.
+- Draw calls cut ~35% by merging static geometry.
+
 ## Next steps (realism improvements, in priority order)
-1. Moguls as real geometry on mogul runs (shared height function used by the renderer and physics).
-2. Patrol HQ at the summit (red cross on the trail map), ticket booth, unload ramps at top terminals.
-3. Skier model polish (proportions, jacket shape, ski boots), pole plants in turns.
-4. Snow surface micro detail: wind ripples, ski tracks on groomed runs, tree wells.
-5. Mid-distance tree shadows / ambient occlusion under the canopy.
+1. Tree wells and wind-scoured ridges (surface shading near trunks and on convex ridgelines).
+2. Mid-distance tree shadows / ambient occlusion under the canopy.
+3. "Join friend" teleport from the trail map in multiplayer.
+4. Skier: a fuller body mesh (current one is capsules), fall tumble animation.
+5. Unload ramps at top terminals (visual).
 6. Host the multiplayer server when credentials become available (Fly.io config in hosting/).
 
 ## Known bugs / limitations
