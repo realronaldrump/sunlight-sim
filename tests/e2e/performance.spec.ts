@@ -29,9 +29,9 @@ test('fps at 1440p on High', async ({ page }) => {
   };
   const results = [];
   results.push(await measure('spawn_base', `(window.game.flyMode=false, window.game.respawn())`));
-  results.push(await measure('skiing_sun_king', `window.game.teleportToRun('Sun King')`));
+  results.push(await measure('skiing_sun_king', `(window.game.flyMode=false, window.game.teleportToRun('Sun King'))`));
   results.push(await measure('summit_view_sopris', `(() => { const g = window.game; const t = g.resort.lifts.find(l => l.name === 'Primo').top; const s = g.resort.peaks.find(p => p.name === 'Mount Sopris'); return g.lookAt(t[0] + 15, t[2] + 25, s.x, s.ele, s.z, 2); })()`));
-  results.push(await measure('forest_east_ridge', `window.game.teleportToRun('Vortex')`));
+  results.push(await measure('forest_east_ridge', `(window.game.flyMode=false, window.game.teleportToRun('Vortex'))`));
   mkdirSync('tests/harness/out', { recursive: true });
   writeFileSync('tests/harness/out/perf.json', JSON.stringify(results, null, 1));
   for (const r of results) expect(r.fps).toBeGreaterThan(20);

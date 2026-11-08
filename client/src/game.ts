@@ -16,6 +16,8 @@ import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
 import { SkiAudio } from './audio/audio';
 import { buildBuildings } from './world/buildings';
+import { Snowfall } from './sky/snowfall';
+import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
@@ -46,6 +48,8 @@ export class Game {
   chat!: ChatUI;
   quality!: QualityPreset;
   audio = new SkiAudio();
+  snowfall = new Snowfall();
+  options!: OptionsPanel;
   private lastMode = '';
   private lastRideH = -1;
   input = new InputManager();
@@ -159,6 +163,12 @@ export class Game {
     if (this.params.get('yaw')) this.fly.yaw = Number(this.params.get('yaw')) * Math.PI / 180;
     if (this.params.get('pitch')) this.fly.pitch = Number(this.params.get('pitch')) * Math.PI / 180;
     if (this.params.get('hour')) this.env.setHour(Number(this.params.get('hour')));
+    this.scene.add(this.snowfall.mesh);
+    if (this.params.get('snow') === '1') this.setSnow(true);
+    this.options = new OptionsPanel({
+      hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
+      setHour: (h) => this.env.setHour(h), setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
+    });
     this.setupFlyControls();
 
     this.setLoading(0.55, 'Building terrain');
@@ -299,6 +309,7 @@ export class Game {
     if (actions.help) this.hud.toggleHelp();
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
+    if (actions.options) this.options.toggle();
     if (this.trailMap.visible) {
       const st2 = this.player.st;
       this.trailMap.players = [{ name: this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true }, ...this.remoteMapPlayers()];
@@ -316,6 +327,7 @@ export class Game {
     void this.hf.ensureArea(0, p.x, -p.z, 160);
     if (Math.random() < 0.01) this.hf.evict(p.x, -p.z, 900);
     this.trees.update(this.camera.position);
+    if (this.snowfall.mesh.visible) this.snowfall.update(this.camera.position);
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
     this.env.update(p);
@@ -380,6 +392,11 @@ export class Game {
     if (ok) showRoomBox(room);
     else this.hud.toast('Could not reach the multiplayer server. Skiing solo.', 5);
     return ok;
+  }
+
+  setSnow(on: boolean) {
+    this.env.setSnowing(on);
+    this.snowfall.mesh.visible = on;
   }
 
   playerName = 'You';

@@ -24,6 +24,8 @@ export class TrailMap {
   private img = new Image();
   private tip: HTMLDivElement;
   private scale = 1; private ox = 0; private oy = 0;
+  /** true = view from the base looking up the mountain (south up), like the official trail map */
+  flip = true;
   visible = false;
   players: MapPlayer[] = [];
   onTeleport?: (runName: string) => void;
@@ -33,7 +35,7 @@ export class TrailMap {
   constructor(private resort: ResortData, base: string) {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.root = document.createElement('div'); this.root.id = 'tmap';
-    this.root.innerHTML = `<div class="title">Sunlight Mountain trail map</div><button class="close">Close (M)</button><div class="tip"></div>
+    this.root.innerHTML = `<div class="title">Sunlight Mountain trail map <span style="font-weight:400;font-size:13px;opacity:.8">(viewed from the base, like the resort map)</span></div><button class="close">Close (M)</button><button class="close orient" style="right:130px">North up</button><div class="tip"></div>
       <div class="legend">
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
@@ -45,6 +47,8 @@ export class TrailMap {
     this.g = this.cv.getContext('2d')!;
     this.tip = this.root.querySelector('.tip')!;
     (this.root.querySelector('.close') as HTMLButtonElement).onclick = () => this.toggle(false);
+    const ob = this.root.querySelector('.orient') as HTMLButtonElement;
+    ob.onclick = () => { this.flip = !this.flip; ob.textContent = this.flip ? 'North up' : 'Trail map view'; this.draw(); };
     this.img.src = `${base}/map.jpg`;
     this.img.onload = () => this.draw();
     // label anchor per named run: midpoint of its longest way
@@ -68,8 +72,14 @@ export class TrailMap {
     this.ox = W / 2; this.oy = H / 2;
   }
 
-  private toScreen(x: number, z: number) { return [this.ox + x * this.scale, this.oy + z * this.scale]; }
-  private toWorld(sx: number, sy: number) { return [(sx - this.ox) / this.scale, (sy - this.oy) / this.scale]; }
+  private toScreen(x: number, z: number) {
+    const f = this.flip ? -1 : 1;
+    return [this.ox + f * x * this.scale, this.oy + f * z * this.scale];
+  }
+  private toWorld(sx: number, sy: number) {
+    const f = this.flip ? -1 : 1;
+    return [f * (sx - this.ox) / this.scale, f * (sy - this.oy) / this.scale];
+  }
 
   toggle(force?: boolean) {
     this.visible = force ?? !this.visible;
@@ -146,7 +156,11 @@ export class TrailMap {
     const m = (this.resort as unknown as { map: { x0: number; x1: number; z0: number; z1: number } }).map;
     if (this.img.complete && this.img.naturalWidth) {
       const [x0, y0] = this.toScreen(m.x0, m.z0), [x1, y1] = this.toScreen(m.x1, m.z1);
-      g.drawImage(this.img, x0, y0, x1 - x0, y1 - y0);
+      if (this.flip) {
+        g.save(); g.translate(x0, y0); g.rotate(Math.PI);
+        g.drawImage(this.img, 0, 0, x0 - x1, y0 - y1);
+        g.restore();
+      } else g.drawImage(this.img, x0, y0, x1 - x0, y1 - y0);
     }
     // run outlines
     for (const r of this.resort.runs) {
@@ -204,7 +218,7 @@ export class TrailMap {
     // players
     for (const p of this.players) {
       const [sx, sy] = this.toScreen(p.x, p.z);
-      g.save(); g.translate(sx, sy); g.rotate(-p.heading);
+      g.save(); g.translate(sx, sy); g.rotate(-p.heading + (this.flip ? Math.PI : 0));
       g.fillStyle = p.color; g.strokeStyle = '#fff'; g.lineWidth = 2;
       g.beginPath(); g.moveTo(0, -11); g.lineTo(7, 8); g.lineTo(0, 4); g.lineTo(-7, 8); g.closePath(); g.fill(); g.stroke();
       g.restore();
@@ -214,7 +228,8 @@ export class TrailMap {
     }
     // north arrow
     g.fillStyle = 'rgba(255,255,255,.9)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
-    g.fillText('N', 30, 62); g.beginPath(); g.moveTo(30, 66); g.lineTo(24, 84); g.lineTo(36, 84); g.closePath(); g.fill();
+    if (this.flip) { g.fillText('N', 30, 96); g.beginPath(); g.moveTo(30, 84); g.lineTo(24, 66); g.lineTo(36, 66); g.closePath(); g.fill(); }
+    else { g.fillText('N', 30, 62); g.beginPath(); g.moveTo(30, 66); g.lineTo(24, 84); g.lineTo(36, 84); g.closePath(); g.fill(); }
   }
 }
 

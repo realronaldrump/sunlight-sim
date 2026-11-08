@@ -20,6 +20,7 @@ export class Environment {
   readonly hazeColor = uniform(new THREE.Color(0.66, 0.75, 0.88));
   readonly hazeDensity = uniform(1.6e-5);
   hour = 11;
+  snowing = false;
   csm: CSMShadowNode | null = null;
   private pmrem: THREE.PMREMGenerator | null = null;
   private envRT: THREE.RenderTarget | null = null;
@@ -72,6 +73,17 @@ export class Environment {
     this.setHour(11);
   }
 
+  /** Weather: clear (default) or light snowfall (lower visibility, overcast light). */
+  setSnowing(on: boolean) {
+    this.snowing = on;
+    this.hazeDensity.value = on ? 3.2e-4 : 1.6e-5;
+    this.hazeColor.value.setRGB(on ? 0.78 : 0.66, on ? 0.8 : 0.75, on ? 0.84 : 0.88);
+    const sky = this.sky as unknown as { cloudCoverage?: { value: number }; cloudDensity?: { value: number } };
+    if (sky.cloudCoverage) sky.cloudCoverage.value = on ? 0.95 : 0.15;
+    if (sky.cloudDensity) sky.cloudDensity.value = on ? 0.9 : 0.4;
+    this.setHour(this.hour);
+  }
+
   setHour(hour: number) {
     this.hour = hour;
     this.sunInfo = sunPosition(januaryMST(hour), LAT, LON);
@@ -82,8 +94,8 @@ export class Environment {
     // warmer, dimmer light when the sun is low
     const t = THREE.MathUtils.clamp((el - 2) / 25, 0, 1);
     this.sun.color.setRGB(1.0, 0.78 + 0.18 * t, 0.6 + 0.32 * t);
-    this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1);
-    this.hemi.intensity = 0.25 + 0.35 * t;
+    this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (this.snowing ? 0.25 : 1);
+    this.hemi.intensity = (0.25 + 0.35 * t) * (this.snowing ? 1.8 : 1);
     this.envDirty = true;
   }
 

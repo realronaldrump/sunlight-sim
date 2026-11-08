@@ -98,10 +98,13 @@ export class RunSystem {
       const sx = t.x + -t.dz * 5, sz = t.z + t.dx * 5;
       const gy = height(sx, sz);
       const sign = new THREE.Group();
-      const post = new THREE.Mesh(postGeo, postMat);
-      post.position.y = 1.0; post.castShadow = true;
+      for (const px of [-0.62, 0.62]) {
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.set(px, 1.0, -0.06); post.castShadow = true;
+        sign.add(post);
+      }
       panel.position.y = 1.95; panel.castShadow = true;
-      sign.add(post, panel);
+      sign.add(panel);
       sign.position.set(sx, gy, sz);
       sign.rotation.y = Math.atan2(t.dx, t.dz); // panel normal (+z) points back uphill toward arriving skiers
       sign.userData.run = name;

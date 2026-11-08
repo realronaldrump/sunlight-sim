@@ -125,7 +125,7 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
     return new THREE.Color(0.66, 0.66, 0.6).multiplyScalar(mark * base);
   }));
   const nb = detail === 'high' ? 16 : 6;
-  const branchCol = new THREE.Color(0.36, 0.33, 0.3), twigCol = new THREE.Color(0.27, 0.25, 0.23);
+  const branchCol = new THREE.Color(0.27, 0.25, 0.23), twigCol = new THREE.Color(0.2, 0.18, 0.17);
   for (let i = 0; i < nb; i++) {
     const y0 = 0.42 + r() * 0.5;
     const ang = r() * Math.PI * 2;

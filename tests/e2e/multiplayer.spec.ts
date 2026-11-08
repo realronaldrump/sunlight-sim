@@ -24,8 +24,6 @@ test('two players in one room', async ({ browser }) => {
   }, { timeout: 10_000 }).toBeLessThan(6);
 
   // both stand in the Segundo load zone and get scooped by the same chair
-  const place = (dx: number) => (window: any) => 0;
-  void place;
   for (const [page, off] of [[a, -0.6], [b, 0.6]] as const) {
     await page.evaluate((o) => {
       const g = (window as any).game; const path = g.lifts.paths.find((p: any) => p.def.name === 'Segundo');
@@ -56,4 +54,6 @@ test('two players in one room', async ({ browser }) => {
   // chat
   await a.evaluate(() => (window as any).game.net.chat('See you at the top'));
   await expect.poll(() => b.evaluate(() => document.getElementById('chatlog')?.textContent ?? ''), { timeout: 5_000 }).toContain('See you at the top');
+  await a.context().close();
+  await b.context().close();
 });
