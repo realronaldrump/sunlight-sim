@@ -8,8 +8,8 @@ PUBLIC = ROOT / "client" / "public" / "world"
 # Projected CRS: NAD83 / UTM zone 13N (meters). All game coordinates are local offsets from ORIGIN.
 CRS = "EPSG:26913"
 # Local origin (UTM 13N easting, northing) near the middle of the ski area, rounded.
-ORIGIN_E = 298500.0
-ORIGIN_N = 4362800.0
+ORIGIN_E = 298500.5  # on a 1 m DEM pixel center
+ORIGIN_N = 4362800.5
 
 # 1 m area: resort (runs + lifts) extent plus ~1 km margin, in UTM, snapped to 256 m tiles around origin.
 # Resort extent (OSM downhill+lifts): E 297550..299548, N 4361798..4363906
