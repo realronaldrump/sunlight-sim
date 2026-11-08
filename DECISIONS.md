@@ -45,3 +45,14 @@ Harness results (tests/harness/runBots.ts, see PROGRESS.md): beginner bot 15 to 
 
 ## D9. Collisions
 Collisions use a purpose-built spatial hash of vertical cylinders (trees, towers) and oriented boxes (buildings, stations) in shared/skiPhysics.ts rather than Rapier. Reason: the only dynamic body is the skier (players collide as cylinders too), every obstacle is static and simple, and a deterministic dependency-free module runs identically in the browser, the Node test harness and the server. This is the "or equivalent" option in the spec.
+
+## D10. Multiplayer
+- Plain `ws` WebSocket server (server/src), JSON messages (shared/protocol.ts), 15 Hz snapshots, rooms by 5-character code, max 8 players.
+- Authority: the server owns the canonical player list and positions. Clients simulate their own skier for responsiveness and send state; the server validates (finite numbers, speed cap 70 m/s, implausible jumps rejected with a `correct` message unless the client flags an explicit teleport such as map travel), clamps velocity, and broadcasts its snapshot. While a player rides a chair, the server derives their position from the lift clock (server time) and seat, ignoring client positions.
+- Lift chairs: chair positions are a pure function of server time (shared/lifts.ts). Clients sync their lift clock to the server with ping/pong (best RTT). Boarding is requested from the server, which checks the chair is at the load line and assigns a free seat on that chair (friends in the load zone together share a chair).
+- Remote skiers are rendered 120 ms in the past with linear interpolation between snapshots; remote riders are placed exactly on their chair seat by the shared lift clock.
+- Player-player contact is a cylinder test on the client; a hard hit makes the local player fall.
+- Dev server port: `--port 8787` (the preview launcher sets PORT for Vite). In production `$PORT` is used.
+
+## D11. Quality presets
+Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD split distance and tree near/far distances. Auto-detect: High on desktop with WebGPU and 8+ cores, Medium on WebGL2 fallback or fewer cores, Low on mobile. Changing quality in the start menu reloads the page.

@@ -17,6 +17,7 @@ export class Player {
   time = 0;
   lastInput: SkiInput = { steer: 0, tuck: false, plow: 0, stop: false, push: false };
   inLoadZone = -1;
+  justUnloaded = false;
   onUnload?: (lift: number) => void;
   onBoard?: (ride: RideState) => void;
   requestBoard?: (lift: number, chair: number, seat: number) => void; // multiplayer hook
@@ -30,7 +31,7 @@ export class Player {
   get position() { return new THREE.Vector3(this.st.pos.x, this.st.pos.y, this.st.pos.z); }
 
   teleport(x: number, z: number, heading: number) {
-    this.ride = null;
+    if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l); }
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, heading);
   }
 
@@ -45,6 +46,7 @@ export class Player {
 
   unload() {
     if (!this.ride) return;
+    this.justUnloaded = true;
     const path = this.lifts.paths[this.ride.lift];
     const lift = this.ride.lift;
     const seat = this.ride.seat;

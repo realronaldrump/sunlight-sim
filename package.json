@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite --config client/vite.config.ts",
-    "dev:server": "tsx watch server/src/index.ts",
+    "dev:server": "tsx watch server/src/index.ts --port 8787",
     "build": "tsc -p tsconfig.json --noEmit && vite build --config client/vite.config.ts",
     "start:server": "tsx server/src/index.ts",
     "preview": "vite preview --config client/vite.config.ts",

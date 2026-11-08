@@ -10,3 +10,4 @@ playwright-report/
 .vercel
 *.log
 tests/scratch/
+screenshots/*.png

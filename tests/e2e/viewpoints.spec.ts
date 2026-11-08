@@ -14,7 +14,7 @@ async function shot(page: Page, name: string) {
 }
 
 test('viewpoints', async ({ page }) => {
-  await boot(page);
+  await boot(page, '?autostart=1&name=Reviewer');
   const lifts = await page.evaluate(() => (window as any).game.resort.lifts.map((l: any) => ({ name: l.name, bottom: l.bottom, top: l.top })));
   const peaks = await page.evaluate(() => (window as any).game.resort.peaks);
   // 1. base area looking up the mountain

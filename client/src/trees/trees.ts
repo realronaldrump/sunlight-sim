@@ -7,7 +7,6 @@ import { coniferGeometry, aspenGeometry, oakGeometry, impostorAtlas, crossQuadGe
 import type { ColliderGrid } from '../../../shared/collision';
 
 const CELL = 64;
-export const NEAR_DIST = 210;
 
 interface TileData {
   tx: number; tn: number; n: number;
@@ -42,10 +41,9 @@ export class TreeSystem {
   private q = new THREE.Quaternion();
   private v = new THREE.Vector3();
   private sc = new THREE.Vector3();
-  farDist = 3200;
   enabled = true;
 
-  constructor(private base: string, private colliders: ColliderGrid) {
+  constructor(private base: string, private colliders: ColliderGrid, private nearDist = 210, private farDist = 3200) {
     this.group.name = 'trees';
     const atlas = impostorAtlas();
     const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, alphaTest: 0.5, roughness: 0.95 });
@@ -155,11 +153,11 @@ export class TreeSystem {
     if (cam.distanceToSquared(this.lastCam) < 15 * 15) return;
     this.lastCam.copy(cam);
     const ci = Math.floor(cam.x / CELL), cj = Math.floor(cam.z / CELL);
-    const rad = Math.ceil(NEAR_DIST / CELL) + 1;
+    const rad = Math.ceil(this.nearDist / CELL) + 1;
     const want = new Set<number>();
     for (let i = ci - rad; i <= ci + rad; i++) for (let j = cj - rad; j <= cj + rad; j++) {
       const cx = (i + 0.5) * CELL, cz = (j + 0.5) * CELL;
-      if (Math.hypot(cx - cam.x, cz - cam.z) < NEAR_DIST) want.add(cellKey(i, j));
+      if (Math.hypot(cx - cam.x, cz - cam.z) < this.nearDist) want.add(cellKey(i, j));
     }
     // update impostor visibility per tile for changed cells
     const changedTiles = new Set<TileData>();

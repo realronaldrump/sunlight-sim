@@ -1,0 +1,59 @@
+// Two clients join one room by link, see each other, ride one chair together, and appear on the map.
+import { test, expect, Page } from '@playwright/test';
+
+async function boot(page: Page, name: string, color: string, room: string) {
+  await page.goto(`/?autostart=1&name=${name}&color=${color}&room=${room}`);
+  await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+}
+
+test('two players in one room', async ({ browser }) => {
+  const room = 'T' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const a = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  const b = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
+  await boot(a, 'Alice', '1f6fd1', room);
+  await boot(b, 'Bob', '2e9e44', room);
+  await expect.poll(() => a.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
+  await expect.poll(() => b.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
+
+  // Alice moves; Bob sees her there
+  await a.evaluate(() => (window as any).game.teleportToRun('Midway'));
+  const alicePos = await a.evaluate(() => { const p = (window as any).game.player.st.pos; return [p.x, p.z]; });
+  await expect.poll(async () => {
+    const r = await b.evaluate(() => { const g = (window as any).game; const rem = [...g.net.remotes.values()][0]; return [rem.model.root.position.x, rem.model.root.position.z]; });
+    return Math.hypot(r[0] - alicePos[0], r[1] - alicePos[1]);
+  }, { timeout: 10_000 }).toBeLessThan(6);
+
+  // both stand in the Segundo load zone and get scooped by the same chair
+  const place = (dx: number) => (window: any) => 0;
+  void place;
+  for (const [page, off] of [[a, -0.6], [b, 0.6]] as const) {
+    await page.evaluate((o) => {
+      const g = (window as any).game; const path = g.lifts.paths.find((p: any) => p.def.name === 'Segundo');
+      const lp = path.loadPoint();
+      g.player.teleport(lp.x - path.ax * 1.2 + path.rx * o, lp.z - path.az * 1.2 + path.rz * o, lp.heading);
+      g.net.markTeleport();
+    }, off);
+  }
+  await expect.poll(() => a.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
+  await expect.poll(() => b.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
+  const ra = await a.evaluate(() => (window as any).game.player.ride);
+  const rb = await b.evaluate(() => (window as any).game.player.ride);
+  expect(ra.lift).toBe(rb.lift);
+  expect(Math.abs(ra.chair - rb.chair)).toBeLessThanOrEqual(1);
+  // Bob sees Alice riding
+  await expect.poll(() => b.evaluate(() => { const rem = [...(window as any).game.net.remotes.values()][0]; return !!rem.ride; }), { timeout: 5_000 }).toBe(true);
+  await b.waitForTimeout(4000);
+  await b.evaluate(() => document.getElementById('help')?.classList.add('hidden'));
+  await b.screenshot({ path: 'screenshots/08_multiplayer_chair.png' });
+
+  // the map shows the other player
+  await b.keyboard.press('KeyM');
+  await b.waitForTimeout(500);
+  const names = await b.evaluate(() => (window as any).game.trailMap.players.map((p: any) => p.name));
+  expect(names).toContain('Alice');
+  await b.screenshot({ path: 'screenshots/09_multiplayer_map.png' });
+
+  // chat
+  await a.evaluate(() => (window as any).game.net.chat('See you at the top'));
+  await expect.poll(() => b.evaluate(() => document.getElementById('chatlog')?.textContent ?? ''), { timeout: 5_000 }).toContain('See you at the top');
+});

@@ -11,6 +11,9 @@ import { Hud } from './ui/hud';
 import { TreeSystem } from './trees/trees';
 import { RunSystem } from './runs/runs';
 import { TrailMap } from './ui/trailMap';
+import { NetClient } from './net/netClient';
+import { showMenu, showRoomBox, ChatUI } from './ui/menu';
+import { detectQuality, PRESETS, QualityPreset } from './quality';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
@@ -37,6 +40,9 @@ export class Game {
   trees!: TreeSystem;
   runs!: RunSystem;
   trailMap!: TrailMap;
+  net: NetClient | null = null;
+  chat!: ChatUI;
+  quality!: QualityPreset;
   input = new InputManager();
   camRig!: CameraRig;
   hud!: Hud;
@@ -65,11 +71,13 @@ export class Game {
   async start() {
     this.setLoading(0.05, 'Starting renderer');
     const forceWebGL = this.params.get('webgl') === '1';
-    this.renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.quality = PRESETS[await detectQuality()];
+    const Q = this.quality;
+    this.renderer = new THREE.WebGPURenderer({ antialias: Q.antialias, forceWebGL });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, Q.pixelRatio));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = Q.shadows;
     this.container.appendChild(this.renderer.domElement);
     await this.renderer.init();
     this.onResize();
@@ -92,8 +100,9 @@ export class Game {
 
     this.terrainMat = createTerrainMaterial();
     this.terrain = new TerrainRenderer(this.hf, this.terrainMat.material);
+    this.terrain.splitFactor = Q.terrainSplit;
     this.scene.add(this.terrain.group);
-    this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: true, shadowMapSize: 2048, cascades: 3, shadowFar: 900 });
+    this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });
     this.terrainMat.sunDir.value.copy(this.env.sunDir.value);
 
     this.runs = new RunSystem(this.resort);
@@ -111,7 +120,7 @@ export class Game {
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
-    this.trees = new TreeSystem(WORLD_BASE, this.colliders);
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
@@ -155,8 +164,23 @@ export class Game {
     }
     this.setLoading(1, 'Ready');
     document.getElementById('loading')?.classList.add('done');
-    this.ready = true;
+    this.chat = new ChatUI();
     this.renderer.setAnimationLoop(() => this.frame());
+    // start menu (skipped by ?autostart=1 for tests: name/color/room come from the URL)
+    let choice: { name: string; color: string; room: string | null };
+    if (this.params.get('autostart') === '1') {
+      choice = { name: this.params.get('name') ?? 'Skier', color: '#' + (this.params.get('color') ?? 'd33a2c'), room: this.params.get('room') };
+    } else {
+      this.input.enabled = false;
+      const r = await showMenu({ quality: this.quality.name });
+      this.input.enabled = true;
+      if (r.quality !== 'auto' && r.quality !== this.quality.name) { location.reload(); return; }
+      choice = r;
+    }
+    this.playerName = choice.name; this.playerColor = choice.color;
+    this.player.model.setJacket(choice.color);
+    if (choice.room) await this.joinRoom(choice.room);
+    this.ready = true;
   }
 
   private spawnCache: { x: number; z: number; heading: number } | null = null;
@@ -186,6 +210,7 @@ export class Game {
   respawn() {
     const s = this.spawnPoint();
     this.player.teleport(s.x, s.z, s.heading);
+    this.net?.markTeleport();
     this.hud.toast('Back at the base area');
   }
 
@@ -245,6 +270,8 @@ export class Game {
     const dt = Math.min(this.timer.getDelta(), 0.1);
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
     const actions = this.input.actions();
+    this.input.enabled = !this.chat?.open;
+    if (actions.chat && this.net?.connected) this.chat.openInput();
     if (!this.flyMode) {
       const inp = this.input.ski(dt);
       if (actions.getUp) this.player.getUp();
@@ -252,6 +279,10 @@ export class Game {
       if (actions.respawn) this.respawn();
       if (actions.camera) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
       this.player.update(dt, inp);
+      if (this.net) {
+        if (this.net.collideLocal()) { this.player.st.mode = 'fallen'; this.player.st.modeTime = 0; }
+        this.net.update(dt);
+      }
     }
     if (actions.help) this.hud.toggleHelp();
     if (actions.map) this.trailMap.toggle();
@@ -286,6 +317,19 @@ export class Game {
       const info = this.renderer.info;
       this.hud.stats(`${this.fps.toFixed(0)} fps  cpu ${this.frameMs.toFixed(1)} ms\nterrain ${this.terrain.visibleCount} chunks\ncalls ${info.render.drawCalls} tris ${(info.render.triangles / 1e6).toFixed(2)}M`);
     }
+  }
+
+  async joinRoom(room: string) {
+    this.net = new NetClient(this.player, this.lifts);
+    this.scene.add(this.net.group);
+    this.net.onChat = (n, t) => this.chat.add(n, t);
+    this.net.onStatus = (t) => this.hud.toast(t, 3);
+    this.chat.onSend = (t) => this.net?.chat(t);
+    this.remoteMapPlayers = () => this.net?.mapPlayers() ?? [];
+    const ok = await this.net.connect(NetClient.defaultUrl(), room, this.playerName, this.playerColor);
+    if (ok) showRoomBox(room);
+    else this.hud.toast('Could not reach the multiplayer server. Skiing solo.', 5);
+    return ok;
   }
 
   playerName = 'You';
@@ -332,6 +376,7 @@ export class Game {
     const x = top.x + top.dx * 4, z = top.z + top.dz * 4;
     await this.hf.ensureArea(0, x, -z, 200);
     this.player.teleport(x, z, Math.atan2(-top.dx, -top.dz));
+    this.net?.markTeleport();
     this.hud.toast(`Top of ${name}`);
   }
 
