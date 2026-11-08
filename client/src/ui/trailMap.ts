@@ -29,6 +29,7 @@ export class TrailMap {
   visible = false;
   players: MapPlayer[] = [];
   onTeleport?: (runName: string) => void;
+  onJoinPlayer?: (name: string) => void;
   private hover: RunInfo | null = null;
   private labels: { name: string; x: number; z: number; diff: string; len: number }[] = [];
 
@@ -40,7 +41,7 @@ export class TrailMap {
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
         <div><span class="diff park"></span>Terrain Park</div><div style="color:#ff6b6b">&#9473; Chairlift</div>
-        <div>Click a run to go to its top. Scroll to zoom, drag to pan.</div></div>`;
+        <div>Click a run to go to its top, or a friend to join them. Scroll to zoom, drag to pan.</div></div>`;
     this.cv = document.createElement('canvas');
     this.root.prepend(this.cv);
     document.body.appendChild(this.root);
@@ -98,6 +99,8 @@ export class TrailMap {
     this.cv.addEventListener('mousedown', (e) => { drag = true; moved = false; lx = e.clientX; ly = e.clientY; });
     window.addEventListener('mouseup', (e) => {
       if (drag && !moved && this.visible && e.target === this.cv) {
+        const friend = this.pickPlayer(e.clientX, e.clientY);
+        if (friend && this.onJoinPlayer) { this.onJoinPlayer(friend.name); this.toggle(false); drag = false; return; }
         const r = this.pick(e.clientX, e.clientY);
         if (r && this.onTeleport) { this.onTeleport(r.name); this.toggle(false); }
       }
@@ -125,6 +128,16 @@ export class TrailMap {
       this.draw();
       e.preventDefault();
     }, { passive: false });
+  }
+
+  /** Another player's marker under a screen point (within 14 px). */
+  pickPlayer(sx: number, sy: number): MapPlayer | null {
+    for (const p of this.players) {
+      if (p.self) continue;
+      const [px, py] = this.toScreen(p.x, p.z);
+      if (Math.hypot(px - sx, py - sy) < 14) return p;
+    }
+    return null;
   }
 
   /** Run under a screen point: inside an outline, or within 12 m of a centerline. */

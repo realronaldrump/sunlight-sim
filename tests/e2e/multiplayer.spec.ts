@@ -51,6 +51,16 @@ test('two players in one room', async ({ browser }) => {
   expect(names).toContain('Alice');
   await b.screenshot({ path: 'screenshots/09_multiplayer_map.png' });
 
+  // join a friend from the map: Bob unloads, then jumps next to Alice
+  await b.keyboard.press('KeyM');
+  await b.evaluate(() => (window as any).game.player.skipRide());
+  await a.evaluate(() => (window as any).game.player.skipRide());
+  await a.evaluate(() => (window as any).game.teleportToRun('Sun King'));
+  await b.waitForTimeout(1500);
+  await b.evaluate(() => (window as any).game.joinFriend('Alice'));
+  const d = await b.evaluate(() => { const g = (window as any).game; const r = [...g.net.remotes.values()][0]; return Math.hypot(g.player.st.pos.x - r.model.root.position.x, g.player.st.pos.z - r.model.root.position.z); });
+  expect(d).toBeLessThan(8);
+
   // chat
   await a.evaluate(() => (window as any).game.net.chat('See you at the top'));
   await expect.poll(() => b.evaluate(() => document.getElementById('chatlog')?.textContent ?? ''), { timeout: 5_000 }).toContain('See you at the top');

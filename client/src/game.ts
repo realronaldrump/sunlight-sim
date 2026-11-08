@@ -144,6 +144,7 @@ export class Game {
     this.scene.add(this.runs.group);
     this.trailMap = new TrailMap(this.resort, WORLD_BASE);
     this.trailMap.onTeleport = (name) => this.teleportToRun(name);
+    this.trailMap.onJoinPlayer = (name) => this.joinFriend(name);
     if (this.surface) {
       const s = this.surface;
       const tex = new THREE.DataTexture(s.data, s.w, s.h, THREE.RGBAFormat);
@@ -449,6 +450,25 @@ export class Game {
     const yaw = Math.atan2(-dx, -dz) * 180 / Math.PI;
     const pitch = Math.atan2(dy, Math.hypot(dx, dz)) * 180 / Math.PI;
     return this.setView(x, -eyeAbove, z, yaw, pitch);
+  }
+
+  /** Teleport next to another player (or to the top of the lift they are riding). */
+  async joinFriend(name: string) {
+    const r = this.net ? [...this.net.remotes.values()].find((x) => x.name === name) : null;
+    if (!r) return;
+    let x: number, z: number, heading: number;
+    if (r.ride) {
+      const up = this.lifts.paths[r.ride.lift].unloadPoint();
+      x = up.x; z = up.z; heading = up.heading;
+    } else {
+      const p = r.model.root.position;
+      heading = r.model.root.rotation.y;
+      x = p.x + Math.cos(heading) * 2.5; z = p.z - Math.sin(heading) * 2.5; // 2.5 m to their right
+    }
+    await this.hf.ensureArea(0, x, -z, 200);
+    this.player.teleport(x, z, heading);
+    this.net?.markTeleport();
+    this.hud.toast(r.ride ? `Waiting for ${name} at the top of the lift` : `Joined ${name}`);
   }
 
   async teleportToRun(name: string) {
