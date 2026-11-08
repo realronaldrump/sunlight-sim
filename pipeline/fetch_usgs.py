@@ -1,5 +1,5 @@
 """Download USGS 3DEP 1 m DEM tiles and lidar LAZ tiles covering the resort (TNM Access API, no key)."""
-import json, sys, pathlib, requests, concurrent.futures as cf
+import json, sys, time, pathlib, requests, concurrent.futures as cf
 from config import RAW, LIDAR_BBOX
 
 TNM = "https://tnmaccess.nationalmap.gov/api/v1/products"
@@ -14,13 +14,22 @@ def download(url, dest: pathlib.Path):
     if dest.exists() and dest.stat().st_size > 0:
         return dest, "cached"
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with requests.get(url, stream=True, timeout=600) as r:
-        r.raise_for_status()
-        with open(tmp, "wb") as f:
-            for chunk in r.iter_content(1 << 20):
-                f.write(chunk)
-    tmp.rename(dest)
-    return dest, "downloaded"
+    for attempt in range(12):
+        try:
+            with requests.get(url, stream=True, timeout=600) as r:
+                if r.status_code == 429:
+                    raise RuntimeError("429")
+                r.raise_for_status()
+                with open(tmp, "wb") as f:
+                    for chunk in r.iter_content(1 << 20):
+                        f.write(chunk)
+            tmp.rename(dest)
+            return dest, "downloaded"
+        except Exception as e:  # rate limited or dropped: back off and retry
+            wait = min(120, 10 * (attempt + 1))
+            print(f"retry {dest.name} in {wait}s ({e})", flush=True)
+            time.sleep(wait)
+    return dest, "FAILED"
 
 def main():
     what = sys.argv[1:] or ["dem", "lidar"]
@@ -39,7 +48,7 @@ def main():
                 jobs.append((it["downloadURL"], d / it["downloadURL"].split("/")[-1]))
     print(f"{len(jobs)} files to fetch")
     (RAW / "usgs_manifest.json").write_text(json.dumps([j[0] for j in jobs], indent=1))
-    with cf.ThreadPoolExecutor(6) as ex:
+    with cf.ThreadPoolExecutor(2) as ex:
         for dest, status in ex.map(lambda j: download(*j), jobs):
             print(status, dest.name, flush=True)
 

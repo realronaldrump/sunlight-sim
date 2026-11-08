@@ -31,3 +31,17 @@ Chunked quadtree LOD. Height data is a pyramid of 256x256-cell tiles (259x259 sa
 
 ## D7. TypeScript and TSL
 Files that are mostly TSL shader graphs start with `// @ts-nocheck` because the @types/three node typings reject valid TSL. Everything else is strict TypeScript.
+
+## D8. Ski physics values (shared/skiPhysics.ts)
+Real-world reference values used:
+- Ski-snow kinetic friction: 0.02 to 0.10 depending on speed and snow (Colbeck 1992, "A review of the processes that control snow friction"; Buhl et al. 2001). Model: mu = 0.045 + (0.10 - 0.045) * exp(-v / 5 m/s) on groomed snow, +0.05 on ungroomed snow, +0.02 in moguls, plus a velocity-proportional ploughing drag off-piste.
+- Aerodynamic drag area CdA: about 0.6 m^2 standing tall, 0.3 m^2 in a recreational tuck (elite downhill racers 0.15 to 0.25; Barelle et al. 2004, Elfmark and Bardal 2016). Air density 0.96 kg/m^3 at 2700 m and -5 C.
+- Sidecut radius 14 m (typical all-mountain/rental ski). Carved turn radius = R_sidecut * cos(edge angle) (Howe, "The New Skiing Mechanics").
+- Lateral edge grip 0.32 (flat ski) to 1.05 (edged, hard groomed snow) times the normal force; hockey stop 0.75.
+- Snowplow braking 0.32 times the normal force at full wedge: enough to stop on greens (about 10 deg) but not on steep blacks, as in reality.
+- Measured recreational speeds for comparison: Shealy et al. 2005 radar study, mean about 43 km/h for adults, beginners well below 25 km/h. Spec target: cautious beginner on a green 10 to 25 km/h.
+Harness results (tests/harness/runBots.ts, see PROGRESS.md): beginner bot 15 to 21 km/h average, 25 to 29 km/h max on greens/blues; intermediate 27 to 44 km/h average; straight-line tuck 80 to 120 km/h max on long blues.
+- The harness nudges a bot forward if it is stuck for 15 s (OSM centerlines sometimes cross road-cut banks in the summer bare-earth DEM). This is test-only; players navigate themselves.
+
+## D9. Collisions
+Collisions use a purpose-built spatial hash of vertical cylinders (trees, towers) and oriented boxes (buildings, stations) in shared/skiPhysics.ts rather than Rapier. Reason: the only dynamic body is the skier (players collide as cylinders too), every obstacle is static and simple, and a deterministic dependency-free module runs identically in the browser, the Node test harness and the server. This is the "or equivalent" option in the spec.
