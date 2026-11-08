@@ -1,0 +1,9 @@
+rasterio
+numpy
+scipy
+pyproj
+shapely
+pillow
+requests
+laspy[lazrs]
+scikit-image
