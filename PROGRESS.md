@@ -4,8 +4,11 @@
 - Owner requested U.S. units throughout the game and deployment when complete.
 - Updated the HUD to mph and feet, and both lift guidance and trail-map run lengths to feet or miles. Shared display helpers use exact conversions and U.S. number formatting; simulation and world data remain in SI units. See D14.
 - Starting working-tree validation: production build, all 32 unit tests, and all 3 pipeline checks passed.
-- Existing uncommitted character-model and pipeline work is present in the checkout. The units release will be packaged from committed source so that ongoing art work is not included accidentally.
-- Next: validate the committed release build and browser flows, visually inspect the HUD/map, deploy to the existing Vercel production project, and verify the live units.
+- Existing uncommitted character-model and pipeline work is present in the checkout. The units release was packaged from committed source; ongoing art work was preserved in the working tree.
+- Release commit `8ea628a`: production build and all 30 committed unit tests passed. All 6 browser scenarios passed, including gameplay, multiplayer, viewpoints, performance, and Chromium/WebKit smoke checks.
+- Verified the built client and production site in a browser using a German locale: speed is correctly converted to mph, elevation to feet with U.S. separators, and near/far lift guidance to feet/miles. Checked real map tooltips for Grizzly Road (1.6 mi) and Zephyr (2,159 ft). No browser errors.
+- Visual review: HUD and both tooltip formats are readable without clipping. Local and production screenshots are saved as `screenshots/units-{local,live}-{hud,map-feet,map-miles}.png` (gitignored).
+- Deployed to https://sunlight-sim.vercel.app. Vercel deployment `dpl_xByfiq7MbmMZ96bnqZBF5knvs8Qb` is READY in production, with the public alias verified. This request is complete; the realism work below remains separate.
 
 ## Status (session 2, Codex, in progress)
 Core systems are implemented and the session-start build, 30 unit tests, 3 pipeline checks, and 6 browser scenarios pass. Visual fidelity is still in progress. The owner explicitly prioritized realism and detail over FPS on November 8, 2026. Do not treat the earlier completed checklist as proof of polished or accurate art.
@@ -72,7 +75,7 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 1. Research and model Sunlight's recognizable base lodge and lift buildings using exact footprints and photo evidence. Distinguish measured dimensions from visual estimates in DECISIONS.md.
 2. Review lift seats, restraint bars, terminal machinery, load lines and unload paths at human scale. Prevent ambient riders from overlapping player seats.
 3. Improve tree shapes, tree wells, wind-scoured ridge shading, and canopy occlusion without altering measured terrain elevations.
-4. Repeat required viewpoints and relevant gameplay tests, update CREDITS.md/ACCURACY.md, then deploy with the existing Vercel project credentials. The live site still predates ambient skiers/riders.
+4. Repeat required viewpoints and relevant gameplay tests, update CREDITS.md/ACCURACY.md, then deploy with the existing Vercel project credentials. The live site includes committed ambient skiers/riders and the U.S. units update; uncommitted character-model work has not been deployed.
 5. Host the multiplayer server only if deployment credentials are available (Fly.io config in hosting/); otherwise retain exact deploy instructions.
 
 "Join friend" map travel is already implemented and passed the multiplayer browser scenario again in session 2.
