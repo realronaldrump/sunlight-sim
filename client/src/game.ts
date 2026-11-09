@@ -229,7 +229,7 @@ export class Game {
     this.scene.add(this.snowfall.mesh);
     this.scene.add(this.tracks.mesh);
     if (this.params.get('ambient') !== '0') {
-      this.ambient = new AmbientSkiers(this.resort.runs, this.probe, this.quality.name === 'low' ? 4 : 8);
+      this.ambient = new AmbientSkiers(this.resort.runs, this.probe, { low: 4, medium: 8, high: 12, ultra: 16 }[this.quality.name] ?? 8, this.lifts);
       // people around the base area, lodge and lift lines
       await loadCrowdHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')).catch((e) => console.warn('crowd mesh unavailable; using the full human', e));
       const q = this.quality.name;

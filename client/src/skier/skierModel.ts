@@ -51,8 +51,8 @@ export class SkierModel {
   private lastTime = 0;
   private plantSide = 1;  // which pole (+1 right, -1 left)
 
-  constructor(jacket = new THREE.Color('#d33a2c')) {
-    this.human = new HumanBody(jacket);
+  constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1)) {
+    this.human = new HumanBody(jacket, skin, lod);
     this.collar = jacketCollar(jacket);
     this.root.add(this.body);
     this.body.add(this.human.root, this.headGear, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
