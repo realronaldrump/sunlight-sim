@@ -54,7 +54,7 @@ export class Game {
   quality!: QualityPreset;
   audio = new SkiAudio();
   snowfall = new Snowfall();
-  tracks = new SkiTracks((x, z) => this.hf.heightAt(x, z));
+  tracks = new SkiTracks((x, z) => this.probe.height(x, z));
   ambient: AmbientSkiers | null = null;
   private trackFade = 0;
   options!: OptionsPanel;
@@ -520,7 +520,7 @@ export class Game {
       const w = 0.14 + 0.2 * st.plow;
       const l = new THREE.Vector3(st.pos.x - r.x * w, 0, st.pos.z - r.z * w);
       const rr = new THREE.Vector3(st.pos.x + r.x * w, 0, st.pos.z + r.z * w);
-      l.y = this.hf.heightAt(l.x, l.z); rr.y = this.hf.heightAt(rr.x, rr.z);
+      l.y = this.probe.height(l.x, l.z); rr.y = this.probe.height(rr.x, rr.z);
       const surf = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
       // deeper, wider tracks in soft snow and when skidding
       this.tracks.add(l, rr, d, 0.1 + 0.25 * st.skid, 0.6 + 0.6 * (1 - surf.groomed) + 0.4 * st.skid);

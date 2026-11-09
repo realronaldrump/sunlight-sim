@@ -24,84 +24,123 @@ function colorize(g: THREE.BufferGeometry, fn: (p: THREE.Vector3, n: THREE.Vecto
   return g;
 }
 
-/** Branch sprite: a drooping twig covered in needles with snow on top. Transparent background. */
+/** A coherent needle bough with discontinuous snow caps, not a white cone silhouette. */
 export function branchTexture(): THREE.CanvasTexture {
-  const W = 256, H = 128;
+  const W = 768, H = 384;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d')!;
-  const r = rand(3);
-  const ys = (x: number) => H * 0.42 + (x / W) ** 1.6 * H * 0.22; // droop
-  for (let i = 0; i < 1400; i++) {
-    const x = r() * W * 0.98;
-    const spread = (1 - (x / W) * 0.55) * H * 0.3;
-    const y = ys(x) + (r() - 0.5) * spread * 2 * Math.sqrt(r());
-    const len = 6 + r() * 10, a = (r() - 0.5) * 1.6 + 0.6;
-    const shade = 20 + r() * 28;
-    g.strokeStyle = `rgb(${shade * 0.75 | 0},${shade * 1.25 + 14 | 0},${shade * 0.95 + 6 | 0})`;
-    g.lineWidth = 1.6;
-    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
-  }
-  g.strokeStyle = '#3a2a1e'; g.lineWidth = 4;
-  g.beginPath(); g.moveTo(0, ys(0)); for (let x = 0; x <= W; x += 16) g.lineTo(x, ys(x)); g.stroke();
-  for (let i = 0; i < 70; i++) {
-    const x = r() * W * 0.9;
-    const top = ys(x) - (1 - (x / W) * 0.55) * H * 0.22;
-    const rad = 4 + r() * 9;
-    g.fillStyle = `rgba(${235 + r() * 15 | 0},${240 + r() * 12 | 0},250,${0.75 + r() * 0.25})`;
-    g.beginPath(); g.ellipse(x, top + r() * 10, rad * 1.5, rad * 0.7, 0, 0, Math.PI * 2); g.fill();
-  }
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-  t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
-  return t;
-}
-
-/** Card conifer: trunk + whorls of crossed branch cards along a narrow cone. Uses branchTexture(). */
-export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.BufferGeometry {
-  const r = rand(kind === 0 ? 7 : 13);
-  const parts: THREE.BufferGeometry[] = [];
-  const trunk = new THREE.CylinderGeometry(0.03, 0.07, 1.0, 6, 1, true);
-  trunk.translate(0, 0.5, 0);
-  const tuv = trunk.getAttribute('uv') as THREE.BufferAttribute;
-  for (let i = 0; i < tuv.count; i++) tuv.setXY(i, 0.02, 0.58); // sample the twig colour
-  parts.push(colorize(trunk.toNonIndexed(), () => new THREE.Color(0.8, 0.75, 0.7)));
-  const whorls = detail === 'high' ? (kind === 0 ? 13 : 10) : 4;
-  const perWhorl = detail === 'high' ? 6 : 4;
-  for (let w = 0; w < whorls; w++) {
-    const t = w / whorls;
-    const y = 0.1 + t * 0.86;
-    const profile = kind === 0 ? Math.pow(1 - t, 0.85) : Math.pow(1 - t, 0.7) * (t < 0.12 ? 0.85 : 1);
-    const reach = Math.max(0.12, profile * (0.95 + r() * 0.1));
-    for (let b = 0; b < perWhorl; b++) {
-      const ang = (b / perWhorl) * Math.PI * 2 + r() * 0.8 + w * 1.3;
-      const len = reach * (0.85 + r() * 0.3);
-      const thick = 0.07 + 0.08 * profile;
-      for (const vert of [false, true]) {
-        const q = new THREE.PlaneGeometry(len, vert ? thick : thick * 2.2);
-        q.translate(len / 2, 0, 0);
-        if (!vert) q.rotateX(-Math.PI / 2 + 0.35);
-        q.rotateZ(-0.25 - r() * 0.2);
-        q.rotateY(ang);
-        q.translate(0, y, 0);
-        const c = 0.8 + r() * 0.35;
-        parts.push(colorize(q.toNonIndexed(), (p) => {
-          const radial = Math.hypot(p.x, p.z) / Math.max(0.05, reach);
-          const k = c * (0.65 + 0.35 * Math.min(1, radial));
-          return new THREE.Color(k, k, k);
-        }));
+  const random = rand(83);
+  const spine = (x: number) => H * (0.45 + 0.10 * (x / W) ** 1.8);
+  g.lineCap = 'round';
+  // Secondary twigs leave real gaps between fans. Their needles attach to the twig, rather than
+  // forming an evenly filled triangular blob, so grazing views also have a believable silhouette.
+  for (let j = 0; j < 30; j++) {
+    const x = 18 + j / 30 * W * 0.95;
+    for (const side of [-1, 1]) {
+      const span = (1 - x / W * 0.78) * H * (0.23 + random() * 0.12);
+      const dx = 20 + random() * 42, dy = side * span;
+      const y = spine(x);
+      g.strokeStyle = '#34402d'; g.lineWidth = 3.3;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + dx, y + dy); g.stroke();
+      for (let k = 0; k < 22; k++) {
+        const t = k / 22, px = x + dx * t, py = y + dy * t;
+        const needle = 9 + random() * 13;
+        const shade = 21 + random() * 23;
+        g.strokeStyle = `rgb(${shade * 0.72 | 0},${shade + 11 | 0},${shade * 0.78 + 5 | 0})`;
+        g.lineWidth = 1.4 + random() * 1.3;
+        for (const fan of [-1, 1]) {
+          g.beginPath(); g.moveTo(px, py);
+          g.lineTo(px + needle * (0.6 + random() * 0.5) * fan, py + side * needle * 0.65); g.stroke();
+        }
       }
     }
   }
-  const top = new THREE.PlaneGeometry(0.06, 0.12); top.translate(0, 0.98, 0);
-  parts.push(colorize(top.toNonIndexed(), () => new THREE.Color(0.9, 0.9, 0.9)));
+  g.strokeStyle = '#594635'; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(0, spine(0));
+  for (let x = 0; x <= W; x += 16) g.lineTo(x, spine(x));
+  g.stroke();
+  // Snow sits in little saddles on the upper side of individual boughs. Keep most needles green.
+  for (let j = 0; j < 12; j++) {
+    const x = 32 + j / 12 * W * 0.83 + random() * 22;
+    const y = spine(x) - (1 - x / W * 0.8) * H * (0.10 + random() * 0.12);
+    const rx = 14 + random() * 20, ry = 3 + random() * 4;
+    g.fillStyle = '#acbcc6';
+    g.beginPath(); g.ellipse(x, y + 3, rx, ry + 3, -0.14, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#e4eaf0';
+    g.beginPath(); g.ellipse(x - 1, y, rx * 0.93, ry, -0.14, 0, Math.PI * 2); g.fill();
+  }
+  // Opaque white texel block for the vertex-colored trunk, outside the bough silhouette.
+  g.fillStyle = '#ffffff'; g.fillRect(0, H - 12, 12, 12);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  return tex;
+}
+
+/** Build branches in meters, then normalize for lidar height/radius instancing. Rotating a branch
+ * after normalizing height and radius makes its droop stretch by the tree's aspect ratio. */
+export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.BufferGeometry {
+  const random = rand(kind === 0 ? 7 : 13);
+  const H = 14, R = 2.25;
+  const parts: THREE.BufferGeometry[] = [];
+  const trunk = new THREE.CylinderGeometry(0.035, 0.18, H, 7, 5, true);
+  trunk.translate(0, H / 2, 0);
+  const trunkUV = trunk.getAttribute('uv');
+  for (let i = 0; i < trunkUV.count; i++) trunkUV.setXY(i, 0.006, 0.015);
+  parts.push(colorize(trunk.toNonIndexed(), (p) => {
+    const shade = 0.85 + Math.sin(p.y * 6.7 + p.x * 13) * 0.12;
+    return new THREE.Color(0.075, 0.052, 0.033).multiplyScalar(shade);
+  }));
+  const whorls = detail === 'high' ? (kind === 0 ? 22 : 18) : 9;
+  const arms = detail === 'high' ? 7 : 5;
+  for (let w = 0; w < whorls; w++) {
+    const t = w / whorls;
+    const y = H * (0.12 + t * 0.85);
+    const profile = Math.pow(1 - t, kind === 0 ? 0.78 : 0.64);
+    const rotation = w * 2.399;
+    for (let b = 0; b < arms; b++) {
+      // Broken symmetry and occasional crown gaps avoid repeated Christmas-tree tiers.
+      if (w > 1 && random() < 0.075) continue;
+      const angle = b / arms * Math.PI * 2 + rotation + random() * 0.5;
+      const reach = R * Math.max(0.065, profile * (0.72 + random() * 0.24));
+      const drop = reach * (kind === 0 ? 0.16 : 0.24);
+      const level = y + (random() - 0.5) * 0.42;
+      const thickness = 0.14 + reach * 0.24;
+      const bough = (len: number, width: number, a: number, origin: THREE.Vector3, upright: boolean) => {
+        const card = new THREE.PlaneGeometry(len, width, 2, 1);
+        card.translate(len / 2, 0, 0);
+        if (!upright) card.rotateX(-Math.PI / 2 + 0.12);
+        card.rotateZ(-Math.atan2(drop, reach));
+        card.rotateY(a);
+        card.translate(origin.x, origin.y, origin.z);
+        const shade = 0.72 + random() * 0.28;
+        parts.push(colorize(card.toNonIndexed(), (p) => {
+          const exposed = Math.min(1, Math.hypot(p.x, p.z) / R);
+          const tint = shade * (0.72 + exposed * 0.28);
+          return new THREE.Color(tint * 0.93, tint, tint * 0.94);
+        }));
+      };
+      bough(reach, thickness, angle, new THREE.Vector3(0, level, 0), true);
+      bough(reach, thickness * 2.2, angle, new THREE.Vector3(0, level, 0), false);
+      if (detail === 'high' && t < 0.85) {
+        for (const side of [-1, 1]) {
+          const at = reach * 0.38;
+          bough(reach * 0.55, thickness * 0.9, angle + side * 0.43,
+            new THREE.Vector3(Math.cos(angle) * at, level - drop * 0.38, -Math.sin(angle) * at), false);
+        }
+      }
+    }
+  }
   const g = mergeGeometries(parts);
-  // bend normals outward/up so the crown shades like a volume rather than flat cards
-  const pos = g.getAttribute('position'), nor = g.getAttribute('normal');
+  const pos = g.getAttribute('position'), nor = g.getAttribute('normal'), coords = g.getAttribute('uv');
   for (let i = 0; i < pos.count; i++) {
-    const n = new THREE.Vector3(pos.getX(i), 0.6 + (pos.getY(i) - 0.5) * 0.4, pos.getZ(i)).normalize();
+    if (coords.getX(i) < 0.01 && coords.getY(i) < 0.02) continue;
+    const n = new THREE.Vector3(pos.getX(i) * 0.5, 0.75, pos.getZ(i) * 0.5).normalize();
     nor.setXYZ(i, n.x, n.y, n.z);
   }
+  g.scale(1 / R, 1 / H, 1 / R);
   g.computeBoundingSphere();
+  for (const part of parts) part.dispose();
   return g;
 }
 
@@ -109,23 +148,27 @@ export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.Buff
 export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   const r = rand(29);
+  const R = 2.1, H = 14;
   const seg = (a: THREE.Vector3, b: THREE.Vector3, rad0: number, rad1: number, col: THREE.Color, sides = 4) => {
+    a = a.clone().multiply(new THREE.Vector3(R, H, R));
+    b = b.clone().multiply(new THREE.Vector3(R, H, R));
     const d = b.clone().sub(a); const L = d.length();
-    const c = new THREE.CylinderGeometry(rad1, rad0, L, sides, 1, true);
+    const c = new THREE.CylinderGeometry(rad1 * R, rad0 * R, L, sides, 1, true);
     c.translate(0, L / 2, 0);
     c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
     c.translate(a.x, a.y, a.z);
     parts.push(colorize(c.toNonIndexed(), () => col));
   };
-  const trunk = new THREE.CylinderGeometry(0.028, 0.05, 1.0, detail === 'high' ? 8 : 5, 6, true);
+  const trunk = new THREE.CylinderGeometry(0.028, 0.05, 1.0, detail === 'high' ? 9 : 5, detail === 'high' ? 28 : 8, true);
   trunk.translate(0, 0.5, 0);
   parts.push(colorize(trunk.toNonIndexed(), (p) => {
-    const mark = Math.sin(p.y * 70 + Math.sin(p.x * 50) * 3) > 0.9 ? 0.35 : 1;
+    const mark = Math.sin(p.y * 190 + Math.atan2(p.z, p.x) * 3.7) > 0.94 ? 0.32 : 1;
     const base = p.y < 0.07 ? 0.55 : 1;
-    return new THREE.Color(0.62, 0.64, 0.58).multiplyScalar(mark * base);
+    return new THREE.Color(0.43, 0.45, 0.40).multiplyScalar(mark * base);
   }));
+  parts[0].scale(R, H, R);
   const nb = detail === 'high' ? 16 : 6;
-  const branchCol = new THREE.Color(0.27, 0.25, 0.23), twigCol = new THREE.Color(0.2, 0.18, 0.17);
+  const branchCol = new THREE.Color(0.105, 0.095, 0.08), twigCol = new THREE.Color(0.065, 0.058, 0.05);
   for (let i = 0; i < nb; i++) {
     const y0 = 0.42 + r() * 0.5;
     const ang = r() * Math.PI * 2;
@@ -144,16 +187,24 @@ export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
       }
     }
   }
-  return mergeGeometries(parts);
+  const result = mergeGeometries(parts);
+  result.scale(1 / R, 1 / H, 1 / R);
+  result.computeBoundingBox();
+  result.scale(1, 1 / result.boundingBox!.max.y, 1);
+  for (const part of parts) part.dispose();
+  return result;
 }
 
 /** Gambel oak thicket clump: many crooked grey-brown stems from the ground, each with twigs (bare in winter). */
 export function oakGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   const r = rand(41);
+  const R = 1.4, H = 3;
   const seg = (a: THREE.Vector3, b: THREE.Vector3, rad0: number, rad1: number, col: THREE.Color) => {
+    a = a.clone().multiply(new THREE.Vector3(R, H, R));
+    b = b.clone().multiply(new THREE.Vector3(R, H, R));
     const d = b.clone().sub(a); const L = d.length();
-    const c = new THREE.CylinderGeometry(rad1, rad0, L, 3, 1, true);
+    const c = new THREE.CylinderGeometry(rad1 * R, rad0 * R, L, 4, 1, true);
     c.translate(0, L / 2, 0);
     c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
     c.translate(a.x, a.y, a.z);
@@ -168,7 +219,7 @@ export function oakGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
     const a = new THREE.Vector3(bx, 0, bz);
     const mid = new THREE.Vector3(bx + Math.cos(ang) * lean * 0.4, h * 0.55, bz + Math.sin(ang) * lean * 0.4);
     const top = new THREE.Vector3(bx + Math.cos(ang) * lean, h, bz + Math.sin(ang) * lean);
-    const col = new THREE.Color(0.33 + r() * 0.06, 0.29 + r() * 0.05, 0.26 + r() * 0.04);
+    const col = new THREE.Color(0.12 + r() * 0.03, 0.09 + r() * 0.025, 0.065 + r() * 0.02);
     seg(a, mid, 0.03, 0.022, col);
     seg(mid, top, 0.022, 0.008, col);
     if (detail === 'high') {
@@ -180,7 +231,12 @@ export function oakGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
       }
     }
   }
-  return mergeGeometries(parts);
+  const result = mergeGeometries(parts);
+  result.scale(1 / R, 1 / H, 1 / R);
+  result.computeBoundingBox();
+  result.scale(1, 1 / result.boundingBox!.max.y, 1);
+  for (const part of parts) part.dispose();
+  return result;
 }
 
 /** Impostor texture atlas (4 species side by side, 256x256 each) drawn on a canvas. */
@@ -217,7 +273,7 @@ export function impostorAtlas(): THREE.CanvasTexture {
   conifer(S, S * 0.42, 0.68);
   {
     const ox = S * 2;
-    g.strokeStyle = '#d9d6cc'; g.lineWidth = 8;
+    g.strokeStyle = '#b8b9ac'; g.lineWidth = 8;
     g.beginPath(); g.moveTo(ox + S / 2, S); g.lineTo(ox + S / 2, S * 0.12); g.stroke();
     for (let i = 0; i < 220; i++) {
       const y = S * (0.12 + r() * 0.5);

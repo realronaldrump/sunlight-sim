@@ -45,7 +45,7 @@ export class SnowSpray {
   emit(left: THREE.Vector3, right: THREE.Vector3, direction: THREE.Vector3, width: number, strength: number, speed: number) {
     if (speed < 2) return;
     const force = THREE.MathUtils.clamp((width - 0.1) * 5 + (strength - 0.7), 0.05, 1.7);
-    const count = Math.ceil(force * Math.min(speed, 15) * 0.65);
+    const count = Math.ceil(force * Math.min(speed, 15) * 1.15);
     for (let side = -1; side <= 1; side += 2) {
       const origin = side < 0 ? left : right;
       for (let n = 0; n < count; n++) {
@@ -60,7 +60,7 @@ export class SnowSpray {
         this.velocities[k + 2] = direction.x * spread * side + direction.z * speed * 0.16;
         this.ages[i] = 0;
         this.lives[i] = 0.3 + this.random() * 0.6;
-        this.radii[i] = 0.035 + this.random() ** 2 * 0.12 * force;
+        this.radii[i] = 0.012 + this.random() ** 2 * 0.055 * force;
         this.appearance[i * 2] = this.radii[i];
         this.appearance[i * 2 + 1] = 0;
       }
@@ -79,7 +79,7 @@ export class SnowSpray {
       this.velocities[k + 1] -= 6.5 * dt; // fine powder has appreciable aerodynamic drag
       for (let a = 0; a < 3; a++) this.positions[k + a] += this.velocities[k + a] * dt;
       this.appearance[i * 2] = this.radii[i] * (1 + t * 1.8);
-      this.appearance[i * 2 + 1] = Math.min(1, t * 12) * (1 - t) ** 2 * 0.65;
+      this.appearance[i * 2 + 1] = Math.min(1, t * 12) * (1 - t) ** 2 * 0.42;
     }
     this.mesh.visible = live > 0;
     if (live) {
