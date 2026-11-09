@@ -1,6 +1,6 @@
 # Progress
 
-## Manual disembark and the missed-unload gag (November 9, 2026)
+## Manual disembark and the missed-unload gag (November 9, 2026, released)
 
 - You get off the lift yourself: Space, the A button or the Stand up button in the lift bar while the chair is over the top unload ramp. The bar warns "Ramp ahead" and pulses "STAND UP!" on the ramp; sped-up lifts drop to normal speed nine seconds before the ramp.
 - Too early: one warning (with your height above the snow), then a second press jumps off and you fall, with a yard sale.
@@ -9,6 +9,7 @@
 - Multiplayer: the server lets riders get off by themselves (frees a seat 12 lift seconds past the line otherwise) and accepts a deliberate jump. Older servers keep automatic unloading. Two local clients agreed on standing up, the missed ramp and the jump.
 - The lift time and speed bar now sits at the bottom of the screen (above the drone button while it shows, above the speed panel on narrow windows).
 - Menu checkboxes give focus back after a change, so Esc closes the pause menu again.
+- Release `3e61daa`: pushed and verified on `origin/main`. The mini-PC multiplayer container runs `3e61daa` (healthy; `/sunlight/health` reports `manualUnload: true`). Vercel deployment `dpl_A7Yaiz26i3ULUDciMYeimmTPrMsv` READY at https://sunlight-sim.vercel.app serving `index-DOdF8iFs.js`. Live manual-unload and smoke scenarios passed in Chromium and WebKit, and two live clients through the public server agreed on standing up, the missed ramp and the jump (the browser reached the Funnel host through its public address).
 - Tests: new `tests/e2e/manualUnload.spec.ts` (Chromium and WebKit), unit tests for stand-up, the missed sequence on all three lifts, the jump, auto and away riders, and the server's new unload rules. The two-player test now allows one rendered frame of lag when checking a friend's seat at 8x (it failed the same way on the previous code).
 
 ## Lodge exterior from the owner's photos (November 9, 2026, released)
