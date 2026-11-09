@@ -439,13 +439,13 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
   colliders.push({ x: 0, z: -0.4, r: 0.5 });
   // The drive room is partly buried in the bank below/behind the loading platform.
   const vault = new THREE.Group(); vault.name = 'tercero-drive-vault'; g.add(vault);
-  box(vault, M.stucco, 4.8, 2.5, 6, 0, -1.2, -4.5);
-  box(vault, M.stucco, 5.1, .16, 6.3, 0, .12, -4.5);
-  box(vault, M.rustRoof, 1.05, 1.95, .06, -.9, -1.38, -7.53);
-  box(vault, M.galvDark, .06, .09, .07, -.5, -1.35, -7.58);
-  box(vault, M.rustRoof, 1.5, .06, .7, -.9, -.22, -7.65, -.2);
-  box(vault, M.galvDark, .5, .65, .28, 1, -1.85, -7.6);
-  colliders.push({ x: 0, z: -4.5, hx: 2.4, hz: 3, top: .2 });
+  box(vault, M.stucco, 5.8, 2.5, 7, 0, -1.2, -5);
+  box(vault, M.stucco, 6.1, .16, 7.3, 0, .12, -5);
+  box(vault, M.rustRoof, 1.05, 1.95, .06, -.9, -1.38, -8.53);
+  box(vault, M.galvDark, .06, .09, .07, -.5, -1.35, -8.58);
+  box(vault, M.rustRoof, 1.5, .06, .7, -.9, -.22, -8.65, -.2);
+  box(vault, M.galvDark, .5, .65, .28, 1, -1.85, -8.6);
+  colliders.push({ x: 0, z: -5, hx: 2.9, hz: 3.5, top: .2 });
   return { object: g, colliders, kind };
 }
 
