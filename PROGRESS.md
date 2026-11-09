@@ -3,7 +3,8 @@
 ## Lodge ski start (November 8, 2026)
 - Owner requests the real lodge start by the ski racks so they can ski down to either base lift. The old production start reproduced about 14 m behind Segundo's load line, facing the chair. The newer solo menu also had a separate on-foot rental-door default.
 - Initial desktop skiing and pause-menu return now share the open apron by the west rack, facing the clear slope past the lodge. The `?onfoot=1` diagnostic start still uses the rental door. Added a Chrome/Safari browser regression for the normal solo menu, push-off and pause-menu return.
-- The isolated build and rack placement check passed. Scripted ski inputs reached the snow beside both base lift mazes without a fall. The Chromium pause-menu return reached the same rack within centimeters. The browser regression now tolerates that small motion between frames. Next: verify the production artifact, push main, and verify the public deployment.
+- Scripted ski inputs on the release build reached the snow beside both base lift mazes without a fall. Reviewed the spawn screenshot with the rack and lodge visible. The production build, 124 unit tests and five pipeline checks passed.
+- Deployed source `4561d1e` to https://sunlight-sim.vercel.app as Vercel deployment `dpl_9gWTfM723yDrVdwRN1a7ku99UnUG`. The public HTML and bundle match the tested artifact. Chromium and WebKit each passed the public start-menu, push-off and pause-menu return scenario. The deployment source and test correction `3d7da0f` were pushed and verified on `origin/main`.
 
 ## Lift speed and pause-only travel (November 8, 2026, in progress)
 - Owner requests lift speed control, removal of B teleport, pause-menu-only teleportation, optional skier tracking marker in drone mode, and deployment. Clarification: speed up only the occupied lift, never the surroundings or other lifts.
