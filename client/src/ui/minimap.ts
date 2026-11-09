@@ -1,10 +1,11 @@
 import type { ResortData, RunInfo } from '../game';
 import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
+import { formatDistance } from './units';
 import type { MapPlayer } from './trailMap';
 import { mapHeading, mapPoint, nearestTrailPoint, type MapView } from './minimapGeometry';
 
-const ZOOM_SPANS = [400, 800, 1600];
+const ZOOM_SPANS = [457.2, 914.4, 1828.8]; // 1,500 / 3,000 / 6,000 ft, retained in meters for projection.
 const STORAGE_KEY = 'sunlight.minimap';
 const css = `
 #minimap { position: fixed; top: 16px; left: 16px; z-index: 10; width: 264px; overflow: hidden; border: 1px solid rgba(255,255,255,.28); border-radius: 12px; background: rgba(10,20,35,.92); box-shadow: 0 4px 20px rgba(0,0,0,.23); font-variant-numeric: tabular-nums; }
@@ -21,7 +22,7 @@ body:has(#roombox) #minimap { top: 66px; }
 #minimap canvas { display: block; width: 100%; aspect-ratio: 1; pointer-events: none; background: #d5e0da; }
 #minimap footer { padding: 8px; }
 #minimap .mm-tools { display: flex; align-items: center; gap: 4px; }
-#minimap .mm-zoom { font-size: 11px; color: #c8d8e2; min-width: 38px; text-align: center; white-space: nowrap; }
+#minimap .mm-zoom { font-size: 11px; color: #c8d8e2; min-width: 54px; text-align: center; white-space: nowrap; }
 #minimap .mm-full { margin-left: auto; padding: 0 6px; white-space: nowrap; }
 #minimap kbd { font: inherit; color: #a9c7d4; margin-left: 4px; }
 #minimap .mm-legend { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 10px; color: #c8d8e2; }
@@ -30,7 +31,7 @@ body:has(#roombox) #minimap { top: 66px; }
 #minimap.collapsed { width: auto; border-radius: 8px; }
 #minimap.collapsed header, #minimap.collapsed .mm-body { display: none; }
 #minimap.collapsed .mm-collapsed { display: block; }
-@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } #minimap .mm-legend { display: none; } }
+@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } #minimap .mm-legend, #minimap .mm-word { display: none; } }
 @media (max-height: 580px) { #minimap { width: 194px; top: 10px; left: 10px; } #minimap canvas { aspect-ratio: 1.55; } #minimap .mm-full kbd { display: none; } #minimap button { min-width: 30px; } }
 `;
 
@@ -79,7 +80,7 @@ export class Minimap {
       <div class="mm-body"><footer><div class="mm-tools">
         <button type="button" class="mm-out" aria-label="Zoom minimap out" title="Zoom out">&#8722;</button><span class="mm-zoom"></span>
         <button type="button" class="mm-in" aria-label="Zoom minimap in" title="Zoom in">+</button>
-        <button type="button" class="mm-full" aria-label="Open full trail map (M)">Full map <kbd>M</kbd></button>
+        <button type="button" class="mm-full" aria-label="Open full trail map (M)"><span class="mm-word">Full </span>map <kbd>M</kbd></button>
       </div><div class="mm-legend"><span><b style="color:#63d582">●</b>Easy</span><span><b style="color:#78acff">■</b>More difficult</span><span><b>◆</b>Difficult</span><span><b style="color:#ff7799">━</b>Lift</span></div></footer></div>`;
     this.canvas.setAttribute('role', 'img');
     this.canvas.setAttribute('aria-label', 'North-up map following your position, with nearby trails, chairlifts and friends');
@@ -122,7 +123,7 @@ export class Minimap {
     this.zoomIn.disabled = this.zoom === 0;
     this.zoomOut.disabled = this.zoom === ZOOM_SPANS.length - 1;
     const span = ZOOM_SPANS[this.zoom];
-    this.zoomLabel.textContent = span < 1000 ? `${span} m` : `${span / 1000} km`;
+    this.zoomLabel.textContent = formatDistance(span);
     this.zoomLabel.title = 'Map width';
     this.dirty = true;
   }
@@ -251,7 +252,7 @@ export class Minimap {
     g.beginPath(); g.moveTo(width - 20, 28); g.lineTo(width - 25, 40); g.lineTo(width - 20, 37); g.lineTo(width - 15, 40); g.closePath(); g.fill();
     const meters = view.span / 4, barWidth = width / 4;
     g.fillStyle = 'rgba(10,20,35,.85)'; g.beginPath(); g.roundRect(7, height - 33, barWidth + 14, 26, 4); g.fill();
-    g.fillStyle = '#fff'; g.font = '10px -apple-system, sans-serif'; g.fillText(`${meters} m`, 14 + barWidth / 2, height - 23);
+    g.fillStyle = '#fff'; g.font = '10px -apple-system, sans-serif'; g.fillText(formatDistance(meters), 14 + barWidth / 2, height - 23);
     g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(14, height - 16); g.lineTo(14, height - 12); g.lineTo(14 + barWidth, height - 12); g.lineTo(14 + barWidth, height - 16); g.stroke();
   }
 

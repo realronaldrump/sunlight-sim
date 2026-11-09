@@ -2,6 +2,7 @@
 // height tiles; skirts hide cracks between LOD levels.
 import * as THREE from 'three/webgpu';
 import { Heightfield, HeightTile } from './heightfield';
+import { GroomingField, type GroomingRun } from './grooming';
 
 const CELLS = 64;
 const VERTS = CELLS + 1;
@@ -60,8 +61,10 @@ export class TerrainRenderer {
   triangles = 0;
   private roots: [number, number][] = [];
   private buildQueue: Chunk[] = [];
+  private grooming: GroomingField;
 
-  constructor(private hf: Heightfield, private material: THREE.Material) {
+  constructor(private hf: Heightfield, private material: THREE.Material, runs: GroomingRun[] = []) {
+    this.grooming = new GroomingField(runs);
     this.group.name = 'terrain';
     const L = hf.maxLevel;
     const C = CELLS * 2 ** L;
@@ -110,6 +113,8 @@ export class TerrainRenderer {
     const pos = new Float32Array(count * 3);
     const nrm = new Float32Array(count * 3);
     const flow = new Float32Array(count * 2); // smoothed downhill direction (x, z) for grooming lines
+    const grooming = new Float32Array(count * 2);
+    const groomSample = { across: 0, along: 0 };
     const W = Math.max(1, Math.round(5 / r));
     const cl = (v: number) => Math.min(N - 1, Math.max(0, v));
     let minH = Infinity, maxH = -Infinity;
@@ -130,6 +135,9 @@ export class TerrainRenderer {
         const fl = Math.hypot(sgx, sgn) || 1;
         const kf = (j * VERTS + i) * 2;
         flow[kf] = -sgx / fl; flow[kf + 1] = sgn / fl; // downhill in game x/z (z = -n)
+        if (c.L <= 2) this.grooming.sample(ox + i * r, -on - j * r, groomSample);
+        else { groomSample.across = ox + i * r; groomSample.along = -on - j * r; }
+        grooming[kf] = groomSample.across; grooming[kf + 1] = groomSample.along;
         if (h < minH) minH = h; if (h > maxH) maxH = h;
       }
     }
@@ -144,11 +152,13 @@ export class TerrainRenderer {
       nrm[dst] = nrm[src]; nrm[dst + 1] = nrm[src + 1]; nrm[dst + 2] = nrm[src + 2];
       const fs = (j * VERTS + i) * 2, fd = (VERTS * VERTS + k) * 2;
       flow[fd] = flow[fs]; flow[fd + 1] = flow[fs + 1];
+      grooming[fd] = grooming[fs]; grooming[fd + 1] = grooming[fs + 1];
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('flow', new THREE.BufferAttribute(flow, 2));
+    g.setAttribute('grooming', new THREE.BufferAttribute(grooming, 2));
     g.setIndex(getIndex());
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minH - skirt, -C), new THREE.Vector3(C, maxH, 0));
     g.boundingSphere = new THREE.Sphere();

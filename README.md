@@ -10,6 +10,8 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 - Multiplayer rooms by link, shared chairs, chat, trail map with other players.
 - A live minimap follows your position and heading while skiing or riding a lift, with nearby trails, difficulty colors, lift names, and friends.
 
+- All in-game measurements use U.S. units: speed in mph, elevation in feet, and lift distances and trail lengths in feet or miles.
+
 **Play now (solo):** https://sunlight-sim.vercel.app  (the multiplayer server is not hosted yet; see Deploy below. Multiplayer works locally and on a LAN.)
 
 ## Run it locally
@@ -47,7 +49,7 @@ Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y c
 
 To ride a lift, ski into the red load line under the chair and wait; the chair scoops you up and you ride in real time.
 
-The minimap stays north-up in the upper left. Your cyan arrow shows where your skis point; nearby friends use their jacket colors. Use **+** and **−** for 400 m, 800 m, or 1.6 km map widths, and **Full map (M)** for the full trail map. Zoom and visibility are remembered in this browser. The small scale bar shows ground distance; the header keeps your current run or lift name visible. Clicking the minimap itself does not teleport you.
+The minimap stays north-up in the upper left. Your cyan arrow shows where your skis point; nearby friends use their jacket colors. Use **+** and **−** for 1,500 ft, 3,000 ft, or 6,000 ft map widths (the widest displays as 1.1 mi), and **Full map (M)** for the full trail map. Zoom and visibility are remembered in this browser. The small scale bar shows ground distance; the header keeps your current run or lift name visible. Clicking the minimap itself does not teleport you.
 
 ## Ski with a friend (share a link)
 

@@ -1,32 +1,56 @@
-// @ts-nocheck -- TSL node graphs: @types/three node typings are too strict to be useful here.
-// Light snowfall: flakes animated entirely on the GPU in a box that follows the camera.
+// @ts-nocheck -- TSL node graphs use the project's material typing exception.
+// World-anchored snowflakes with varied settling, wind drift and soft silhouettes.
 import * as THREE from 'three/webgpu';
-import { attribute, uniform, vec3, mod, time, positionLocal, sin, float, smoothstep, length, cameraPosition, positionWorld } from 'three/tsl';
+import {
+  attribute, uniform, vec2, vec3, mod, time, positionLocal, sin, cos, float, smoothstep,
+  length, cameraPosition, cameraWorldMatrix, positionWorld, uv, max, abs, mix,
+} from 'three/tsl';
 
 export class Snowfall {
   readonly mesh: THREE.InstancedMesh;
   private center = uniform(new THREE.Vector3());
-  readonly box = 50;
+  readonly box = 64;
 
   constructor(count = 14000) {
-    const geo = new THREE.IcosahedronGeometry(0.03, 0);
-    const seeds = new Float32Array(count * 3);
-    for (let i = 0; i < count * 3; i++) seeds[i] = Math.random() * this.box;
-    geo.setAttribute('seed', new THREE.InstancedBufferAttribute(seeds, 3));
-    const mat = new THREE.MeshBasicNodeMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false });
-    const seed = attribute('seed', 'vec3');
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const seeds = new Float32Array(count * 4);
+    let rng = 72431;
+    for (let i = 0; i < seeds.length; i++) {
+      rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0;
+      seeds[i] = rng / 4294967296;
+    }
+    geo.setAttribute('flake', new THREE.InstancedBufferAttribute(seeds, 4));
+    const mat = new THREE.MeshStandardNodeMaterial({ color: 0xf6f9ff, roughness: 1, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const seed = attribute('flake', 'vec4');
     const B = float(this.box);
-    const fall = time.mul(1.1);
-    const drift = vec3(sin(time.mul(0.6).add(seed.y)).mul(0.6).add(time.mul(0.35)), fall.negate(), sin(time.mul(0.5).add(seed.x)).mul(0.5));
-    // wrap each flake into a box centred on the camera
-    const p = mod(seed.add(drift).sub(this.center), B).sub(B.mul(0.5)).add(this.center);
-    mat.positionNode = positionLocal.add(p);
-    // flakes right in front of the lens fade out instead of showing as big blobs
-    mat.opacityNode = smoothstep(0.8, 2.5, length(positionWorld.sub(cameraPosition))).mul(0.85);
+    const fallSpeed = mix(0.55, 1.65, seed.w);
+    const gust = sin(time.mul(0.17)).mul(0.9);
+    const drift = vec3(
+      time.mul(0.4).add(gust).add(sin(time.mul(0.7).add(seed.y.mul(50))).mul(0.4)),
+      time.mul(fallSpeed).negate(),
+      time.mul(0.12).add(sin(time.mul(0.53).add(seed.x.mul(60))).mul(0.35)),
+    );
+    const local = mod(seed.xyz.mul(B).add(drift).sub(this.center), B).sub(B.mul(0.5));
+    const p = local.add(this.center);
+    const angle = time.mul(seed.w.sub(0.5)).add(seed.x.mul(30));
+    const size = float(0.009).add(seed.w.mul(seed.w).mul(0.035));
+    const rotated = vec2(positionLocal.x.mul(cos(angle)).sub(positionLocal.y.mul(sin(angle))),
+      positionLocal.x.mul(sin(angle)).add(positionLocal.y.mul(cos(angle))));
+    mat.positionNode = p.add(cameraWorldMatrix[0].xyz.mul(rotated.x)
+      .add(cameraWorldMatrix[1].xyz.mul(rotated.y).mul(mix(0.75, 1.35, seed.z))).mul(size));
+    mat.normalNode = vec3(0, 0, 1);
+    const radius = length(uv().sub(0.5)).mul(2);
+    const shape = float(1).sub(smoothstep(0.1, 1, radius));
+    const distance = length(positionWorld.sub(cameraPosition));
+    const lensFade = smoothstep(0.65, 2.2, distance);
+    const boundary = max(max(abs(local.x), abs(local.y)), abs(local.z));
+    const boxFade = float(1).sub(smoothstep(this.box * 0.39, this.box * 0.5, boundary));
+    mat.opacityNode = shape.mul(shape).mul(lensFade).mul(boxFade).mul(mix(0.45, 0.85, seed.w));
     this.mesh = new THREE.InstancedMesh(geo, mat, count);
+    this.mesh.name = 'wind-drifting snowfall';
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
-    for (let i = 0; i < count; i++) this.mesh.setMatrixAt(i, new THREE.Matrix4());
+    this.mesh.receiveShadow = true;
   }
 
   update(cam: THREE.Vector3) { this.center.value.copy(cam); }

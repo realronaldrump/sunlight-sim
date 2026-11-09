@@ -3,6 +3,7 @@
 import type { ResortData, RunInfo } from '../game';
 import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
+import { formatDistance } from './units';
 
 export interface MapPlayer { name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 
@@ -117,7 +118,7 @@ export class TrailMap {
       if (r) {
         this.tip.style.display = 'block';
         this.tip.style.left = e.clientX + 14 + 'px'; this.tip.style.top = e.clientY + 10 + 'px';
-        this.tip.innerHTML = `<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${DIFF_LABEL[r.difficulty] ?? ''}${(r as any).stats ? ` &middot; ${(r as any).stats.lengthM} m, avg ${(r as any).stats.avgDeg}&deg;, max ${(r as any).stats.maxDeg}&deg;` : ''}`;
+        this.tip.innerHTML = `<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${DIFF_LABEL[r.difficulty] ?? ''}${(r as any).stats ? ` &middot; ${formatDistance((r as any).stats.lengthM)}, avg ${(r as any).stats.avgDeg}&deg;, max ${(r as any).stats.maxDeg}&deg;` : ''}`;
       } else this.tip.style.display = 'none';
     });
     this.cv.addEventListener('wheel', (e) => {

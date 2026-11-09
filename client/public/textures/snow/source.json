@@ -1,0 +1,37 @@
+{
+  "asset": "Snow 02",
+  "author": "Rob Tuytel",
+  "source": "https://polyhaven.com/a/snow_02",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "sourceWidthMeters": 2,
+  "channels": [
+    "height",
+    "grain",
+    "roughness",
+    "occlusion"
+  ],
+  "sources": [
+    {
+      "channel": "disp",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/snow_02/snow_02_disp_2k.jpg",
+      "sha256": "c3fe9fe26907138e23e685c53c43152858f27042b802931e0f71bc0c62286fdd"
+    },
+    {
+      "channel": "bump",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/snow_02/snow_02_bump_2k.jpg",
+      "sha256": "888e3e2ace8df214a94145e678a2fd27b57622062957f6e310277c6df904f034"
+    },
+    {
+      "channel": "rough",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/snow_02/snow_02_rough_2k.jpg",
+      "sha256": "9cfa994318ef190d4540875a166c7c745184c1a166e82271bca7c0a628f8820f"
+    },
+    {
+      "channel": "ao",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/snow_02/snow_02_ao_2k.jpg",
+      "sha256": "3bb1a13af0ce8d5b8a0cc80e1d5b4f36a36b0d612b65b3dc16ebc4b7ea36f4cb"
+    }
+  ],
+  "outputSha256": "1fa584fef11406c32d2e305cad76f735d7951464c0c36396140fc095a6c94521"
+}

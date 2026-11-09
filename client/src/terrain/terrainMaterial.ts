@@ -3,18 +3,19 @@
 // faces, forest darkening at distance, snow sparkle, and the beginner slope-angle overlay.
 import * as THREE from 'three/webgpu';
 import {
-  Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorld, modelWorldMatrix,
-  dot, mix, smoothstep, clamp, acos, texture, cameraPosition, normalize, hash, floor, fract, abs, sin,
-  max, length, select, step, pow, exp, mx_noise_float, dFdx, dFdy, cross, sign, normalView, positionView,
-  transformNormalToView, attribute,
+  Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorldGeometry, modelWorldMatrix,
+  dot, mix, smoothstep, clamp, acos, texture, cameraPosition, normalize, abs, sin,
+  length, select, step, mx_noise_float,
 } from 'three/tsl';
 import { EARTH_R_EFF } from '../../../shared/world';
+import { createSnowSurface, useSnowLighting } from './snowSurface';
 
 export interface TerrainMaterialHandles {
   material: THREE.MeshStandardNodeMaterial;
   viewer: { value: THREE.Vector3 };
   slopeOverlay: { value: number };
   sunDir: { value: THREE.Vector3 };
+  ready: Promise<void>;
   setSurface(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setLandcover(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setLandcoverMid(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
@@ -61,8 +62,7 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const baseTex = texture(placeholder, baseUV);
   const plowed = baseTex.r.mul(inBase);
 
-  const nW = normalize(normalWorld);
-  const flowDir = normalize(attribute('flow', 'vec2').add(vec2(1e-5, 0.0)));
+  const nW = normalize(normalWorldGeometry);
   const slopeDeg = acos(clamp(nW.y, 0.0, 1.0)).mul(57.29578);
   const dist = length(positionWorld.sub(cameraPosition));
 
@@ -75,27 +75,16 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     return ov;
   });
   const overlay = overlayColor();
+  const snowDetail = createSnowSurface(surf, dist, plowed);
+  // Keep exposed faces and distant canopy out of the snow reflection model.
+  const rockT = mix(float(48.0), float(33.0), smoothstep(1500.0, 15000.0, dist));
+  const rock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(float(1.0).sub(surf.g)).mul(0.85);
 
   const colorFn = Fn(() => {
-    const groomed = surf.r;
-    const piste = surf.g;
     const canopy = surf.b;
     const landCanopy = land.r.mul(float(1.0).sub(inSurf)); // forest where no tree instances are drawn
-    const moguls = surf.a;
-    // base Colorado snow: very slightly blue-white
-    const snow = vec3(0.90, 0.93, 0.97).toVar();
-    // subtle large-scale variation (wind packing, sun crust)
-    const n1 = hash(floor(xn.mul(0.25)).dot(vec2(1.0, 157.0)));
-    snow.mulAssign(float(0.985).add(n1.mul(0.03)));
-    // groomed corduroy: ridges along the fall line, ~2.5 cm spacing, fade with distance
-    const across = dot(vec2(positionWorld.x, positionWorld.z), vec2(flowDir.y.negate(), flowDir.x));
-    const cord = abs(sin(across.mul(6.2831 / 0.04)));
-    // fade the ridges once they get close to the pixel size (prevents moire)
-    const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
-    const cordFade = float(1.0).sub(smoothstep(0.003, 0.009, footprint));
-    snow.mulAssign(float(1.0).sub(groomed.mul(cordFade).mul(cord.mul(0.05))));
-    // groomed snow is a touch brighter/smoother from far away
-    snow.mulAssign(float(1.0).add(groomed.mul(0.015)));
+    const snow = snowDetail.color.toVar();
+    const n1 = mx_noise_float(vec3(xn.x.mul(0.3), 3.0, xn.y.mul(0.3))).mul(0.5).add(0.5);
     // forest from afar: trees darken the snow surface (only beyond near tree rendering range)
     // forest floor under the canopy is in shade; from afar the trees themselves dominate
     const midForest = smoothstep(120.0, 700.0, dist).mul(canopy).mul(0.38);
@@ -103,22 +92,14 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     const forestCol = vec3(0.13, 0.17, 0.15);
     snow.assign(mix(snow, forestCol, midForest.add(farForest)));
     // distant forests (ESA WorldCover): dark conifer/aspen stands with some snow showing through
-    const speck = hash(floor(xn.mul(0.08)).dot(vec2(13.0, 71.0)));
+    const speck = mx_noise_float(vec3(xn.x.mul(0.08), 5.0, xn.y.mul(0.08))).mul(0.5).add(0.5);
     const farCol = vec3(0.11, 0.145, 0.13).add(vec3(0.08).mul(speck));
     snow.assign(mix(snow, farCol, landCanopy.mul(0.78)));
-    // exposed rock on very steep faces that are not runs
-    // mogul fields: soft light/shade pattern of bumps (about 4 m spacing) where the run is not groomed
-    const mp = vec2(positionWorld.x, positionWorld.z).mul(0.26);
-    const bump = sin(mp.x.add(sin(mp.y.mul(0.7)))).mul(sin(mp.y.add(sin(mp.x.mul(0.6)))));
-    const mogFade = float(1.0).sub(smoothstep(60.0, 400.0, dist));
-    snow.mulAssign(float(1.0).add(bump.mul(moguls).mul(mogFade).mul(0.06)));
+    // Mogul light and shade comes from the existing terrain geometry, not painted fake shadows.
     // plowed roads and parking lots: packed snow over gravel with tyre tracks
     const tracks = abs(sin(dot(vec2(positionWorld.x, positionWorld.z), vec2(0.7, 0.7)).mul(3.1))).mul(0.06);
     const plowCol = vec3(0.58, 0.56, 0.53).mul(float(0.92).add(n1.mul(0.12)).sub(tracks));
     snow.assign(mix(snow, plowCol, plowed.mul(0.8)));
-    // coarse distant LODs smooth out cliffs, so the rock threshold drops with distance
-    const rockT = mix(float(48.0), float(33.0), smoothstep(1500.0, 15000.0, dist));
-    const rock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(float(1.0).sub(piste)).mul(0.85);
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
     snow.assign(mix(snow, rockCol, rock));
     // beginner slope-angle overlay
@@ -126,53 +107,20 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   });
   mat.colorNode = colorFn();
 
-  // micro relief: wind ripples and grain everywhere, corduroy ridges on groomed runs. Applied as a
-  // screen-space bump (derivative-based normal perturbation) that fades out with distance.
-  mat.normalNode = Fn(() => {
-    const p = positionWorld;
-    const near = float(1.0).sub(smoothstep(8.0, 60.0, dist));
-    const ripples = mx_noise_float(vec3(p.x.mul(0.9), 0.0, p.z.mul(2.6)).add(vec3(0.0, p.y.mul(0.3), 0.0))).mul(0.018);
-    const grain = mx_noise_float(p.mul(5.0)).mul(0.0022);
-    const across = dot(vec2(p.x, p.z), vec2(flowDir.y.negate(), flowDir.x));
-    const footprint = abs(dFdx(across)).add(abs(dFdy(across)));
-    const cordFade = float(1.0).sub(smoothstep(0.003, 0.008, footprint));
-    const cord = abs(sin(across.mul(6.2831 / 0.04))).mul(0.005).mul(surf.r).mul(cordFade);
-    const h = ripples.mul(float(1.0).sub(surf.r.mul(0.8))).add(grain).mul(near).add(cord);
-    const dpx = dFdx(positionView), dpy = dFdy(positionView);
-    const nv = normalize(transformNormalToView(nW));
-    const r1 = cross(dpy, nv), r2 = cross(nv, dpx);
-    const det = dot(dpx, r1);
-    const grad = sign(det).mul(r1.mul(dFdx(h)).add(r2.mul(dFdy(h))));
-    return normalize(abs(det).mul(nv).sub(grad));
-  })();
-
-  mat.roughnessNode = Fn(() => {
-    const groomed = surf.r;
-    return mix(float(0.72), float(0.6), groomed);
-  })();
+  mat.normalNode = snowDetail.normal;
+  mat.roughnessNode = mix(snowDetail.roughness, float(0.92), rock);
+  mat.aoNode = snowDetail.ao;
   mat.metalnessNode = float(0.0);
-
-  // sparkle: tiny glints that change with view direction, only in sun and nearby
-  mat.emissiveNode = Fn(() => {
-    const cell = floor(positionWorld.mul(70.0));
-    const seed = dot(cell, vec3(1.0, 57.0, 113.0));
-    const view = normalize(cameraPosition.sub(positionWorld));
-    const vq = floor(view.mul(36.0));
-    const h = hash(seed.add(dot(vq, vec3(7.0, 131.0, 977.0))));
-    const sunlit = clamp(dot(nW, sunDir).mul(4.0), 0.0, 1.0);
-    const fade = float(1.0).sub(smoothstep(4.0, 25.0, dist));
-    const glint = smoothstep(0.996, 1.0, h).mul(sunlit).mul(fade).mul(float(1.0).sub(slopeOverlay));
-    // overlay partly self-lit so its colours stay readable in sun and shade
-    return vec3(1.0, 0.98, 0.92).mul(glint.mul(2.2)).add(overlay.mul(slopeOverlay).mul(0.5));
-  })();
-
-  void exp; void pow; void fract;
+  useSnowLighting(mat, rock.oneMinus().mul(plowed.oneMinus()).mul(slopeOverlay.oneMinus()), dist);
+  // The beginner aid alone is self-lit so its colors remain legible in shadow.
+  mat.emissiveNode = overlay.mul(slopeOverlay).mul(0.5);
 
   return {
     material: mat,
     viewer: viewerUniform,
     slopeOverlay,
     sunDir,
+    ready: snowDetail.ready,
     setSurface(tex, x0, n0, sx, sn) {
       surfTex.value = tex;
       surfBounds.value.set(x0, n0, sx, sn);

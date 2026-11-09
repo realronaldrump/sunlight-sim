@@ -29,3 +29,8 @@ Every data source and asset used by Sunlight Mountain Simulator. Nothing copyrig
 - Skier character, chairlifts, towers, buildings, signs, conifer/aspen/oak models, branch and impostor textures: generated procedurally in code in this repository (no external assets).
 - Sky: three.js SkyMesh (Preetham analytic daylight model), MIT.
 - Audio: every sound (wind, ski on snow, lift hum, chair creak and clunk, falls) is synthesized at runtime with the WebAudio API from noise and oscillators. No recorded samples are used.
+
+## Snow surface assets
+
+- Snow 02 by Rob Tuytel, [Poly Haven](https://polyhaven.com/a/snow_02), [CC0 1.0](https://polyhaven.com/license). The 2 m scan supplies displacement, bump, roughness and ambient-occlusion data. `pipeline/build_snow.py` losslessly packs the four 2K source maps into `client/public/textures/snow/snow-detail.webp`; provenance and SHA-256 hashes are in `source.json` alongside it. Rebuild with `npm run data:snow`. The terrain uses these as shading detail only.
+- Corduroy, grooming overlaps, wind relief, snow crystal reflections, ski grooves, ski spray and snowfall: original procedural code in this repository.
