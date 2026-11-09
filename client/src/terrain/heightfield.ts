@@ -12,6 +12,7 @@ export interface TerrainIndex {
   hiExtent: [number, number, number, number];
   maxLevel: number;
   detailRegions?: TerrainDetailRegion[];
+  revision?: string;
 }
 
 export interface HeightTile {
@@ -23,10 +24,13 @@ export interface HeightTile {
   min: number; max: number;
 }
 
-export type Loader = (path: string) => Promise<ArrayBuffer>;
+export type Loader = (path: string, revision?: string) => Promise<ArrayBuffer>;
 
-export const browserLoader: Loader = async (path) => {
-  const res = await fetch(path);
+export const browserLoader: Loader = async (path, revision) => {
+  // World assets have a long HTTP cache lifetime. Revalidate the index, then
+  // version tile requests so a previous visit cannot mix old and new geometry.
+  const url = revision ? `${path}?v=${encodeURIComponent(revision)}` : path;
+  const res = await fetch(url, path.endsWith('/terrain/index.json') ? { cache: 'no-cache' } : undefined);
   if (!res.ok) throw new Error(`fetch ${path}: ${res.status}`);
   return res.arrayBuffer();
 };
@@ -78,7 +82,7 @@ export class Heightfield {
     let p = this.pending.get(k);
     if (!p) {
       p = (async () => {
-        const buf = await this.loader(`${this.base}/terrain/L${L}/${tx}_${tn}.bin.gz`);
+        const buf = await this.loader(`${this.base}/terrain/L${L}/${tx}_${tn}.bin.gz`, this.index.revision);
         this.loadedBytes += buf.byteLength;
         const d = await decodeTile(buf);
         const tile: HeightTile = { level: L, tx, tn, n: d.n, r: 2 ** L, S: 256 * 2 ** L, heights: d.heights, min: d.min, max: d.max };

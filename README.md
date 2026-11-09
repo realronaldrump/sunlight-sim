@@ -112,6 +112,10 @@ It needs Python 3.12 (`uv` or `python3 -m venv`); `pipeline/run_all.sh` creates 
 
 ## Project docs
 
+Mount Sopris has a dedicated USGS 1 m elevation patch, rendered at 4 m spacing around both summits, 8 m on the upper slopes and 16 m at its apron. This detail stays enabled on every graphics preset, even from Sunlight's viewing distance. Other distant peaks retain the ordinary terrain LOD. No summit heights or ridge shapes are exaggerated. Winter snow coverage and rock coloring remain visual approximations.
+
+Run `npm run data:sopris` to rebuild just this patch after the base terrain exists. It downloads four pinned public-domain DEM tiles (about 1 GB, cached in `data/raw/sopris/`). Run `npm run test:sopris` for asset/seam checks and independent comparisons against those native files; `.venv/bin/python pipeline/test_sopris.py --report` refreshes the numerical accuracy manifest. Committed assets include the terrain tiles, source manifest and accuracy report, so playing the game needs no USGS access.
+
 Characters are articulated CC0 human meshes dressed in custom winter clothing and ski equipment. Their asset, license and source hash are committed under `client/public/models`; `npm run data:skier` rebuilds the model without an account. The main lodge and Brettelberg have separate architecture based on aerial/OSM footprints and reference photos. `ACCURACY.md` distinguishes lidar measurements from estimated facade and deck details.
 
 - `SPEC.md` the build spec. `PROGRESS.md` status and next steps. `DECISIONS.md` design decisions and real-world values. `ACCURACY.md` run statistics vs DEM and published figures. `CREDITS.md` sources and licenses.

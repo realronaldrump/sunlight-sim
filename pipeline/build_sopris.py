@@ -26,9 +26,15 @@ SOURCE_IDS = {
     "x31y435": "62172161d34ec739b2dbf6f4",
     "x31y436": "62172160d34ec739b2dbf6f2",
 }
+SOURCE_HASHES = {
+    "x30y435": "03e17518f41c1476d298d1c6b4db559981ac64f040bf42e09feb209329ffb2a1",
+    "x30y436": "efb0ca34e51c39cfa3944d8f86a4ac1dcf8a580ea35d1f987c3c5307965e032a",
+    "x31y435": "3f801835876aa9895d9e9b6b604063f4104bb52151890f83addf2326642bdcfc",
+    "x31y436": "5fc8f64b4e9bf178298b22a5d9396d6d33d857b0b85b6e7d725501cf2b4bf0e4",
+}
 EXTENTS = {
     2: (13312, 17408, -17408, -13312),
-    3: (10240, 18432, -18432, -10240),
+    3: (10240, 18432, -18432, -12288),
     4: (8192, 20480, -20480, -8192),
 }
 BLEND = 1024
@@ -53,6 +59,9 @@ def sources():
         path = root / record["filename"]
         with path.open("rb") as f:
             record["sha256"] = hashlib.file_digest(f, "sha256").hexdigest()
+        tile = record["filename"].split("_13_")[1].split("_CO_")[0]
+        if record["sha256"] != SOURCE_HASHES[tile]:
+            raise ValueError(f"USGS source changed or is incomplete: {path.name}")
         record["bytes"] = path.stat().st_size
     return records
 
@@ -164,6 +173,7 @@ def build():
         # Keep neighboring LOD steps modest where the apron rejoins the horizon.
         regions += [{"name": "Mount Sopris transition", "extent": [4096, 24576, -24576, -4096], "maxLevel": 5}]
         index["detailRegions"] = [d for d in index.get("detailRegions", []) if not d["name"].startswith("Mount Sopris")] + regions
+        index["revision"] = "sopris-" + hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:16]
         manifest = {"name": "Mount Sopris", "source": "USGS 3DEP 1 m DEM", "project": PROJECT,
                     "sourceResolutionM": 1, "horizontalCRS": CRS, "verticalDatum": "NAVD88",
                     "license": "Public domain (U.S. Government work)", "sources": records,
@@ -180,3 +190,5 @@ def build():
 
 if __name__ == "__main__":
     build()
+    from test_sopris import validate
+    validate(report=True)

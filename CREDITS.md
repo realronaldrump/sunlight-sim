@@ -7,6 +7,7 @@ Every data source and asset used by Sunlight Mountain Simulator. Official resort
 | Data | Source | License | Use |
 |---|---|---|---|
 | 1 m bare-earth DEM (CO_Central_Western_2016, tiles x29y437 and x30y437) | U.S. Geological Survey, 3D Elevation Program, via The National Map (TNM Access API) | Public domain (U.S. Government work) | Terrain within the resort plus about 1 km margin |
+| Mount Sopris 1 m bare-earth DEM (CO_SanLuisJuanMiguel_2020_D20, x30y435, x30y436, x31y435, x31y436) | [USGS 3DEP](https://www.usgs.gov/3d-elevation-program), [summit tile metadata](https://www.sciencebase.gov/catalog/item/62172161d34ec739b2dbf6f4) | Public domain (U.S. Government work) | Dedicated measured summit, ridges and gullies; source URLs and SHA-256 hashes in `client/public/world/terrain/sopris.json` |
 | Lidar point cloud (USGS_LPC_CO_Central_Western_2016) | USGS 3DEP via the public Entwine Point Tile copy on AWS (s3://usgs-lidar-public) | Public domain | Canopy height model, every tree position and height |
 | 1/3 arc-second (about 10 m) elevation | USGS 3DEP ImageServer (elevation.nationalmap.gov) | Public domain | Regional and far terrain to the horizon |
 | NAIP aerial imagery 2023 (Colorado, 0.3 m) | USDA Farm Service Agency, via Microsoft Planetary Computer | Public domain | Guide only: tree species (aspen vs conifer), parking lots. Not used as a texture |
@@ -30,6 +31,10 @@ Every data source and asset used by Sunlight Mountain Simulator. Official resort
 - Ski clothing modifications, helmets, goggles, boots, skis, bindings, poles, chairlifts, towers, buildings, signs, conifer/aspen/oak models, branch and impostor textures: original procedural work in this repository.
 - Sky: three.js SkyMesh (Preetham analytic daylight model), MIT.
 - Audio: CC0 field-recorded textures and original procedural airflow/contact Foley, detailed below.
+
+## Mount Sopris reference
+
+Mount Sopris silhouette reference: [Davis's photograph from Sunlight, posted to r/Colorado on October 7, 2020](https://www.reddit.com/r/Colorado/comments/j6qz9a/the_peak_of_mt_sopris_from_sunlight_mountain/). Davis confirmed authorship in this work session. Reference only, not shipped or used as a texture.
 
 ## Building reference material
 

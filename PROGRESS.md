@@ -1,5 +1,15 @@
 # Progress
 
+## Mount Sopris detail (November 8, 2026, release verification pending)
+- Owner requested accurate Sopris geometry while retaining the existing roughness of other distant mountains. Other agents are actively editing this checkout; their work is preserved.
+- Starting build, 72 unit tests and 4 pipeline checks passed. The original summit-view mesh used 64 to 128 m spacing around Sopris; captured `screenshots/sopris-before-{summit,detail}.png`.
+- Added 37 tiles from pinned 1 m USGS CO_SanLuisJuanMiguel_2020_D20 data: 4 m summit geometry, 8 m upper slopes, 16 m apron. Complete native coverage over the summit and upper slopes; source gaps in the northern valley retain existing regional terrain. Total patch size is 2.97 MiB. Rebuild and independent native-source validation are scripted; repeated output is byte-identical.
+- The renderer retains this detail from Sunlight on every preset, keeps its tiles cached, waits for tile requests before reporting idle, and versions asset URLs to prevent stale browser caches mixing the old and new model.
+- Independent 8,192-point source comparison: median height error 0.0396 m, p95 0.3050 m, maximum 5.188 m on an isolated steep feature. Both rendered summits are within 0.14 m of native DEM maxima. These are mesh-vs-DEM differences, not absolute survey claims. ACCURACY.md, source/accuracy manifests, README, CREDITS and DECISIONS record the evidence and seasonal appearance limits.
+- Retrieved and inspected Davis's October 2020 Sunlight photo on r/Colorado; he confirmed authorship. Compared it with the normal and 16-degree detail views. The formerly smoothed ridge now resolves the summit shoulders, rock ribs, gullies and cirques. The current live webcam is dark and was not used for silhouette validation.
+- Validation: production build, all 85 current unit tests and 5 pipeline checks pass. Immutable preview passes 4 browser cases: Chromium smoke, Sopris on WebGPU, Sopris on WebGL2, and Safari smoke. Screenshot paths: `screenshots/sopris-{webgpu,webgl2}-{summit,detail}.png`. Both backends render the actual summit mesh at L2 and retain it through cache eviction with no page/terrain-fetch errors.
+- Some initial renderer/pipeline edits were included by another agent in shared checkpoint `2d2d062`. This commit completes the assets, source checks, cache revision and documentation. Next: verify the committed release snapshot, push main and publish/verify the existing Vercel project. Other agents' ongoing chair work remains outside this change.
+
 ## Lift mechanics audit (November 8, 2026, in progress)
 - Owner requested verification of boarding/riding, accurate Sunlight timing/physics, documentation and deployment.
 - Starting production build, 30 existing unit tests, 3 pipeline checks and 6 browser scenarios passed. Two then-untracked skier-rendering tests initially failed during concurrent character implementation; those now pass with that implementation. Preserve other chats' character/building/snow/interface work.

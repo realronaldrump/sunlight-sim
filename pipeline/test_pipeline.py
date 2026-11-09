@@ -27,6 +27,17 @@ def test_terrain_index():
     assert len(idx["levels"]["0"]["tiles"]) == 289
 
 
+def test_sopris_source_and_detail():
+    idx = json.loads((PUBLIC / "terrain" / "index.json").read_text())
+    regions = [r for r in idx.get("detailRegions", []) if r["name"] == "Mount Sopris"]
+    assert {r["maxLevel"] for r in regions} == {2, 3, 4}
+    manifest = json.loads((PUBLIC / "terrain" / "sopris.json").read_text())
+    assert manifest["sourceResolutionM"] == 1
+    assert len(manifest["summits"]) == 2
+    for level in ("2", "3"):
+        assert manifest["coverage"][level]["missingSourceSamples"] == 0
+
+
 def test_reference_structures():
     resort = json.loads((PUBLIC / "resort.json").read_text())
     lodges = [b for b in resort["buildings"] if b.get("style") == "sunlight_lodge"]

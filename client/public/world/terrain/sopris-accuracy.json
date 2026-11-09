@@ -1,0 +1,30 @@
+{
+  "source": "USGS 3DEP 1 m DEM",
+  "sourceResolutionM": 1,
+  "geometrySpacingM": 4,
+  "sampleCount": 8192,
+  "seed": 20261108,
+  "maxVertexQuantizationErrorM": 0.00562,
+  "medianTriangleErrorM": 0.0396,
+  "p95TriangleErrorM": 0.305,
+  "maxTriangleErrorM": 5.188,
+  "summits": [
+    {
+      "x": 13779,
+      "n": -14558,
+      "elevation": 3950.41552734375,
+      "name": "West Sopris",
+      "renderedElevation": 3950.28,
+      "heightErrorM": 0.135
+    },
+    {
+      "x": 14730,
+      "n": -14804,
+      "elevation": 3950.450439453125,
+      "name": "East Sopris",
+      "renderedElevation": 3950.36,
+      "heightErrorM": 0.091
+    }
+  ],
+  "note": "Errors relative to the native DEM, not absolute survey accuracy. Snow/rock appearance is an approximation."
+}

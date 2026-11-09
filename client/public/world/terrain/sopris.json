@@ -1,0 +1,303 @@
+{
+  "name": "Mount Sopris",
+  "source": "USGS 3DEP 1 m DEM",
+  "project": "CO_SanLuisJuanMiguel_2020_D20",
+  "sourceResolutionM": 1,
+  "horizontalCRS": "EPSG:26913",
+  "verticalDatum": "NAVD88",
+  "license": "Public domain (U.S. Government work)",
+  "sources": [
+    {
+      "filename": "USGS_1M_13_x30y435_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/CO_SanLuisJuanMiguel_2020_D20/TIFF/USGS_1M_13_x30y435_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "metadataUrl": "https://www.sciencebase.gov/catalog/item/62172170d34ec739b2dbf70c",
+      "sha256": "03e17518f41c1476d298d1c6b4db559981ac64f040bf42e09feb209329ffb2a1",
+      "bytes": 346049722
+    },
+    {
+      "filename": "USGS_1M_13_x30y436_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/CO_SanLuisJuanMiguel_2020_D20/TIFF/USGS_1M_13_x30y436_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "metadataUrl": "https://www.sciencebase.gov/catalog/item/6217216fd34ec739b2dbf70a",
+      "sha256": "efb0ca34e51c39cfa3944d8f86a4ac1dcf8a580ea35d1f987c3c5307965e032a",
+      "bytes": 255815613
+    },
+    {
+      "filename": "USGS_1M_13_x31y435_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/CO_SanLuisJuanMiguel_2020_D20/TIFF/USGS_1M_13_x31y435_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "metadataUrl": "https://www.sciencebase.gov/catalog/item/62172161d34ec739b2dbf6f4",
+      "sha256": "3f801835876aa9895d9e9b6b604063f4104bb52151890f83addf2326642bdcfc",
+      "bytes": 341717498
+    },
+    {
+      "filename": "USGS_1M_13_x31y436_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1m/Projects/CO_SanLuisJuanMiguel_2020_D20/TIFF/USGS_1M_13_x31y436_CO_SanLuisJuanMiguel_2020_D20.tif",
+      "metadataUrl": "https://www.sciencebase.gov/catalog/item/62172160d34ec739b2dbf6f2",
+      "sha256": "5fc8f64b4e9bf178298b22a5d9396d6d33d857b0b85b6e7d725501cf2b4bf0e4",
+      "bytes": 70875791
+    }
+  ],
+  "geometrySpacingM": [
+    4,
+    8,
+    16
+  ],
+  "edgeBlendM": 1024,
+  "coverage": {
+    "2": {
+      "samples": 1073296,
+      "missingSourceSamples": 0
+    },
+    "3": {
+      "samples": 804972,
+      "missingSourceSamples": 0
+    },
+    "4": {
+      "samples": 603729,
+      "missingSourceSamples": 122088
+    }
+  },
+  "summits": [
+    {
+      "x": 13779,
+      "n": -14558,
+      "elevation": 3950.41552734375,
+      "name": "West Sopris"
+    },
+    {
+      "x": 14730,
+      "n": -14804,
+      "elevation": 3950.450439453125,
+      "name": "East Sopris"
+    }
+  ],
+  "detailRegions": [
+    {
+      "name": "Mount Sopris",
+      "extent": [
+        13312,
+        17408,
+        -17408,
+        -13312
+      ],
+      "maxLevel": 2
+    },
+    {
+      "name": "Mount Sopris",
+      "extent": [
+        10240,
+        18432,
+        -18432,
+        -12288
+      ],
+      "maxLevel": 3
+    },
+    {
+      "name": "Mount Sopris",
+      "extent": [
+        8192,
+        20480,
+        -20480,
+        -8192
+      ],
+      "maxLevel": 4
+    },
+    {
+      "name": "Mount Sopris transition",
+      "extent": [
+        4096,
+        24576,
+        -24576,
+        -4096
+      ],
+      "maxLevel": 5
+    }
+  ],
+  "files": [
+    {
+      "path": "L2/13_-17.bin.gz",
+      "bytes": 85513,
+      "sha256": "c6df183072100927936362a7200925ad5c584240b7a22769bedee043c6346019"
+    },
+    {
+      "path": "L2/14_-17.bin.gz",
+      "bytes": 81678,
+      "sha256": "83cc01656e9b205c47b1839158b17fe526616f8a232b1d7d7c8318162376de1d"
+    },
+    {
+      "path": "L2/15_-17.bin.gz",
+      "bytes": 87237,
+      "sha256": "bbfa63066a1ecbb6aefbd5b5a9e997f617e8e6efc2be4764c93fe7da3720fe6d"
+    },
+    {
+      "path": "L2/16_-17.bin.gz",
+      "bytes": 73291,
+      "sha256": "59a05e1884da85b6f59fe5fc2f5e8c66d4334271cf3541cc8a97669a3b48450e"
+    },
+    {
+      "path": "L2/13_-16.bin.gz",
+      "bytes": 74358,
+      "sha256": "e5c94c3e63bce7f21d4443d65f3d6fff17f4eff67786a3b83aff5d5682666ae0"
+    },
+    {
+      "path": "L2/14_-16.bin.gz",
+      "bytes": 73608,
+      "sha256": "3c653d2d3dd334908c8c885781da6362723db2ba47d8ebfef8e9ae1a4a4e19a7"
+    },
+    {
+      "path": "L2/15_-16.bin.gz",
+      "bytes": 78314,
+      "sha256": "8cd400db88fd52c370bdf50bcf7411f1261ff2e9636e0f36890707998a2b7489"
+    },
+    {
+      "path": "L2/16_-16.bin.gz",
+      "bytes": 76624,
+      "sha256": "6b4c81f9610ed18db0531e2e7d9b8992090203244f90ad491bc55bc6ecc199cd"
+    },
+    {
+      "path": "L2/13_-15.bin.gz",
+      "bytes": 75101,
+      "sha256": "e73a4d797c443339c6a5ff235cc6bfa7b51365c55de16df0c766269e69f6b58e"
+    },
+    {
+      "path": "L2/14_-15.bin.gz",
+      "bytes": 78809,
+      "sha256": "5cb5a432b15d21323378e2d9e211108129c74c1c75f5203af4b6ca9c2a5e132c"
+    },
+    {
+      "path": "L2/15_-15.bin.gz",
+      "bytes": 83332,
+      "sha256": "513d6d183f18acc0e29c68ef71359b536fe2052065e8a5f85ed2ee2feb825b51"
+    },
+    {
+      "path": "L2/16_-15.bin.gz",
+      "bytes": 74699,
+      "sha256": "98fb8b7ee47fd8a42d3792b94915b758a6b643801c4a4973fc12813e28af2a3c"
+    },
+    {
+      "path": "L2/13_-14.bin.gz",
+      "bytes": 81952,
+      "sha256": "5fdc880e1e1ba644f6b380cb28d04caf25262cd7470e4988f1df2e7cc8ba168c"
+    },
+    {
+      "path": "L2/14_-14.bin.gz",
+      "bytes": 83243,
+      "sha256": "065df2668f65a8ab545d4aa22fef8e9a94cd80c78f9d6f085aabc16ee0b526f8"
+    },
+    {
+      "path": "L2/15_-14.bin.gz",
+      "bytes": 84114,
+      "sha256": "ba64499f89fe1ff88e18fd19bcd469fb224a59dc60da7c63af824ccc0f874e20"
+    },
+    {
+      "path": "L2/16_-14.bin.gz",
+      "bytes": 71510,
+      "sha256": "a00d086af3647781e8ba555235f8795965f936523df5f0dbb70e56bc91abcdd7"
+    },
+    {
+      "path": "L3/5_-9.bin.gz",
+      "bytes": 91401,
+      "sha256": "3c5e9bb12f6144c3135accbfe6ac12b77c1e6c3b9f34aaff4fd21f75fedc7cce"
+    },
+    {
+      "path": "L3/6_-9.bin.gz",
+      "bytes": 89994,
+      "sha256": "bccba76156284190a09ec1a6db2026ecaceb31319ea0dc3a28f3ef83dca89d5c"
+    },
+    {
+      "path": "L3/7_-9.bin.gz",
+      "bytes": 90814,
+      "sha256": "6df63a691bb1f6179455718abf6a0bfc8dd3677c692f5dd0a5f5d92aef3359da"
+    },
+    {
+      "path": "L3/8_-9.bin.gz",
+      "bytes": 88048,
+      "sha256": "db426aafed7d6787e197a3ca205c4e0f2750eb11058d3fef137b8a0da63b9f4a"
+    },
+    {
+      "path": "L3/5_-8.bin.gz",
+      "bytes": 81615,
+      "sha256": "f1ba1cbc0293a9decf5c0bb8a1ec59b62567086f2ce33b112b1e6cd774053e66"
+    },
+    {
+      "path": "L3/6_-8.bin.gz",
+      "bytes": 78614,
+      "sha256": "6b4bfb0e604633d2953db3536dd2d02c1df5276b1f5d904a111215a3a5482884"
+    },
+    {
+      "path": "L3/7_-8.bin.gz",
+      "bytes": 87986,
+      "sha256": "e1e00920e5994bf1e7637d1781d9b1d14b6d2faf12463834f3a00f2bdc0cf796"
+    },
+    {
+      "path": "L3/8_-8.bin.gz",
+      "bytes": 86752,
+      "sha256": "84201b0948dd5747560478ccd05898f0e1d91b72685beac84a2ac29eac99687c"
+    },
+    {
+      "path": "L3/5_-7.bin.gz",
+      "bytes": 83269,
+      "sha256": "e928151f11ac7dc1182dcf567bbd92dedd7f79ea543121143277c91c4ed4efad"
+    },
+    {
+      "path": "L3/6_-7.bin.gz",
+      "bytes": 82859,
+      "sha256": "d3f5e9a002c6243c4c71b4bc86d6115de046d9af384beb3b31e560a655ea6990"
+    },
+    {
+      "path": "L3/7_-7.bin.gz",
+      "bytes": 91678,
+      "sha256": "edc17585d5a4476a695b464377eb05f0a448e384feb1cb898ac8ed6855795d4c"
+    },
+    {
+      "path": "L3/8_-7.bin.gz",
+      "bytes": 88478,
+      "sha256": "688b9b855b45f4d97521d51b5b370ff70bb20406af544396d9b052a53894dc42"
+    },
+    {
+      "path": "L4/2_-5.bin.gz",
+      "bytes": 93218,
+      "sha256": "9084e657ceed445000ede07967cd696ff0a7d47a0d2b4a08f9f2f5b5fc76d3bc"
+    },
+    {
+      "path": "L4/3_-5.bin.gz",
+      "bytes": 91702,
+      "sha256": "f4e4d2375e605de5da4ad0cffe357018c4b14b43394a5e2f3e55e2b51e415d6e"
+    },
+    {
+      "path": "L4/4_-5.bin.gz",
+      "bytes": 93025,
+      "sha256": "2aa957192948115a3df17681d9bbf75acf2c56ce11167de06e5646f4952e7a14"
+    },
+    {
+      "path": "L4/2_-4.bin.gz",
+      "bytes": 93149,
+      "sha256": "683144628339cec6b1beebc00d81aa2f886dd3516a618c2006f05740a978522e"
+    },
+    {
+      "path": "L4/3_-4.bin.gz",
+      "bytes": 92816,
+      "sha256": "6f7e2aa85ac4e6a414d495f24e40453c296f1d075ac5c6be256e1f38afc88d20"
+    },
+    {
+      "path": "L4/4_-4.bin.gz",
+      "bytes": 93261,
+      "sha256": "d24af628e5282755d18cfcffe82728345b461e7a7ea8bddec270100dc805e321"
+    },
+    {
+      "path": "L4/2_-3.bin.gz",
+      "bytes": 93754,
+      "sha256": "25e9dd19b6acf49d4253b1a0f9b69ce5e0217c424458913f097990e4f9b1cca9"
+    },
+    {
+      "path": "L4/3_-3.bin.gz",
+      "bytes": 82101,
+      "sha256": "780661089e0e89dc3443d955307fcf0f1ec5229f59fcacee3d9566a4516efadb"
+    },
+    {
+      "path": "L4/4_-3.bin.gz",
+      "bytes": 76472,
+      "sha256": "cfc145007e454acd6ae26ef0de5b901de9f11f26240f9ae7402c41d45cdf4b4b"
+    }
+  ],
+  "compressedBytes": 3114389
+}

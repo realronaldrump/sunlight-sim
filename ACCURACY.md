@@ -123,6 +123,19 @@ Largest in-game vs DEM length difference: 0.28 percent.
 - Brettelberg uses OSM building 789090241. Timber framing, gabled roof, exterior galleries, windows and stairs are modeled from property and ski-area reference photos. Module counts and non-roof heights remain visual estimates.
 - Main lodge facade, deck, glazing, rooftop service block and access stairs are photo-based approximations. They are not architectural survey data. Three base support structures are modeled as one-story modular buildings; other outlying structures still use generic footprint extrusion.
 
+## Mount Sopris
+
+The landmark uses native 1 m USGS 3DEP bare-earth data from CO_SanLuisJuanMiguel_2020_D20. It retains 4 m summit, 8 m upper-slope and 16 m apron geometry from Sunlight on every graphics preset. The outer 1,024 m blends into the existing regional terrain. No smoothing, vertical scaling or procedural terrain displacement is applied to its summit and upper slopes.
+
+| Summit | Native DEM (NAVD88) | Rendered surface | Difference |
+|---|---|---|---|
+| West Sopris | 3950.416 m (12,960.7 ft) | 3950.280 m | 0.135 m |
+| East Sopris | 3950.450 m (12,960.8 ft) | 3950.360 m | 0.091 m |
+
+Independent comparison at 8,192 deterministic native DEM sample locations: median triangle interpolation error 0.0396 m; 95th percentile 0.3050 m; maximum 5.1880 m. At 1,024 aligned mesh vertices, maximum encoding error is 0.00562 m.
+The 37 detail tiles total 2.97 MiB compressed. Source URLs, hashes, coverage and native summit positions are in `client/public/world/terrain/sopris.json`; numerical evidence is in `sopris-accuracy.json`. Rebuild with `npm run data:sopris`, verify with `npm run test:sopris`, and refresh the evidence with `.venv/bin/python pipeline/test_sopris.py --report`.
+These differences measure rendering relative to the native DEM, not absolute survey error. Seasonal snow depth, snow distribution, rock exposure and coloration remain approximations. The shared earth-curvature/refraction model is retained. Davis's October 2020 photo from Sunlight is a silhouette reference, not a texture.
+
 ## Data sources
 
 - USGS 3DEP 1 m DEM and lidar point cloud CO_Central_Western_2016 (public domain).
