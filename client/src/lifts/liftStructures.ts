@@ -286,6 +286,7 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
     beam(g, frame, v(-HALF - 0.1, guideY + 0.62, HALF + 2.6), v(HALF + 0.1, guideY + 0.62, HALF + 2.6), 0.32, 0.36);
     for (const s of [-1, 1]) {
       beam(g, frame, v(s * (HALF - 0.3), guideY + 0.62, HALF + 2.6), v(s * (HALF - 0.3), guideY - .15, HALF + 2.6), 0.12, 0.2);
+      beam(g, frame, v(s * (HALF - .3), guideY - .17, HALF + 2.6), v(s * (HALF - .14), guideY - .17, HALF + 2.6), .08);
       const t = new THREE.Group(); t.position.set(0, 0, HALF + 2.6); g.add(t);
       sheaveTrain(t, M, frame, s * HALF, guideY, 4, .18, true, guide.pitch);
       // rope catcher horn
@@ -320,6 +321,7 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
         const t = new THREE.Group(); t.position.set(0, 0, zc); g.add(t);
         const guide = cableAt(zc);
         beam(t, tubeMat, v(x, ty - 0.3, 0), v(x, guide.height + .25, 0), 0.12, 0.3);
+        rod(t, tubeMat, v(x, guide.height + .214, 0), v(s * (HALF - .14), guide.height + .214, 0), .05);
         sheaveTrain(t, M, tubeMat, s * HALF, guide.height, 4, .18, false, guide.pitch);
       }
     }
@@ -353,10 +355,15 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
       band.absarc(cx, Hh - rr, rr - 0.04, to, from, true);
       const glass = new THREE.Mesh(new THREE.ExtrudeGeometry(band, { depth: L - 1.1, bevelEnabled: false, curveSegments: 12 }), M.glass);
       glass.position.set(0, hb, -L / 2 - 0.05); g.add(glass);
-      const am = (from + to) / 2, arcLen = rr * (a1 - a0);
       for (let i = 0; i <= 6; i++) {
-        box(g, M.green, 0.08, arcLen, 0.09, cx + Math.cos(am) * (rr + 0.04), hb + Hh - rr + Math.sin(am) * (rr + 0.04),
-          -L / 2 - 0.05 + i * (L - 1.1) / 6, 0, 0, am);
+        const z = -L / 2 - .05 + i * (L - 1.1) / 6;
+        const points = Array.from({ length: 9 }, (_, j) => {
+          const angle = from + (to - from) * j / 8;
+          return v(cx + Math.cos(angle) * (rr + .045), hb + Hh - rr + Math.sin(angle) * (rr + .045), z);
+        });
+        // Mullions follow the curved glazing instead of sticking above the roof.
+        const rib = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 12, .025, 6, false), M.green);
+        g.add(rib);
       }
     }
     // corrugated end walls with a vent louvre at the back
@@ -392,6 +399,8 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
     const guide = cableAt(6.5), train = new THREE.Group(); train.position.z = 6.5; g.add(train);
     for (const side of [-1, 1]) {
       beam(g, M.black, v(0, railY - .15, 6.5), v(side * HALF, guide.height + .65, 6.5), .12);
+      beam(g, M.black, v(side * (HALF - .3), guide.height + .7, 6.5), v(side * (HALF - .3), guide.height - .24, 6.5), .1);
+      beam(g, M.black, v(side * (HALF - .3), guide.height - .24, 6.5), v(side * (HALF - .14), guide.height - .24, 6.5), .08);
       sheaveTrain(train, M, M.black, side * HALF, guide.height, 4, .21, true, guide.pitch);
     }
     guardRing(g, M.black, guide.height - 1.25, 6.5);
@@ -420,6 +429,7 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
   for (const s of [-1, 1]) {
     beam(g, M.black, v(s * px, -depthBelow, pz), v(s * px, guideY + 1.4, pz), 0.3, 0.3);
     beam(g, M.black, v(s * (HALF - 0.35), guideY + 1.25, pz), v(s * (HALF - 0.35), guideY - 0.15, pz), 0.12, 0.22);
+    beam(g, M.black, v(s * (HALF - .35), guideY - .19, pz), v(s * (HALF - .14), guideY - .19, pz), .08);
     const t = new THREE.Group(); t.position.set(0, 0, pz); g.add(t);
     sheaveTrain(t, M, M.black, s * HALF, guideY, 4, .2, true, guide.pitch);
     colliders.push({ x: s * px, z: pz, r: 0.3 });
