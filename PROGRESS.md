@@ -1,5 +1,11 @@
 # Progress
 
+## Snowriders' Club lunch in the lodge (November 9, 2026, in progress)
+
+- Every second lap the lesson ends with lunch (Sunlight's full-day Snowriders' Club includes it): skis off at the line-up, single file to the rental-level door with skis on their shoulders, about five and a half minutes on the lower-level benches in their numbered bibs, then back out to the same spots and another lap. The walk uses the base area's walking graph; without it (ambient people off) the group simply waits at the line-up. Caption, tag-along panel and status board follow along ("at lunch inside, on the lower level").
+- The schedule is still a pure function of the shared clock (now a two-lap cycle with lunch); two local clients agreed on loop, positions (1 cm) and chairs. `LessonGroup.jumpTo` is the new test hook for the two-lap cycle.
+- Verified: lesson and social scenarios in Chromium and WebKit, 150 unit tests; review captures `screenshots/review-lesson/lunch-*.png`.
+
 ## Weather rolling through (November 9, 2026, released)
 
 - **Squalls on the shared clock** (`client/src/sky/weather.ts`): snow squall cells 2.3 to 4.5 km across drift from the west-southwest toward the east-northeast at about 25 mph, roughly one every 25 minutes when it is unsettled, with clear spells between. They are a pure function of the resort clock, so friends in a room watch the same storms. Many cross the line of sight from the resort to Mount Sopris (21 km to the southeast).

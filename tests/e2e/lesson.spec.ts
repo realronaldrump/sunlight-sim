@@ -38,7 +38,7 @@ test('the Snowriders\' Club lines up at the lodge, can be joined and waits for a
     const g = (window as any).game, L = g.lesson;
     L.freezeTau = null;
     const now = () => Date.now() / 1000;
-    const c = L.clock(now()); L.hold += c.tau - (L.timeline.lineup - 2);
+    L.jumpTo(now(), L.timeline.lineup - 2);
     g.player.teleport(L.positions()[0].x + 150, L.positions()[0].z, 0);
     const before = L.hold;
     await new Promise((r) => setTimeout(r, 4000));

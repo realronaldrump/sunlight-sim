@@ -337,6 +337,7 @@ export class Game {
     if (this.params.get('lesson') === '1' || (this.params.get('lesson') !== '0' && this.params.get('ambient') !== '0')) {
       // the Snowriders' Club: one recognizable lesson group on the shared resort clock
       this.lesson = new LessonGroup(this.lifts, this.probe, this.resort.runs, this.colliders);
+      this.lesson.router = (a, b) => this.baseLife?.route(a, b) ?? null;
       this.scene.add(this.lesson.group);
       this.lessonHud = new LessonHud();
     }
@@ -1152,9 +1153,10 @@ export class Game {
     const now = resortClock.now();
     let lesson = 'Snowriders\' Club (ages 7 to 12) meets here at 9:30 AM and 12:30 PM';
     if (this.lesson?.ready && this.lesson.out) {
-      const T = this.lesson.timeline!, { tau } = this.lesson.clock(now), left = T.period - tau;
+      const T = this.lesson.timeline!, { tau, lunchT } = this.lesson.clock(now), left = T.period - tau;
       const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-      lesson = tau < T.lineup ? `${LESSON_NAME} lining up now with ${INSTRUCTOR_NAME}. Leaves for Segundo in ${mmss(T.lineup - tau)}`
+      lesson = lunchT !== null ? `${LESSON_NAME} is at lunch inside, on the lower level. Back out in about ${Math.max(1, Math.ceil((7 * 60 - lunchT) / 60))} min`
+        : tau < T.lineup ? `${LESSON_NAME} lining up now with ${INSTRUCTOR_NAME}. Leaves for Segundo in ${mmss(T.lineup - tau)}`
         : tau < T.lineup + T.toLift + T.lift ? `${LESSON_NAME} is riding Segundo. Back here in about ${Math.ceil(left / 60)} min`
         : `${LESSON_NAME} is skiing Ute. Back here in about ${Math.ceil(left / 60)} min`;
     }
@@ -1255,7 +1257,7 @@ export class Game {
       write(a.id, st.pos.x, st.pos.z, st.heading, st.speed, st.plow, st.skid, st.grounded && st.mode !== 'fallen' && st.mode !== 'air');
     }
     const L = this.lesson;
-    if (L?.ready) L.poses.forEach((p, i) => write(900001 + i, p.x, p.z, p.heading, p.speed, p.plow, 0.15, !p.ride && p.sit === 0 && !p.skate));
+    if (L?.ready && L.out) L.poses.forEach((p, i) => write(900001 + i, p.x, p.z, p.heading, p.speed, p.plow, 0.15, !p.ride && p.sit === 0 && !p.skate && !p.foot));
     for (const rem of this.net?.remotes.values() ?? []) {
       const s = rem.last, pos = rem.model.root.position;
       let id = 1_000_000; for (const ch of rem.id) id = (id * 31 + ch.charCodeAt(0)) % 2_000_000_000;

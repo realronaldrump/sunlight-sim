@@ -579,6 +579,14 @@ export class BaseLife {
     this.gear.end();
   }
 
+  /** A walking route between two points on the base navigation graph (with floor heights), if one exists. */
+  route(from: Waypoint, to: Waypoint): Waypoint[] | null {
+    if (!this.built) return null;
+    const a = this.nav.nearest(from.x, from.y, from.z), b = this.nav.nearest(to.x, to.y, to.z);
+    const path = a && b ? this.nav.path(a, b) : null;
+    return path ? [from, ...path.map((n) => ({ x: n.x, y: n.y, z: n.z })), to] : null;
+  }
+
   /** How many people are talking within `r` meters (diners, groups, lift lines), for the sound of a place. */
   talkersNear(x: number, y: number, z: number, r: number) {
     let n = 0;

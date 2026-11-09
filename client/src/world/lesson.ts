@@ -14,6 +14,8 @@ import { RIDER_ROOT_BELOW_SEAT, RIDER_ROOT_FORWARD, type LiftPath } from '../../
 import { dressBib } from './bib';
 import { registerGuest, type Guest } from './guests';
 import type { ColliderGrid, Collider } from '../../../shared/collision';
+import { PedestrianModel } from './pedestrian';
+import { walkable } from './walkable';
 
 export const LINEUP = { x: 88, z: -966 };
 /** Lesson loops are counted from this instant so every client agrees on the schedule. */
@@ -125,11 +127,18 @@ export class Schedule {
 export interface LessonPose {
   x: number; z: number; heading: number; speed: number; edge: number; plow: number;
   sit: number; ride?: { chair: number; seat: number; t: number }; skate: boolean; facing?: number;
+  /** Lunch: on foot in ski boots (walking or seated), with the height of the floor under them. */
+  foot?: { mode: 'walk' | 'stand' | 'sit'; y: number; skis: 'shoulder' | 'planted' | 'none'; seatH?: number };
 }
 
-interface Member { guest: Guest; model: SkierModel; role: 'instructor' | 'kid'; scale: number; seat: number; chair: 0 | 1; plow: number; time: number }
+/** The walk in for lunch: from each member's line-up spot through the door to a seat, with floor heights. */
+export interface LunchPlan { routes: { x: number; y: number; z: number }[][]; seats: { x: number; y: number; z: number; heading: number; seatH: number }[] }
+const LUNCH = { gather: 15, walk: 42, eat: 330 };
+const LUNCH_TIME = LUNCH.gather + LUNCH.walk * 2 + LUNCH.eat;
 
-type Phase = 'lineup' | 'toLift' | 'lift' | 'descent';
+interface Member { guest: Guest; model: SkierModel; walker: PedestrianModel | null; print: Parameters<typeof dressBib>[3]; role: 'instructor' | 'kid'; scale: number; seat: number; chair: 0 | 1; plow: number; time: number; stride: number }
+
+type Phase = 'lineup' | 'toLift' | 'lift' | 'descent' | 'lunch';
 export interface LessonStatus {
   phase: Phase; label: string; next: string; say: string | null; sayKey: string;
   instructor: { x: number; y: number; z: number }; loop: number; tau: number;
@@ -243,16 +252,51 @@ export class LessonGroup {
     dressBib(model.human, new THREE.Color(look.jacket), new THREE.Color(...look.skin as [number, number, number]), print);
     model.root.name = role === 'instructor' ? 'lesson-instructor' : `lesson-kid-${this.members.length}`;
     this.group.add(model.root);
-    this.members.push({ guest, model, role, scale, chair, seat, plow, time: this.members.length * 3.1 });
+    this.members.push({ guest, model, walker: null, print, role, scale, chair, seat, plow, time: this.members.length * 3.1, stride: 0 });
     this.poses.push({ x: 0, z: 0, heading: 0, speed: 0, edge: 0, plow: 0, sit: 0, skate: false });
   }
 
   /** Loop number and time within the loop for a shared resort time. */
-  clock(now: number) {
-    const t = now - EPOCH - this.hold, P = this.times.period;
-    const loop = Math.floor(t / P);
-    return { loop, tau: this.freezeTau ?? t - loop * P };
+  /** Every second lap ends with lunch in the lodge (the Snowriders' Club full day includes it).
+   * The base area's walking graph plans the route; without it the group stays outside. */
+  router: ((a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => { x: number; y: number; z: number }[] | null) | null = null;
+  private planLunch(): LunchPlan | null {
+    const door = walkable.pois.find((p) => p.tag === 'lower-door'), inside = walkable.pois.find((p) => p.tag === 'lower-door-in');
+    const benches = walkable.pois.filter((p) => p.tag === 'bench').sort((a, b) => Math.hypot(a.x - (inside?.x ?? 0), a.z - (inside?.z ?? 0)) - Math.hypot(b.x - (inside?.x ?? 0), b.z - (inside?.z ?? 0)));
+    if (!door || !inside || benches.length < 2 || !this.router) return null;
+    const seats: LunchPlan['seats'] = [];
+    for (const b of benches.slice(0, 2)) for (const off of [-0.65, 0, 0.65]) {
+      const rx = Math.cos(b.heading), rz = -Math.sin(b.heading);
+      seats.push({ x: b.x + rx * off, y: b.y - 0.47, z: b.z + rz * off, heading: b.heading, seatH: 0.47 });
+    }
+    const routes: LunchPlan['routes'] = [];
+    for (let i = 0; i < this.members.length; i++) {
+      const slot = this.lineupSlots[i], seat = seats[i];
+      const front = { x: seat.x - Math.sin(seat.heading) * 0.6, y: seat.y, z: seat.z - Math.cos(seat.heading) * 0.6 };
+      const start = { x: slot.x, y: this.probe.height(slot.x, slot.z), z: slot.z };
+      const inner = this.router({ x: inside.x, y: inside.y, z: inside.z }, front);
+      if (!inner) return null;
+      routes.push([start, { x: door.x, y: door.y, z: door.z }, ...inner, { x: seat.x, y: seat.y, z: seat.z }]);
+    }
+    return { routes, seats };
   }
+  private lunch: LunchPlan | null = null;
+  private lunchTried = -Infinity;
+  clock(now: number) {
+    const t = now - EPOCH - this.hold, P = this.times.period, P2 = 2 * P + LUNCH_TIME;
+    const k = Math.floor(t / P2), r = t - k * P2;
+    if (this.freezeTau !== null) return { loop: 2 * k + (r >= P ? 1 : 0), tau: this.freezeTau, lunchT: this.freezeLunch };
+    if (r < P) return { loop: 2 * k, tau: r, lunchT: null as number | null };
+    if (r < 2 * P) return { loop: 2 * k + 1, tau: r - P, lunchT: null as number | null };
+    return { loop: 2 * k + 1, tau: P, lunchT: r - 2 * P };
+  }
+  /** Test hook: move the shared schedule so the current (no-lunch) lap reads `tau` now. */
+  jumpTo(now: number, tau: number) {
+    const P2 = 2 * this.times.period + LUNCH_TIME, t = now - EPOCH;
+    this.hold = t - (Math.floor(t / P2) * P2 + tau);
+  }
+  /** Test hook: hold the lesson at a moment of lunch. */
+  freezeLunch: number | null = null;
   /** Test hook: hold the whole lesson at one moment of its loop. */
   freezeTau: number | null = null;
 
@@ -319,19 +363,24 @@ export class LessonGroup {
 
   /** Every member's pose at shared resort time `now` (seconds). */
   compute(now: number) {
-    const T = this.times, { loop, tau } = this.clock(now);
+    const T = this.times, { loop, tau, lunchT } = this.clock(now);
+    if (lunchT !== null && !this.lunch && now - this.lunchTried > 5) { this.lunchTried = now; this.lunch = this.planLunch(); }
+    if (lunchT !== null && this.lunch) { this.computeLunch(lunchT); return { phase: 'lunch' as Phase, loop, tau }; }
     const liftOffset = this.lifts.now(this.li) - now;
     const p = this.path, uphill = Math.atan2(-p.ax, -p.az);
     const tLift = T.lineup + T.toLift, tDesc = tLift + T.lift;
     let phase: Phase;
     for (let i = 0; i < this.members.length; i++) {
       const m = this.members[i], out = this.poses[i];
-      out.plow = m.plow; out.sit = 0; out.ride = undefined; out.skate = false; out.edge = 0; out.speed = 0;
+      out.plow = m.plow; out.sit = 0; out.ride = undefined; out.skate = false; out.edge = 0; out.speed = 0; out.foot = undefined;
       if (tau < T.lineup) {
         phase = 'lineup';
         const slot = this.lineupSlots[i];
         // the previous lap's arrival glides into the line-up
-        const prev = { ...out }; this.onRoute(this.descent, i, T.descent, prev);
+        const prev = { ...out };
+        // after lunch they come back out to their own spots; otherwise they glide in from the run home
+        if (loop % 2 === 0 && this.lunch) { prev.x = slot.x; prev.z = slot.z; prev.heading = slot.heading; }
+        else this.onRoute(this.descent, i, T.descent, prev);
         const k = THREE.MathUtils.smoothstep(tau, 0, 7);
         out.x = prev.x + (slot.x - prev.x) * k; out.z = prev.z + (slot.z - prev.z) * k;
         out.heading = k < 0.6 ? prev.heading : slot.heading; out.speed = k < 1 ? 1 : 0;
@@ -386,12 +435,56 @@ export class LessonGroup {
     return { phase: phase!, loop, tau };
   }
 
+  /** Skis off and into the racks, single file through the rental-level door, lunch on the benches, and back. */
+  private computeLunch(t: number) {
+    const plan = this.lunch!, at = (route: { x: number; y: number; z: number }[], d: number, out: LessonPose) => {
+      let rem = Math.max(0, d);
+      for (let k = 1; k < route.length; k++) {
+        const a = route[k - 1], b = route[k], L = Math.hypot(b.x - a.x, b.z - a.z);
+        if (rem <= L || k === route.length - 1) {
+          const u = L > 0 ? Math.min(1, rem / L) : 1;
+          out.x = a.x + (b.x - a.x) * u; out.z = a.z + (b.z - a.z) * u;
+          if (L > 0.05) out.heading = Math.atan2(-(b.x - a.x), -(b.z - a.z));
+          return { y: a.y + (b.y - a.y) * u, moving: rem < L || k < route.length - 1, k };
+        }
+        rem -= L;
+      }
+      return { y: route[route.length - 1].y, moving: false, k: route.length - 1 };
+    };
+    for (let i = 0; i < this.members.length; i++) {
+      const out = this.poses[i], route = plan.routes[i], seat = plan.seats[i];
+      out.ride = undefined; out.sit = 0; out.speed = 0; out.edge = 0; out.skate = false;
+      const len = route.reduce((s, p, k) => k ? s + Math.hypot(p.x - route[k - 1].x, p.z - route[k - 1].z) : 0, 0);
+      const walkIn = t - LUNCH.gather - i * 1.1, walkOut = t - LUNCH.gather - LUNCH.walk - LUNCH.eat - (this.members.length - 1 - i) * 1.1;
+      if (walkIn < 0) {
+        // skis off at the line-up, planted beside them
+        const r0 = at(route, 0, out);
+        out.foot = { mode: 'stand', y: r0.y, skis: 'planted' };
+      } else if (walkOut < 0 && walkIn * 1.1 < len) {
+        const r = at(route, walkIn * 1.1, out);
+        out.speed = 1.1; out.foot = { mode: 'walk', y: r.y, skis: r.k <= 1 ? 'shoulder' : 'none' };
+      } else if (walkOut < 0) {
+        out.x = seat.x; out.z = seat.z; out.heading = seat.heading;
+        out.foot = { mode: 'sit', y: seat.y, skis: 'none', seatH: seat.seatH };
+      } else {
+        // back out the way they came, the instructor last
+        const back = [...route].reverse();
+        const r = at(back, walkOut * 1.1, out);
+        out.speed = r.moving ? 1.1 : 0;
+        out.foot = { mode: r.moving ? 'walk' : 'stand', y: r.y, skis: r.k >= back.length - 2 ? 'shoulder' : 'none' };
+      }
+    }
+  }
+
   /** Current activity and what comes next, for the tag-along panel. */
   status(now: number): LessonStatus {
     const T = this.times, { phase, loop, tau } = this.compute(now);
     const tLift = T.lineup + T.toLift, tDesc = tLift + T.lift;
     let label = '', next = '', say: string | null = null, sayKey = '';
-    if (phase === 'lineup') {
+    if (phase === 'lunch') {
+      label = 'Lunch break in the lodge, lower level'; next = 'Back out to the line-up and another lap';
+      say = 'Skis in the rack, everyone. Lunch is inside on the lower level. Then one more lap!'; sayKey = `${loop}/lunch`;
+    } else if (phase === 'lineup') {
       label = 'Lining up at the Lesson Line-Up Area by the lodge';
       next = `Skiing to Segundo in ${Math.ceil(T.lineup - tau)} s`;
       say = `Good morning, Snowriders! Skis on, poles in your hands. We are riding Segundo and skiing Ute home.`; sayKey = `${loop}/lineup`;
@@ -462,6 +555,24 @@ export class LessonGroup {
     for (let i = 0; i < this.members.length; i++) {
       const m = this.members[i], pose = this.poses[i];
       m.time += dt;
+      // on foot for lunch: the same person in ski boots, bib and all
+      if (pose.foot && !m.walker) {
+        const look = m.guest.look;
+        m.walker = new PedestrianModel({ jacket: new THREE.Color(look.jacket), skin: new THREE.Color(...look.skin as [number, number, number]), hat: 'helmet', lod: 'crowd' });
+        dressBib(m.walker.human, new THREE.Color(look.jacket), new THREE.Color(...look.skin as [number, number, number]), m.print);
+        m.walker.root.scale.setScalar(m.scale);
+        this.group.add(m.walker.root);
+      }
+      if (m.walker) m.walker.root.visible = !!pose.foot;
+      m.model.root.visible = !pose.foot;
+      if (pose.foot && m.walker) {
+        const f = pose.foot;
+        m.stride += pose.speed * dt / 0.6;
+        m.walker.root.position.set(pose.x, f.y, pose.z);
+        m.walker.root.rotation.set(0, pose.heading, 0);
+        if (m.walker.root.position.distanceTo(camera) < 160) m.walker.update({ mode: f.mode, stride: m.stride, speed: pose.speed, time: m.time, skis: f.skis, seat: f.seatH, lookYaw: Math.sin(m.time * 0.4 + i) * 0.5 });
+        continue;
+      }
       if (pose.ride) {
         this.lifts.reserveTrip(this.li, pose.ride.chair);
         const lp = p.seatPoint(pose.ride.chair, pose.ride.seat, pose.ride.t);
@@ -506,7 +617,7 @@ export class LessonGroup {
   }
 
   /** Reachable positions of all members (for tests and sound). */
-  positions() { return this.members.map((m) => m.model.root.position.clone()); }
+  positions() { return this.members.map((m) => (m.walker?.root.visible ? m.walker.root.position : m.model.root.position).clone()); }
   get period() { return this.times?.period ?? 0; }
   get timeline() { return this.times; }
 }
