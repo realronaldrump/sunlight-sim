@@ -11,6 +11,7 @@
 // beams under a plank ceiling, sage walls over knotty-pine wainscot, wood bar, carpeted dining).
 // Room layout, furniture and fittings are plausible estimates, not surveyed plans (DECISIONS.md D20).
 import * as THREE from 'three/webgpu';
+import { glowAtDusk } from '../sky/eveningLights';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mx_noise_float, positionWorld, normalWorld, vec3, float, texture, dot, normalize, max, color as tslColor } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
@@ -192,7 +193,7 @@ function materials() {
     snow: new THREE.MeshStandardNodeMaterial({ color: 0xf1f5f9, roughness: 0.92 }),
     bronze: new THREE.MeshStandardNodeMaterial({ color: 0x2f2a25, roughness: 0.42, metalness: 0.6 }),
     glass: new THREE.MeshStandardNodeMaterial({ color: 0x8aa2ad, roughness: 0.03, metalness: 0.1, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }),
-    darkGlass: new THREE.MeshStandardNodeMaterial({ color: 0x141a1e, roughness: 0.05, metalness: 0.55 }),
+    darkGlass: glowAtDusk(new THREE.MeshStandardNodeMaterial({ color: 0x141a1e, roughness: 0.05, metalness: 0.55 }), 0.75, 1.5, 3.4),
     redDoor: new THREE.MeshStandardNodeMaterial({ color: 0xa0262a, roughness: 0.55 }),
     steel: new THREE.MeshStandardNodeMaterial({ color: 0x9aa0a4, roughness: 0.35, metalness: 0.85 }),
     hvac: new THREE.MeshStandardNodeMaterial({ color: 0xb5b3aa, roughness: 0.6, metalness: 0.4 }),

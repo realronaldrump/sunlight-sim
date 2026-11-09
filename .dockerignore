@@ -7,4 +7,10 @@ test-results
 tests
 client/public/world/*
 !client/public/world/resort.json
+!client/public/world/surface.bin.gz
+!client/public/world/terrain/
+client/public/world/terrain/*
+!client/public/world/terrain/index.json
+!client/public/world/terrain/L0/
+!client/public/world/trees/
 .git

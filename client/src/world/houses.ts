@@ -4,6 +4,7 @@
 // slopes, windows and doors are framed openings, taller buildings get balconies, pitched roofs have
 // overhangs, fascia, a snow load and a chimney. Materials vary per building, deterministically.
 import * as THREE from 'three/webgpu';
+import { glowAtDusk } from '../sky/eveningLights';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mx_noise_float, positionWorld, vec3 } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
@@ -30,9 +31,11 @@ function mats() {
     concrete: grain(0x87837b, [3, 3, 3], 0.1, 0.95),
     stone: grain(0x7a7268, [6, 6, 6], 0.25, 0.95),
     snow: new THREE.MeshStandardNodeMaterial({ color: 0xf0f4f8, roughness: 0.92 }),
-    glass: new THREE.MeshStandardNodeMaterial({ color: 0x1a232a, roughness: 0.06, metalness: 0.5 }),
+    // after dark some rooms have their lights on behind the glass
+    glass: glowAtDusk(new THREE.MeshStandardNodeMaterial({ color: 0x1a232a, roughness: 0.06, metalness: 0.5 }), 0.42, 1.5),
     // some windows have blinds or curtains drawn, which is what breaks up real facades in daylight
-    lit: new THREE.MeshStandardNodeMaterial({ color: 0xb9ad94, roughness: 0.55 }),
+    // (and at night the lamp behind a curtain lights the whole window)
+    lit: glowAtDusk(new THREE.MeshStandardNodeMaterial({ color: 0xb9ad94, roughness: 0.55 }), 0.7, 1.15),
     door: new THREE.MeshStandardNodeMaterial({ color: 0x4d3322, roughness: 0.7 }),
     deck: grain(0x7a5c40, [10, 1, 10], 0.15, 0.9),
   };

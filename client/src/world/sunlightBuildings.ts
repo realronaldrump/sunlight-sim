@@ -1,6 +1,7 @@
 // Sunlight-specific architecture. Roof outlines are measured from OSM/NAIP;
 // elevations, facade modules and deck dimensions are photo-based estimates (DECISIONS.md).
 import * as THREE from 'three/webgpu';
+import { glowAtDusk } from '../sky/eveningLights';
 import { mx_noise_float, positionWorld, vec3 } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
 import { buildMainLodge } from './mainLodge';
@@ -11,7 +12,7 @@ const timber = new THREE.MeshStandardNodeMaterial({color:0x493327,roughness:0.93
 const redwood = new THREE.MeshStandardNodeMaterial({color:0x754538,roughness:0.91});
 const deckMat = new THREE.MeshStandardNodeMaterial({color:0x8b7056,roughness:0.96});
 const concrete = new THREE.MeshStandardNodeMaterial({color:0x7d7871,roughness:0.98});
-const glass = new THREE.MeshPhysicalNodeMaterial({color:0x283e47,metalness:0.35,roughness:0.18,clearcoat:0.8});
+const glass = glowAtDusk(new THREE.MeshPhysicalNodeMaterial({color:0x283e47,metalness:0.35,roughness:0.18,clearcoat:0.8}), 0.55, 1.5, 3.2);
 const snow = new THREE.MeshStandardNodeMaterial({color:0xe9eff5,roughness:0.9});
 const roofMetal = new THREE.MeshStandardNodeMaterial({color:0x727b7b,roughness:0.65,metalness:0.3});
 const black = new THREE.MeshStandardNodeMaterial({color:0x202329,roughness:0.7});

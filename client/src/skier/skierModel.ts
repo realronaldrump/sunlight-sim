@@ -17,7 +17,10 @@ export interface SkierPose {
   liftPreparation?: number; // preparing knees/hands for an approaching chair
   footGroundY?: number; // snow height relative to the root, used until skis leave the ramp
   footGroundPitch?: number;
+  skiContact?: { offset: number; pitch: number }[];
   airborne?: boolean;
+  /** Weight and step phase when shuffling uphill or along a loading ramp. */
+  touring?: { amount: number; stride: number };
   rockX?: number; rockZ?: number; slipping?: number;
   /** 0..1 windmilling arms and kicking legs (whirled around the bull wheel, flung through the air). */
   flail?: number;
@@ -43,14 +46,20 @@ function solveIK(root: THREE.Vector3, target: THREE.Vector3, l1: number, l2: num
   return outMid;
 }
 
+interface SkierCostume {
+  headGear: THREE.Group;
+  ski: () => THREE.Group;
+  pole: () => THREE.Group;
+}
+
 export class SkierModel {
   readonly root = new THREE.Group();
   private body = new THREE.Group(); // tilted for falls
   readonly human: HumanBody;
-  private headGear = helmetAndGoggles();
+  private headGear: THREE.Group;
   private boots = [skiBoot(), skiBoot()];
-  private skis = [skiWithBindings(), skiWithBindings()];
-  private poles = [skiPole(), skiPole()];
+  private skis: THREE.Group[];
+  private poles: THREE.Group[];
   private collar;
   private fallSide = 1;
   private lastFallen = 0;
@@ -59,9 +68,14 @@ export class SkierModel {
   private lastTime = 0;
   private plantSide = 1;  // which pole (+1 right, -1 left)
 
-  constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1)) {
+  constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
     this.human = new HumanBody(jacket, skin, lod);
+    this.headGear = costume?.headGear ?? helmetAndGoggles();
+    const ski = costume?.ski ?? skiWithBindings, pole = costume?.pole ?? skiPole;
+    this.skis = [ski(), ski()];
+    this.poles = [pole(), pole()];
     this.collar = jacketCollar(jacket);
+    this.collar.group.visible = !costume;
     this.root.add(this.body);
     this.body.add(this.human.root, this.headGear, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
     this.root.traverse(o => { o.frustumCulled = false; });
@@ -92,7 +106,9 @@ export class SkierModel {
     const t = p.time;
     const gear = p.gear !== false;
     for (const o of [...this.skis, ...this.poles]) o.visible = gear;
-    const sit = p.sitting;
+    const sit = p.sitting, tour = (p.touring?.amount ?? 0) * (1 - sit);
+    const stride = (p.touring?.stride ?? 0) * Math.PI;
+    const step = Math.sin(stride);
     // fall side chosen when a fall starts
     if (p.fallen > 0.01 && this.lastFallen <= 0.01) this.fallSide = p.edge >= 0 ? 1 : -1;
     this.lastFallen = p.fallen;
@@ -109,11 +125,14 @@ export class SkierModel {
     const incline = THREE.MathUtils.clamp(p.edge * 0.75, -0.75, 0.75) * Math.min(1, p.speed / 4) * (1 - sit);
     const wedge = p.plow * (1 - sit);
     const stanceW = 0.14 + 0.2 * wedge;
-    const bounce = Math.sin(t * 9) * 0.008 * Math.min(1, p.speed / 8) * (1 - p.tuck);
+    const bounce = Math.sin(t * 9) * 0.008 * Math.min(1, p.speed / 8) * (1 - p.tuck)
+      + tour * .021 * Math.abs(Math.sin(stride));
 
     // feet (ankles) on the skis
     const ankleL = V(-stanceW, 0.12, 0.02);
     const ankleR = V(stanceW, 0.12, 0.02);
+    ankleL.add(V(-.025 * tour, tour * .11 * Math.max(0, Math.cos(stride)), -.24 * tour * step));
+    ankleR.add(V(.025 * tour, tour * .11 * Math.max(0, -Math.cos(stride)), .24 * tour * step));
     // inclination: shift the body toward the turn center
     const lateral = Math.sin(incline) * 0.75;
     let pelvisH = 0.98 - flex * 0.9 + bounce;
@@ -129,6 +148,10 @@ export class SkierModel {
       const footY = Math.max(-.05, (p.footGroundY ?? -Infinity) + .145);
       ankleL.lerp(V(-0.14, footY, -0.2), sit); ankleR.lerp(V(0.14, footY, -0.2), sit);
       pelvisH = pelvis.y;
+    }
+    if (p.skiContact && sit === 0 && !p.airborne && p.fallen < .1) {
+      ankleL.y += p.skiContact[0].offset;
+      ankleR.y += p.skiContact[1].offset;
     }
     if (p.airborne) {
       ankleL.add(V(-.1, .12, -.12)); ankleR.add(V(.13, .2, .1));
@@ -151,6 +174,8 @@ export class SkierModel {
     const shL = chest.clone().add(V(-0.19, 0.06, 0)), shR = chest.clone().add(V(0.19, 0.06, 0));
     let handL = chest.clone().add(V(-0.32, -0.28, -0.32 + push * 0.2));
     let handR = chest.clone().add(V(0.32, -0.28, -0.32 + push * 0.2));
+    handL.z += tour * .31 * step; handR.z -= tour * .31 * step;
+    handL.y += tour * .07 * step; handR.y -= tour * .07 * step;
     if (p.tuck > 0) {
       handL.lerp(head.clone().add(V(-0.12, -0.2, -0.3)), p.tuck);
       handR.lerp(head.clone().add(V(0.12, -0.2, -0.3)), p.tuck);
@@ -187,13 +212,18 @@ export class SkierModel {
     this.boots[1].position.copy(ankleR);
 
     // skis: edged with inclination, toes in for the wedge
-    const toe = 0.32 * wedge;
+    const toe = 0.32 * wedge - 0.20 * tour;
     const edgeTilt = -incline * 0.9;
     const sk = this.skis;
     sk[0].position.set(ankleL.x, ankleL.y - 0.13, ankleL.z - 0.05);
     sk[1].position.set(ankleR.x, ankleR.y - 0.13, ankleR.z - 0.05);
     sk[0].rotation.set(0, -toe, edgeTilt + wedge * 0.18, 'YXZ');
     sk[1].rotation.set(0, toe, edgeTilt - wedge * 0.18, 'YXZ');
+    sk[0].rotation.x -= tour * .17 * Math.max(0, Math.cos(stride));
+    sk[1].rotation.x -= tour * .17 * Math.max(0, -Math.cos(stride));
+    if (p.skiContact && sit === 0 && !p.airborne && p.fallen < .1) {
+      sk.forEach((ski, i) => { ski.rotation.x += p.skiContact![i].pitch; });
+    }
     if (sit > 0 || p.footGroundY !== undefined) {
       const clearance = Math.max(0, -.18 - (p.footGroundY ?? -Infinity));
       const hanging = Math.min(1, clearance / .3);
@@ -211,7 +241,8 @@ export class SkierModel {
         tipPos.lerp(hand.clone().add(V(side * 0.25, -1.0, -0.45)), k);
       }
       if (p.tuck > 0.3) tipPos.lerp(hand.clone().add(V(side * 0.1, -0.35, 1.0)), p.tuck);
-      if (p.pushing) tipPos.z += push * side * 0.25;
+      if (p.pushing) tipPos.z += push * side * 0.25 * (1 - tour);
+      tipPos.z += tour * (-.43 + .35 * step * side);
       // Carry poles forward and clear of the snow during pickup and sitting.
       const carry = Math.min(1, Math.max(sit * 2, prepare));
       tipPos.lerp(hand.clone().add(V(side * .08, .2, -1.15)), carry);

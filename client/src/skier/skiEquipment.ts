@@ -5,6 +5,8 @@ const rubber = new THREE.MeshStandardNodeMaterial({ color: 0x181c23, roughness: 
 const shell = new THREE.MeshStandardNodeMaterial({ color: 0x333c48, roughness: 0.45 });
 const metal = new THREE.MeshStandardNodeMaterial({ color: 0x9ca5b0, metalness: 0.82, roughness: 0.26 });
 const orange = new THREE.MeshStandardNodeMaterial({ color: 0xe97b32, roughness: 0.48 });
+const cream = new THREE.MeshStandardNodeMaterial({ color: 0xf3e8d3, roughness: .3 });
+const lacquer = new THREE.MeshStandardNodeMaterial({ color: 0xbf1535, roughness: .29, metalness: .14 });
 const lens = new THREE.MeshPhysicalNodeMaterial({ color: 0xe9ad54, roughness: 0.16, metalness: 0.25, clearcoat: 1 });
 
 function mesh(g: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0) {
@@ -67,7 +69,7 @@ export function skiBoot() {
   return g;
 }
 
-export function skiWithBindings() {
+export function skiWithBindings(festive = false) {
   const g = new THREE.Group(); g.name = 'sidecut-ski-and-bindings';
   const pos: number[] = [], col: number[] = [], ids: number[] = [];
   const segments = 50;
@@ -79,7 +81,10 @@ export function skiWithBindings() {
     for (const [x, y] of [[-width, top], [width, top], [-width, top - 0.018], [width, top - 0.018]]) {
       pos.push(x, y, z);
       const bright = t > 0.73 && t < 0.83;
-      const c = y === top ? (bright ? [0.87, 0.32, 0.08] : [0.035, 0.12, 0.20]) : [0.075, 0.08, 0.09]; col.push(...c);
+      const band = (i + (x > 0 ? 3 : 0)) % 13;
+      const holiday = band < 2 ? [0.78, 0.49, 0.15] : band < 6 ? [0.9, 0.84, 0.70] : [0.48, 0.021, 0.038];
+      const paint = festive ? holiday : bright ? [0.87, 0.32, 0.08] : [0.035, 0.12, 0.20];
+      col.push(...(y === top ? paint : [0.075, 0.08, 0.09]));
     }
   }
   for (let i = 0; i < segments; i++) {
@@ -96,9 +101,17 @@ export function skiWithBindings() {
   return g;
 }
 
-export function skiPole() {
+export function skiPole(festive = false) {
   const g = new THREE.Group(); g.name = 'ski-pole';
-  mesh(new THREE.CylinderGeometry(0.007, 0.004, 1.16, 10), metal, g);
+  mesh(new THREE.CylinderGeometry(0.007, 0.004, 1.16, 10), festive ? cream : metal, g);
+  if (festive) {
+    const helix: THREE.Vector3[] = [];
+    for (let i = 0; i <= 110; i++) {
+      const t = i / 110, radius = 0.004 + t * .003;
+      helix.push(new THREE.Vector3(Math.cos(t * 61) * radius, t * .95 - .46, Math.sin(t * 61) * radius));
+    }
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(helix), 110, .0023, 5, false), lacquer, g);
+  }
   mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.13, 14), rubber, g, 0, -0.51, 0);
   mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.14, 10), orange, g, 0, -0.35, 0);
   const basket = mesh(new THREE.TorusGeometry(0.037, 0.006, 6, 16), rubber, g, 0, 0.49, 0); basket.rotation.x = Math.PI/2;

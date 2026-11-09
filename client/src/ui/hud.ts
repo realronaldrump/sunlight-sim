@@ -58,7 +58,7 @@ export class Hud {
     document.body.appendChild(hud);
     const run = document.createElement('div'); run.id = 'runlabel'; document.body.appendChild(run);
     const hint = document.createElement('div'); hint.id = 'hint'; document.body.appendChild(hint);
-    const toast = document.createElement('div'); toast.id = 'toast'; document.body.appendChild(toast);
+    const toast = document.createElement('div'); toast.id = 'toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast);
     const stats = document.createElement('div'); stats.id = 'stats'; document.body.appendChild(stats);
     const lift = document.createElement('div'); lift.id = 'liftdir'; document.body.appendChild(lift);
     this.liftEl = lift;

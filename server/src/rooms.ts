@@ -7,6 +7,9 @@ import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import { LiftClock, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { CHAIR_SWING, carriedSwing, createChairSwing, swingEnergy, chairReleaseVelocity, swingingRiderPoint, validChairSwing, type ChairSwing } from '../../shared/chairSwing';
 import type { NetDrone } from '../../shared/protocol';
+import { MountainGuest, readGuestCheckpoint, type GuestCheckpoint } from '../../shared/mountainGuest';
+import type { GuestNavigation } from '../../shared/mountainGuestNavigation';
+import type { ColliderGrid } from '../../shared/collision';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
@@ -46,8 +49,16 @@ export class Room {
   players = new Map<string, Player>();
   // seat occupancy: `${lift}/${chair}` -> seat -> player id
   seats = new Map<string, Map<number, string>>();
-  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea) {
+  private guestTick = now();
+  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea, readonly guest?: MountainGuest) {
     this.liftClocks = lifts.map(() => new LiftClock());
+    const saved = guest?.checkpoint();
+    // Resume the same trip after an empty room or a restart. Nobody is on the
+    // other chairs yet, so only the resident's occupied cable needs anchoring.
+    if (saved?.ride) {
+      const i = saved.ride.lift, at = now();
+      this.liftClocks[i].sync({ time: saved.liftTimes[i], at, rate: 1 }, at);
+    }
   }
 
   get size() { return this.players.size; }
@@ -60,7 +71,7 @@ export class Room {
       s: { x: 0, y: 0, z: 0, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0 },
     };
     this.players.set(id, p);
-    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
+    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, mountainGuest: this.guest?.pose(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
     return p;
   }
@@ -178,8 +189,10 @@ export class Room {
         let m = this.seats.get(key);
         if (!m) { m = new Map(); this.seats.set(key, m); }
         let seat = msg.seat;
-        if (m.has(seat)) {
-          const free = [...Array(lift.def.seats).keys()].filter((i) => !m!.has(i));
+        const guest = this.guest?.ride;
+        const occupied = (i: number) => m!.has(i) || (guest?.lift === msg.lift && guest.chair === msg.chair && guest.seat === i);
+        if (occupied(seat)) {
+          const free = [...Array(lift.def.seats).keys()].filter(i => !occupied(i));
           if (!free.length) { p.conn.send({ type: 'boardRejected', reason: 'chair full' }); return; }
           free.sort((a, b) => Math.abs(a - seat) - Math.abs(b - seat));
           seat = free[0];
@@ -277,7 +290,10 @@ export class Room {
         }
       }
     }
-    return { type: 'snapshot', serverTime: t, liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
+    this.guest?.advance(t - this.guestTick, this.liftClocks.map(clock => clock.now(t)),
+      (lift, chair, seat) => !this.seats.get(`${lift}/${chair}`)?.has(seat));
+    this.guestTick = t;
+    return { type: 'snapshot', serverTime: t, mountainGuest: this.guest?.pose(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
   }
 
   broadcast(msg: ServerMsg, except?: string) {
@@ -297,13 +313,36 @@ function info(p: Player): PlayerInfo {
 
 export class Lobby {
   rooms = new Map<string, Room>();
-  constructor(private lifts: LiftPath[] = loadLifts()) {}
+  constructor(private lifts: LiftPath[] = loadLifts(), private world?: { navigation: GuestNavigation; colliders: ColliderGrid },
+    readonly guestCheckpoints = new Map<string, unknown>()) {}
+
+  private rememberGuest(r: Room) {
+    if (!r.guest) return;
+    this.guestCheckpoints.delete(r.code);
+    this.guestCheckpoints.set(r.code, r.guest.checkpoint());
+    while (this.guestCheckpoints.size > 128) this.guestCheckpoints.delete(this.guestCheckpoints.keys().next().value!);
+  }
+
+  saveGuests() {
+    for (const r of this.rooms.values()) this.rememberGuest(r);
+    return this.guestCheckpoints;
+  }
 
   join(conn: Conn, room: string, name: string, color: string, controlMode: 'skier' | 'drone' = 'skier') {
     const code = sanitizeRoom(room);
     if (!code) { conn.send({ type: 'error', reason: 'bad room code' }); return null; }
     let r = this.rooms.get(code);
-    if (!r) { r = new Room(code, this.lifts); this.rooms.set(code, r); }
+    if (!r) {
+      const seed = Array.from(code).reduce((hash, c) => Math.imul(hash ^ c.charCodeAt(0), 16777619), 2166136261);
+      let guest: MountainGuest | undefined;
+      if (this.world) {
+        const { navigation, colliders } = this.world;
+        const saved = readGuestCheckpoint(this.guestCheckpoints.get(code), navigation);
+        guest = new MountainGuest(navigation, colliders, seed, saved ?? undefined);
+      }
+      r = new Room(code, this.lifts, droneArea, guest);
+      this.rooms.set(code, r);
+    }
     const p = r.join(conn, name, color, controlMode);
     if (!p) { conn.send({ type: 'error', reason: 'room is full (8 players)' }); return null; }
     return { room: r, id: p.id };
@@ -313,13 +352,13 @@ export class Lobby {
     const r = this.rooms.get(code);
     if (!r) return;
     r.leave(id);
-    if (r.size === 0) this.rooms.delete(code);
+    if (r.size === 0) { this.rememberGuest(r); this.rooms.delete(code); }
   }
 
   tick() {
     for (const [code, r] of this.rooms) {
       r.reap();
-      if (r.size === 0) { this.rooms.delete(code); continue; }
+      if (r.size === 0) { this.rememberGuest(r); this.rooms.delete(code); continue; }
       const snap = r.snapshot();
       r.broadcast(snap);
     }

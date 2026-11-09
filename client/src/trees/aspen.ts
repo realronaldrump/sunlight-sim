@@ -4,6 +4,8 @@
 // stands carry stems every 2 to 3 m, so each detected crown also carries two smaller ramets inside
 // its measured crown radius (DECISIONS.md D17). Geometry is built in meters and then normalized to
 // height 1 and crown radius 1 for lidar instancing, like the other species.
+import { ASPEN_STEMS } from '../../../shared/treeData';
+export { ASPEN_STEMS } from '../../../shared/treeData';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -13,13 +15,6 @@ function rand(seed: number) {
 }
 
 const H = 14, R = 2.1;
-
-/** Stems per instance in normalized units: offset x, offset z (crown radius 1), height fraction, girth scale. */
-export const ASPEN_STEMS: readonly (readonly [number, number, number, number])[] = [
-  [0, 0, 1, 1],
-  [0.78 * Math.cos(0.7), 0.78 * Math.sin(0.7), 0.78, 0.72],
-  [0.86 * Math.cos(3.6), 0.86 * Math.sin(3.6), 0.63, 0.58],
-];
 
 /** Texture atlas: twig sprigs fill the whole texture; bark is a separate repeating texture. */
 const TWIG_ROWS = 2;

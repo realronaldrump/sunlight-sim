@@ -12,6 +12,9 @@ services:
     environment:
       PORT: "8080"
       RELEASE_SHA: ${RELEASE_SHA}
+      GUEST_STATE_FILE: /var/lib/sunlight/mountain-guests.json
+    volumes:
+      - mountain-guests:/var/lib/sunlight
     mem_limit: 512m
     cpus: 1.0
     pids_limit: 128
@@ -26,3 +29,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+
+volumes:
+  mountain-guests:

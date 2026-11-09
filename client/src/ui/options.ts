@@ -1,6 +1,7 @@
 // Options panel (P): time of day, snowfall, sound volume, graphics quality.
 import { QualityName, savedQuality, saveQuality } from '../quality';
 import { IPHONE } from '../platform';
+import { SANTA_ACHIEVEMENT } from '../world/santaDiscovery';
 
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
@@ -23,6 +24,11 @@ const css = `
 #opts { max-height:calc(100vh - 64px); overflow:auto; }
 #opts button { width:100%; margin:5px 0; padding:9px 12px; color:#fff; background:#244759; border:1px solid #97c5cf70; border-radius:7px; cursor:pointer; text-align:left; }
 #opts button:focus-visible { outline:2px solid #80e9ff; }
+#opts .discovery { display:flex; align-items:center; gap:10px; margin:13px 0 0; padding:10px; border:1px solid #e2bc7270; border-radius:9px; background:linear-gradient(135deg,#701c33aa,#4c362daa); }
+#opts .discovery[hidden] { display:none; }
+#opts .discovery svg { width:32px; height:32px; flex:none; }
+#opts .discovery b, #opts .discovery time { display:block; }
+#opts .discovery time { opacity:.76; margin-top:2px; }
 #opts hr { border:0; border-top:1px solid #ffffff30; margin:12px 0; }
 #pause-toggle { position:fixed; top:16px; right:340px; z-index:12; padding:8px 12px; color:#fff; background:rgba(10,20,35,.85); border:1px solid #97c5cf70; border-radius:8px; cursor:pointer; }
 #pause-toggle[hidden] { display:none; }
@@ -56,7 +62,13 @@ export class OptionsPanel {
       <hr><button id="pause-base" type="button" ${IPHONE ? 'hidden' : ''}>Teleport to base</button>
       <button id="pause-travel" type="button">Teleport to a run or friend…</button>
       <button id="pause-recall" type="button" hidden>Recall drone to ${IPHONE ? 'launch point' : 'skier'}</button>
-      <button id="pause-log" type="button" ${h.log ? '' : 'hidden'}>Ski log and mountain progress</button><hr>
+      <button id="pause-log" type="button" ${h.log ? '' : 'hidden'}>Ski log and mountain progress</button>
+      <div id="santa-sighting" class="discovery" hidden>
+        <svg aria-hidden="true" viewBox="0 0 36 36"><path d="M18 1.5 32.5 9v17L18 34.5 3.5 26V9Z" fill="#611930" stroke="#e7c481" stroke-width="2"/>
+        <path d="M9 23c.7-4.9 3.4-11 8.4-12.3 4.1-1.1 6.2 1.7 7.7 4.3l-6.4 1.3L23 23Z" fill="#de4452"/>
+        <path d="M9 23.2h14" stroke="#fff4dd" stroke-width="3.3" stroke-linecap="round"/><circle cx="25.5" cy="15.8" r="2.2" fill="#fff4dd"/></svg>
+        <span><b>${SANTA_ACHIEVEMENT}</b><time></time></span>
+      </div><hr>
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
       <input type="range" id="o-hour" min="7" max="20" step="0.25" value="${h.hour}">
       ${h.clock ? `<label>Clock</label><select id="o-clock"><option value="explore">Free explore: you set the time, lifts run any hour</option><option value="day">Resort day: time passes, lifts 9 AM to 4 PM, shared in a room</option></select>` : ''}
@@ -117,6 +129,15 @@ export class OptionsPanel {
     }
   }
   get visible() { return this.el.classList.contains('show'); }
+
+  santaSighting(foundAt: number | null) {
+    if (!foundAt) return;
+    const badge = this.el.querySelector<HTMLElement>('#santa-sighting')!;
+    const time = badge.querySelector('time')!;
+    time.dateTime = new Date(foundAt).toISOString();
+    time.textContent = 'Discovered ' + new Date(foundAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    badge.hidden = false;
+  }
 
   /** Show the running Resort Day clock (slider locked) or hand the time back to the player. */
   showClock(hour: number, locked: boolean) {

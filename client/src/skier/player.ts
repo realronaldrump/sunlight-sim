@@ -29,6 +29,7 @@ export class Player {
   chairSwing = createChairSwing();
   tumble: { pitch: number; roll: number; pitchV: number; rollV: number } | null = null;
   private boardCooldown = 0;
+  seatOccupied?: (lift: number, chair: number, seat: number) => boolean;
   requestBoard?: (lift: number, chair: number, seat: number) => void; // multiplayer hook
   private tmp = new THREE.Vector3();
   private previousLiftTimes: number[] = [];
@@ -286,8 +287,13 @@ export class Player {
           if (facing) this.liftPreparation = Math.max(0, 1 - (next.arrive - t) / 1.4);
           const contact = path.boardingContact(from, st.pos, previous, t);
           if (contact && facing && !this.lifts.closed) {
-            if (this.requestBoard) this.requestBoard(li, contact.chair, contact.seat);
-            else this.board(li, contact.chair, contact.seat);
+            let seat = contact.seat;
+            if (this.seatOccupied?.(li, contact.chair, seat)) {
+              seat = [...Array(path.def.seats).keys()].sort((a, b) => Math.abs(a - seat) - Math.abs(b - seat))
+                .find(i => !this.seatOccupied?.(li, contact.chair, i)) ?? seat;
+            }
+            if (this.requestBoard) this.requestBoard(li, contact.chair, seat);
+            else this.board(li, contact.chair, seat);
           } else if (contact) {
             // A misaligned skier is pushed by the moving seat instead of letting it
             // pass through their legs. Turning uphill allows the next contact to load.

@@ -4,8 +4,9 @@
 import * as THREE from 'three/webgpu';
 import { texture, uv, vec2, vec3, float, attribute, transformNormalToView, mix, positionWorld, cameraPosition, length, smoothstep } from 'three/tsl';
 import { coniferGeometry, aspenGeometry, oakGeometry, impostorAtlas, crossQuadGeometry, branchTexture } from './treeAssets';
-import { ASPEN_STEMS, aspenBarkTexture, aspenTwigTexture } from './aspen';
+import { aspenBarkTexture, aspenTwigTexture } from './aspen';
 import type { ColliderGrid } from '../../../shared/collision';
+import { addTreeCollider, decodeTreeTile } from '../../../shared/treeData';
 
 const CELL = 64;
 /** Trees closer than this use the full-detail meshes; the rest of the near ring uses the light meshes. */
@@ -18,14 +19,6 @@ interface TileData {
   cellOf: Int32Array; // cell key per tree index
   hidden: Set<number>; // cell keys hidden (near) in this tile's impostor mesh
   excluded: Uint8Array;
-}
-
-async function gunzip(buf: ArrayBuffer) {
-  const u8 = new Uint8Array(buf);
-  if (u8[0] === 0x1f && u8[1] === 0x8b) {
-    return await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  }
-  return buf;
 }
 
 const cellKey = (i: number, j: number) => (i + 4096) * 8192 + (j + 4096);
@@ -113,18 +106,8 @@ export class TreeSystem {
   }
 
   private async loadTile(tx: number, tn: number) {
-    const buf = await gunzip(await (await fetch(`${this.base}/trees/${tx}_${tn}.bin.gz`)).arrayBuffer());
-    const dv = new DataView(buf);
-    const n = dv.getUint32(4, true);
-    let o = 8;
-    const f32 = () => { const a = new Float32Array(buf.slice(o, o + n * 4)); o += n * 4; return a; };
-    const x = f32(), z = f32(), y = f32();
-    const hc = new Uint16Array(buf.slice(o, o + n * 2)); o += n * 2;
-    const rd = new Uint8Array(buf.slice(o, o + n)); o += n;
-    const s = new Uint8Array(buf.slice(o, o + n)); o += n;
-    const seed = new Uint8Array(buf.slice(o, o + n));
-    const h = new Float32Array(n), r = new Float32Array(n);
-    for (let i = 0; i < n; i++) { h[i] = hc[i] / 100; r[i] = rd[i] / 20; }
+    const data = await (await fetch(`${this.base}/trees/${tx}_${tn}.bin.gz`)).arrayBuffer();
+    const { n, x, z, y, h, r, s, seed } = await decodeTreeTile(data);
     const excluded = new Uint8Array(n);
     for (const b of this.buildings) {
       const xs=b.points.map(p=>p[0]), zs=b.points.map(p=>p[1]);
@@ -148,17 +131,7 @@ export class TreeSystem {
       let entry = list.find((e) => e.tile === t);
       if (!entry) { entry = { tile: t, idx: [] }; list.push(entry); }
       entry.idx.push(i);
-      if (!excluded[i] && h[i] > 3 && s[i] !== 3) {
-        const trunk = 0.1 + 0.012 * h[i] + (s[i] <= 1 ? 0.3 : 0.05);
-        if (s[i] === 2) {
-          // every rendered aspen stem is solid, matching the near mesh orientation in update()
-          const rot = (seed[i] / 255) * Math.PI * 2, c = Math.cos(rot), sn = Math.sin(rot);
-          for (const [dx, dz, hf, gs] of ASPEN_STEMS) {
-            const ox = (dx * c + dz * sn) * r[i], oz = (-dx * sn + dz * c) * r[i];
-            this.colliders.add({ type: 'cyl', x: x[i] + ox, z: z[i] + oz, r: Math.max(0.08, (0.04 + 0.012 * h[i]) * gs), top: y[i] + h[i] * hf });
-          }
-        } else this.colliders.add({ type: 'cyl', x: x[i], z: z[i], r: trunk, top: y[i] + h[i] });
-      }
+      if (!excluded[i]) addTreeCollider(this.colliders, x[i], z[i], y[i], h[i], r[i], s[i], seed[i]);
     }
     this.buildImpostors(t);
     this.tiles.set(`${tx}_${tn}`, t);

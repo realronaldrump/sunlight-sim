@@ -57,6 +57,8 @@ import { ComicPops } from './ui/comicPops';
 import { YardSale } from './world/yardSale';
 import { flingVelocity } from '../../shared/missedUnload';
 import { resortClock } from './world/resortClock';
+import { MountainGuestView } from './world/mountainGuestView';
+import { SANTA_ACHIEVEMENT } from './world/santaDiscovery';
 import { ConditionsBoard } from './world/conditionsBoard';
 import { conditionsFor } from './world/conditions';
 import { LINEUP } from './world/lesson';
@@ -115,6 +117,8 @@ export class Game {
   weatherMode: WeatherMode = 'changing';
   /** 0..1 how hard it is snowing where you are. */
   snowAmount = 0;
+  /** Test and review hook: pin the cloud clock (seconds) or the amount of cumulus and cirrus (0..1). */
+  skyOverride: { now?: number; cover?: number; cirrus?: number } | null = null;
   private weatherTimer = 0;
   /** Free Explore (you set the time, lifts always run) or Resort Day (shared clock, operating hours). */
   clockMode: ClockMode = savedClockMode();
@@ -125,6 +129,7 @@ export class Game {
   /** Test hook: hours of traffic regardless of the time of day. */
   snowHoursOverride: number | null = null;
   ambient: AmbientSkiers | null = null;
+  mountainGuest!: MountainGuestView;
   private trackFade = 0;
   options!: OptionsPanel;
   private audioScene = new AudioScene();
@@ -231,6 +236,9 @@ export class Game {
     this.scene.add(this.terrain.group);
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });
     this.terrainMat.sunDir.value.copy(this.env.sunDir.value);
+    // mountain shadows need the 128 m terrain around the resort; it arrives in the background
+    void this.env.mountains.init(this.hf).catch((e) => console.warn('mountain shadows unavailable', e));
+    { const c = this.params.get('clouds'); if (c !== null) this.skyOverride = { cover: Number(c) }; }
 
     // personal ski log, kept in this browser
     if (!this.droneOnly && this.params.get('log') !== '0') {
@@ -254,6 +262,8 @@ export class Game {
     await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     this.probe = this.lifts.buildStationSurfaces(this.probe);
+    this.mountainGuest = new MountainGuestView(this.lifts, this.probe);
+    this.scene.add(this.mountainGuest.group);
     this.dressStationSnow();
     this.gates = new MissedUnloadGates(this.lifts.paths, (x, z) => this.probe.height(x, z));
     this.scene.add(this.gates.group, this.yardSale.group);
@@ -265,6 +275,10 @@ export class Game {
     this.scene.add(this.player.model.root);
     { const p = this.params.get('autounload'); this.autoUnloadSetting = p === '1' ? true : p === '0' ? false : savedAutoUnload(); }
     this.player.onMissed = (event, lift) => this.missedUnload(event, lift);
+    this.player.seatOccupied = (lift, chair, seat) => {
+      const ride = this.mountainGuest.ride;
+      return ride?.lift === lift && ride.chair === chair && ride.seat === seat;
+    };
     this.onFoot = new OnFoot(this.scene, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, this.camera, this.renderer.domElement, new THREE.Color('#d33a2c'));
     this.runs.buildSigns((x, z) => this.hf.heightAt(x, z), this.colliders);
     this.runs.buildBoundary((x, z) => this.hf.heightAt(x, z));
@@ -403,6 +417,7 @@ export class Game {
         share: () => { void this.shareInvite?.(); },
       } : undefined,
     });
+    this.options.santaSighting(this.mountainGuest.discovery.foundAt);
     this.options.onChange = () => {
       this.input.clear(); this.stopLiftSpeed();
       if (this.options.visible) { this.input.enabled = false; this.touch?.reset(); this.holdDrone(); }
@@ -453,6 +468,9 @@ export class Game {
     this.onFoot.setJacket(choice.color);
     if (!this.droneOnly && this.params.get('onfoot') === '1') this.startOnFoot();
     if (choice.room) await this.joinRoom(choice.room);
+    if (!this.mountainGuest.remote && this.resort.boundary) {
+      this.mountainGuest.startLocal(WORLD_BASE, { ...this.resort, boundary: this.resort.boundary });
+    }
     this.ready = true;
     if (this.snowNote) { const note = this.snowNote; setTimeout(() => this.hud.toast(note, 7), 2500); }
   }
@@ -923,7 +941,10 @@ export class Game {
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
       this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
     }
+    this.mountainGuest.tickLocal(dt, this.player.ride);
+    const guestRide = this.mountainGuest.ride;
     this.lifts.update([
+      ...(guestRide ? [guestRide] : []),
       ...(this.player.ride ? [this.player.ride] : []),
       ...[...(this.net?.remotes.values() ?? [])].flatMap(r => r.ride ? [r.ride] : []),
     ], this.camera.position);
@@ -947,6 +968,11 @@ export class Game {
       }
     }
     this.updateCamera(dt);
+    this.mountainGuest.update(dt, this.camera, resortClock.now());
+    if (this.mountainGuest.observe(dt, this.camera, this.input.enabled && !this.flyMode && !document.hidden, this.colliders)) {
+      this.options.santaSighting(this.mountainGuest.discovery.foundAt);
+      this.hud.toast(`Achievement unlocked · ${SANTA_ACHIEVEMENT}`, 7);
+    }
     for (const remote of this.net?.remotes.values() ?? []) {
       fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
       if (remote.drone && remote.flight) remote.drone.root.visible = remote.flightPos.distanceToSquared(this.camera.position) > .64;
@@ -963,6 +989,9 @@ export class Game {
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
     this.tmpV.set(p.x,p.y,p.z); this.env.update(this.tmpV);
+    this.env.updateSky(dt, this.skyOverride?.now ?? resortClock.now(), this.weatherMode, this.camera.position);
+    if (this.skyOverride?.cover !== undefined) this.env.clouds.cover.value = this.skyOverride.cover;
+    if (this.skyOverride?.cirrus !== undefined) this.env.clouds.cirrus.value = this.skyOverride.cirrus;
     this.env.adapt(dt, this.camera, (x, z) => this.hf.normalAt(x, z, 2), !!walkable.surfaces.indoor(this.camera.position.x, this.camera.position.y, this.camera.position.z));
     this.renderer.toneMappingExposure = this.env.exposure;
 
@@ -1060,6 +1089,7 @@ export class Game {
     this.scene.add(this.net.group);
     this.net.onChat = (n, t) => this.chat.add(n, t);
     this.net.onGesture = (r, act) => this.friendGesture(r, act);
+    this.net.onMountainGuest = (pose, at) => this.mountainGuest.receiveRemote(pose, at);
     this.net.localExtras = () => {
       const x: Record<string, unknown> = {};
       if (this.onFoot.active) {
@@ -1364,6 +1394,9 @@ export class Game {
       const st = a.st;
       write(a.id, st.pos.x, st.pos.z, st.heading, st.speed, st.plow, st.skid, st.grounded && st.mode !== 'fallen' && st.mode !== 'air');
     }
+    const guest = this.mountainGuest.pose;
+    if (guest) write(900000, guest.x, guest.z, guest.heading, guest.speed, guest.plow, guest.skid,
+      !guest.ride && !guest.airborne && guest.fallen < .1 && guest.touring < .25);
     const L = this.lesson;
     if (L?.ready && L.out) L.poses.forEach((p, i) => write(900001 + i, p.x, p.z, p.heading, p.speed, p.plow, 0.15, !p.ride && p.sit === 0 && !p.skate && !p.foot));
     for (const rem of this.net?.remotes.values() ?? []) {
@@ -1420,6 +1453,11 @@ export class Game {
     const surface = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
     const forward = this.camera.getWorldDirection(this.tmpV2);
     const neighbors = this.ambient?.soundSources() ?? [];
+    const guest = this.mountainGuest.pose;
+    if (guest && !guest.ride && !guest.airborne && guest.fallen < .1 && guest.touring < .25) {
+      neighbors.push({ pos: guest, speed: guest.speed, skid: guest.skid,
+        groomed: this.surface?.at(guest.x, guest.z).groomed ?? 1, active: true });
+    }
     for (const r of this.net?.remotes.values() ?? []) {
       if (!r.last) continue;
       const pos = r.model.root.position, state = r.last;
