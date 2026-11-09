@@ -1,11 +1,12 @@
 # Progress
 
-## Weather rolling through (November 9, 2026, in progress)
+## Weather rolling through (November 9, 2026, released)
 
 - **Squalls on the shared clock** (`client/src/sky/weather.ts`): snow squall cells 2.3 to 4.5 km across drift from the west-southwest toward the east-northeast at about 25 mph, roughly one every 25 minutes when it is unsettled, with clear spells between. They are a pure function of the resort clock, so friends in a room watch the same storms. Many cross the line of sight from the resort to Mount Sopris (21 km to the southeast).
 - **What you see**: a heaped cloud on a dark base at 3,450 m (above Primo's summit, below Sopris's), with grey snow curtains hanging from it to the ground. From the top of Primo a squall over the valley swallows Sopris completely, and about 18 minutes later the mountain is back. When a cell drifts over you the sky turns to a grey snow ceiling (new overcast sky layer), the light flattens, the haze thickens, flakes fall (fewer at the cell's edge, a proper shower in its heart), new snow builds up on the snow memory, and the status board says Snow showers (or Showers nearby).
 - **Pause menu Weather**: Changing (default for players), Clear, or Light snow all day. Automated tests start clear unless they ask for `?weather=`.
 - `Environment.setWeather` makes the old on/off snowfall continuous; the sky's lighting map is rebuilt only for real changes, so a passing squall costs no hitches.
+- Release `e111d4e`: pushed and verified on `origin/main`; Vercel deployment `dpl_65t7NViCs46ncss7bBcBwusgfeZE` READY at https://sunlight-sim.vercel.app serving `index-DBw3FaDT.js`. Live smoke passed in Chromium and WebKit, and two live clients in one public room saw the same squall at the same position.
 - Verified: unit tests for determinism, drift direction and speed, clear and stormy spells at the lodge and the cell profile; review captures `screenshots/review-weather/` (squall hiding Sopris from Primo's summit, Sopris revealed later, a squall overhead at the base in Chromium and WebKit). Smoke, snow, gameplay and performance scenarios pass (1440p High 30.6 to 37.3 fps, in line with earlier measurements).
 
 ## The sound of places (November 9, 2026, released)
