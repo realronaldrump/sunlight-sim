@@ -7,32 +7,50 @@ import { mapHeading, mapPoint, nearestTrailPoint, type MapView } from './minimap
 
 const ZOOM_SPANS = [457.2, 914.4, 1828.8]; // 1,500 / 3,000 / 6,000 ft, retained in meters for projection.
 const STORAGE_KEY = 'sunlight.minimap';
+const RATINGS: Record<string, { label: string; symbol: string }> = {
+  green: { label: 'Green', symbol: '●' },
+  blue: { label: 'Blue', symbol: '■' },
+  black: { label: 'Black', symbol: '◆' },
+  double: { label: 'Double Black', symbol: '◆◆' },
+};
 const css = `
 #minimap { position: fixed; top: 16px; left: 16px; z-index: 10; width: 264px; overflow: hidden; border: 1px solid rgba(255,255,255,.28); border-radius: 12px; background: rgba(10,20,35,.92); box-shadow: 0 4px 20px rgba(0,0,0,.23); font-variant-numeric: tabular-nums; }
 body:has(#roombox) #minimap { top: 66px; }
 #minimap[hidden], #minimap [hidden] { display: none !important; }
 #minimap header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; gap: 6px; }
-#minimap .mm-location { min-width: 0; }
+#minimap .mm-location { min-width: 0; margin-right: auto; }
 #minimap .mm-eyebrow { color: #a9c7d4; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 #minimap .mm-run { display: block; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
 #minimap button { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.09); color: #fff; border-radius: 6px; min-width: 32px; min-height: 32px; font: 600 12px -apple-system, sans-serif; cursor: pointer; }
 #minimap button:hover { background: rgba(255,255,255,.2); }
 #minimap button:focus-visible { outline: 2px solid #70e6fa; outline-offset: -2px; }
 #minimap button:disabled { opacity: .3; cursor: default; }
+#minimap .mm-details { padding: 0 6px; white-space: nowrap; }
+#minimap.map-only header { position: absolute; bottom: 7px; right: 7px; padding: 0; }
+#minimap.map-only .mm-location, #minimap.map-only .mm-hide, #minimap.map-only footer { display: none; }
+#minimap.map-only .mm-details { background: rgba(10,20,35,.9); }
+#minimap.map-only .mm-details:hover { background: #223047; }
 #minimap canvas { display: block; width: 100%; aspect-ratio: 1; pointer-events: none; background: #d5e0da; }
 #minimap footer { padding: 8px; }
 #minimap .mm-tools { display: flex; align-items: center; gap: 4px; }
 #minimap .mm-zoom { font-size: 11px; color: #c8d8e2; min-width: 54px; text-align: center; white-space: nowrap; }
 #minimap .mm-full { margin-left: auto; padding: 0 6px; white-space: nowrap; }
 #minimap kbd { font: inherit; color: #a9c7d4; margin-left: 4px; }
-#minimap .mm-legend { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 10px; color: #c8d8e2; }
-#minimap .mm-legend b { display: inline-block; margin-right: 3px; }
+#minimap .mm-legend { display: flex; justify-content: space-between; gap: 4px; margin-top: 7px; font-size: 10px; color: #c8d8e2; }
+#minimap .mm-legend > span { white-space: nowrap; }
+#minimap .mm-legend b { display: inline-block; margin-right: 3px; padding: 0 2px; border-radius: 2px; background: #f5f8fa; }
 #minimap .mm-collapsed { display: none; width: 100%; padding: 4px 10px; }
 #minimap.collapsed { width: auto; border-radius: 8px; }
 #minimap.collapsed header, #minimap.collapsed .mm-body { display: none; }
 #minimap.collapsed .mm-collapsed { display: block; }
-@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } #minimap .mm-legend, #minimap .mm-word { display: none; } }
-@media (max-height: 580px) { #minimap { width: 194px; top: 10px; left: 10px; } #minimap canvas { aspect-ratio: 1.55; } #minimap .mm-full kbd { display: none; } #minimap button { min-width: 30px; } }
+@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } #minimap .mm-word { display: none; } }
+@media (max-height: 580px) {
+  #minimap { width: 194px; top: 10px; left: 10px; }
+  #minimap canvas { aspect-ratio: 1.55; }
+  #minimap .mm-eyebrow, #minimap .mm-full kbd { display: none; }
+  #minimap button { min-width: 30px; }
+  #minimap .mm-legend { display: grid; grid-template-columns: repeat(2, 1fr); }
+}
 `;
 
 interface MinimapState {
@@ -58,11 +76,13 @@ export class Minimap {
   private zoomLabel: HTMLElement;
   private zoomIn: HTMLButtonElement;
   private zoomOut: HTMLButtonElement;
+  private detailsButton: HTMLButtonElement;
   private state: MinimapState | null = null;
   private elapsed = Infinity;
   private dirty = true;
   private zoom = 1;
   private collapsed = false;
+  private detailsHidden = false;
   onOpenMap?: () => void;
 
   constructor(private resort: ResortData, base: string) {
@@ -70,19 +90,22 @@ export class Minimap {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
       if (saved) {
         this.collapsed = saved.collapsed === true;
+        this.detailsHidden = saved.detailsHidden === true;
         if (Number.isInteger(saved.zoom) && saved.zoom >= 0 && saved.zoom < ZOOM_SPANS.length) this.zoom = saved.zoom;
       }
     } catch { /* Settings are optional in private browsing or when storage is unavailable. */ }
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.root.id = 'minimap'; this.root.hidden = true; this.root.setAttribute('aria-label', 'Skiing minimap');
     this.root.innerHTML = `<button type="button" class="mm-collapsed" aria-label="Show minimap (V)" aria-expanded="false">Minimap <kbd>V</kbd></button>
-      <header><div class="mm-location"><div class="mm-eyebrow">Trail guide</div><span class="mm-run">Sunlight Mountain</span></div>
+      <header><div class="mm-location" id="minimap-location"><div class="mm-eyebrow">Trail guide</div><span class="mm-run">Sunlight Mountain</span></div>
+        <button type="button" class="mm-details" aria-controls="minimap-location minimap-footer">Map only</button>
         <button type="button" class="mm-hide" aria-label="Hide minimap (V)" title="Hide minimap (V)" aria-expanded="true">&#8722;</button></header>
-      <div class="mm-body"><footer><div class="mm-tools">
+      <div class="mm-body"><footer id="minimap-footer"><div class="mm-tools">
         <button type="button" class="mm-out" aria-label="Zoom minimap out" title="Zoom out">&#8722;</button><span class="mm-zoom"></span>
         <button type="button" class="mm-in" aria-label="Zoom minimap in" title="Zoom in">+</button>
         <button type="button" class="mm-full" aria-label="Open full trail map (M)"><span class="mm-word">Full </span>map <kbd>M</kbd></button>
-      </div><div class="mm-legend"><span><b style="color:#63d582">●</b>Easy</span><span><b style="color:#78acff">■</b>More difficult</span><span><b>◆</b>Difficult</span><span><b style="color:#ff7799">━</b>Lift</span></div></footer></div>`;
+      </div><div class="mm-legend">${Object.entries(RATINGS).map(([difficulty, { label, symbol }]) =>
+        `<span><b aria-hidden="true" style="color:${DIFF_COLOR[difficulty]}">${symbol}</b>${label}</span>`).join('')}</div></footer></div>`;
     this.canvas.setAttribute('role', 'img');
     this.canvas.setAttribute('aria-label', 'North-up map following your position, with nearby trails, chairlifts and friends');
     this.root.querySelector('.mm-body')!.prepend(this.canvas);
@@ -92,8 +115,14 @@ export class Minimap {
     this.zoomLabel = this.root.querySelector('.mm-zoom')!;
     this.zoomIn = this.root.querySelector('.mm-in')!;
     this.zoomOut = this.root.querySelector('.mm-out')!;
+    this.detailsButton = this.root.querySelector('.mm-details')!;
     this.zoomIn.onclick = () => this.changeZoom(-1);
     this.zoomOut.onclick = () => this.changeZoom(1);
+    this.detailsButton.onclick = () => {
+      this.detailsHidden = !this.detailsHidden;
+      this.syncControls();
+      this.save();
+    };
     (this.root.querySelector('.mm-hide') as HTMLButtonElement).onclick = () => this.toggle();
     (this.root.querySelector('.mm-collapsed') as HTMLButtonElement).onclick = () => this.toggle();
     (this.root.querySelector('.mm-full') as HTMLButtonElement).onclick = () => this.onOpenMap?.();
@@ -116,11 +145,17 @@ export class Minimap {
   }
 
   private save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: this.zoom, collapsed: this.collapsed })); } catch { /* optional */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ zoom: this.zoom, collapsed: this.collapsed, detailsHidden: this.detailsHidden }));
+    } catch { /* optional */ }
   }
 
   private syncControls() {
     this.root.classList.toggle('collapsed', this.collapsed);
+    this.root.classList.toggle('map-only', this.detailsHidden);
+    this.detailsButton.textContent = this.detailsHidden ? 'Details' : 'Map only';
+    this.detailsButton.title = this.detailsHidden ? 'Show minimap details' : 'Hide minimap details';
+    this.detailsButton.setAttribute('aria-expanded', String(!this.detailsHidden));
     this.zoomIn.disabled = this.zoom === 0;
     this.zoomOut.disabled = this.zoom === ZOOM_SPANS.length - 1;
     const span = ZOOM_SPANS[this.zoom];
@@ -142,7 +177,8 @@ export class Minimap {
     const atBase = this.resort.lifts.some(lift => Math.hypot(lift.bottom[0] - state.self.x, lift.bottom[2] - state.self.z) < 120);
     const label = state.lift ? `${state.lift} lift` : state.run?.name ?? (atBase ? 'Base area' : 'Off piste');
     this.location.textContent = state.drone ? `Above ${label}` : label;
-    this.location.title = state.run && !state.lift ? `${label} · ${DIFF_LABEL[state.run.difficulty] ?? ''}` : label;
+    const rating = state.run && (RATINGS[state.run.difficulty]?.label ?? DIFF_LABEL[state.run.difficulty]);
+    this.location.title = rating && !state.lift ? `${label} · ${rating}` : label;
     this.root.setAttribute('aria-label',state.drone ? 'Drone minimap' : 'Skiing minimap');
     this.canvas.setAttribute('aria-label',state.drone ? `North-up map. Your drone is above ${label}; your skier is marked separately.` : `North-up map. You are ${state.lift ? 'riding ' : 'at '}${label}. ${state.others.length} other skier${state.others.length === 1 ? '' : 's'} in the room.`);
     this.draw(state);
@@ -202,6 +238,10 @@ export class Minimap {
       }
     }
     const placed: Box[] = [[width / 2 - 23, height / 2 - 25, 46, 50], [width - 37, 5, 32, 47], [5, height - 35, 85, 30]];
+    if (this.detailsHidden) {
+      const { offsetWidth, offsetHeight } = this.detailsButton;
+      placed.push([width - offsetWidth - 12, height - offsetHeight - 12, offsetWidth + 7, offsetHeight + 7]);
+    }
     const label = (text: string, x: number, y: number, difficulty?: string, lift = false) => {
       g.font = '600 11px -apple-system, sans-serif';
       const w = g.measureText(text).width + (difficulty ? 26 : 14), h = 20;

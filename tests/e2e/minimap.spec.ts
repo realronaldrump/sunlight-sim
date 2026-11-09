@@ -91,3 +91,49 @@ test('minimap stays usable without the terrain image or saved settings', async (
     return colored;
   })).toBeGreaterThan(100);
 });
+
+test('minimap trail key uses ski ratings and map-only mode survives reload', async ({ page }, info) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('sunlight.minimap') === null) {
+      localStorage.setItem('sunlight.minimap', JSON.stringify({ zoom: 0, collapsed: false }));
+    }
+  });
+  await page.goto('/?autostart=1&mute=1&ambient=0');
+  await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  const minimap = page.getByRole('region', { name: 'Skiing minimap' });
+  const canvas = minimap.locator('canvas');
+  const legend = minimap.locator('.mm-legend');
+  const mapOnly = minimap.getByRole('button', { name: 'Map only' });
+  const details = minimap.getByRole('button', { name: 'Details', exact: true });
+
+  await expect(legend).toBeVisible();
+  await expect(legend.locator(':scope > span')).toHaveText(['●Green', '■Blue', '◆Black', '◆◆Double Black']);
+  await expect(minimap.locator('.mm-zoom')).toHaveText('1,500 ft');
+  await expect(mapOnly).toHaveAttribute('aria-expanded', 'true');
+  await minimap.screenshot({ path: info.outputPath('trail-key.png') });
+
+  await mapOnly.click();
+  await expect(details).toHaveAttribute('aria-expanded', 'false');
+  await expect(legend).toBeHidden();
+  await expect(minimap.locator('.mm-location')).toBeHidden();
+  await expect(minimap.locator('.mm-tools')).toBeHidden();
+  await expect(canvas).toBeVisible();
+  await page.evaluate(() => (window as any).game.teleportToRun('Midway'));
+  await expect(canvas).toHaveAttribute('aria-label', /Midway/);
+  await minimap.screenshot({ path: info.outputPath('map-only.png') });
+
+  await page.keyboard.press('KeyV');
+  await expect(canvas).toBeHidden();
+  await page.reload();
+  await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  await minimap.getByRole('button', { name: 'Show minimap (V)' }).click();
+  await expect(canvas).toBeVisible();
+  await expect(legend).toBeHidden();
+
+  await page.setViewportSize({ width: 800, height: 480 });
+  await details.press('Enter');
+  await expect(mapOnly).toBeFocused();
+  await expect(legend).toBeVisible();
+  await expect(minimap.locator('.mm-zoom')).toHaveText('1,500 ft');
+  await minimap.screenshot({ path: info.outputPath('trail-key-small-window.png') });
+});

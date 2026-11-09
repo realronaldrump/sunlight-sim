@@ -165,7 +165,7 @@ Characters are articulated CC0 human meshes dressed in custom winter clothing an
 
 The upper-left minimap follows your position while skiing and riding lifts. North stays up; the cyan arrow shows your ski heading, and nearby friends use their jacket colors. The header keeps your current run or lift visible. Difficulty-colored trails, run names, lifts and a distance scale help you choose a route.
 
-Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the trail map for an overview. Use the pause menu for teleport destinations. Clicking the minimap itself does not teleport you.
+Choose **Map only** to hide the header, trail key and zoom controls while keeping the live map on screen. Choose **Details** to bring them back. **V** hides or restores the whole minimap. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **M** opens the full trail map. Use the pause menu for teleport destinations. Clicking the minimap itself does not teleport you.
 
 ## Chairlift easter egg
 

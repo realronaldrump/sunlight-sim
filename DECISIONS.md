@@ -131,6 +131,7 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Place the panel in the upper left, below multiplayer room controls, with smaller layouts for short windows. V or the compact button hides/restores it. Remember visibility and zoom locally, and retain vector trails if the hillshade fails to load. Opening the full map hides the minimap until the full map closes.
 - The original checkout contains active, unfinished skier-model work. Implement and validate this bounded request in a managed worktree based on `1efa79e`, without copying the unrelated draft tests or art changes. Deploy the verified minimap revision to the existing `sunlight-sim` Vercel project.
 - Before release, merge the committed U.S. units and snow improvements from master so deployment preserves concurrent completed work. The initial metric minimap labels are superseded by the U.S. display decision above.
+- The minimap key uses Green, Blue, Black and Double Black with the matching trail symbols. Map only hides the surrounding header and footer while keeping the map, its labels, compass and scale visible. Remember this separately from the existing full-minimap visibility and zoom settings.
 
 ### Audio listener and neighboring skiers
 - The listener position stays at the skier's head while left/right bearing follows the camera view. This preserves the skier's own contact and airflow perspective when switching cameras. Open-air distance filtering replaces room reverb.

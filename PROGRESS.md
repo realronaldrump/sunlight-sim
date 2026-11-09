@@ -1,5 +1,10 @@
 # Progress
 
+## Minimap trail key and Map only (November 8, 2026)
+- The key shows Green, Blue, Black and Double Black with matching ski symbols. Map only hides the header, key and toolbar while keeping the live map, compass and scale visible. Details restores the controls. The browser remembers this choice separately from zoom and full minimap visibility.
+- Reviewed the expanded key, Map only view and short-window layout in Chromium. The new scenario passed in Chromium and WebKit, including a live trail change, keyboard restoration and a reload with older settings. The isolated production build, 131 unit tests and five pipeline checks passed.
+- Next: rebuild and verify the committed main snapshot, push main, then release and verify the public client.
+
 ## Lodge ski start (November 8, 2026)
 - Owner requests the real lodge start by the ski racks so they can ski down to either base lift. The old production start reproduced about 14 m behind Segundo's load line, facing the chair. The newer solo menu also had a separate on-foot rental-door default.
 - Initial desktop skiing and pause-menu return now share the open apron by the west rack, facing the clear slope past the lodge. The `?onfoot=1` diagnostic start still uses the rental door. Added a Chrome/Safari browser regression for the normal solo menu, push-off and pause-menu return.
