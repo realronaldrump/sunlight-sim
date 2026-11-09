@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { snowWindMix, sourcePan, terminalMix, type AudioState } from '../../client/src/audio/audioModel';
+import { snowWindMix, sourcePan, terminalMix, nearbySkierMix, type AudioState } from '../../client/src/audio/audioModel';
 import { AudioScene } from '../../client/src/audio/audioScene';
 import { createSkier } from '../../shared/skiPhysics';
 import { LiftPath, type LiftDef } from '../../shared/lifts';
@@ -50,6 +50,14 @@ describe('physical sound controls', () => {
     expect(b.cutoff).toBeLessThan(a.cutoff);
     expect(terminalMix(150).gain).toBe(0);
     expect(terminalMix(Infinity).gain).toBe(0);
+  });
+  it('makes nearby skiers audible only with moving snow contact, falling away with distance', () => {
+    const p = { active: true, distance: 3, pan: 0, speed: 12, skid: .3, groomed: 1 };
+    expect(nearbySkierMix(p).gain).toBeGreaterThan(.1);
+    expect(nearbySkierMix({ ...p, speed: 0 }).gain).toBe(0);
+    expect(nearbySkierMix({ ...p, active: false }).gain).toBe(0);
+    expect(nearbySkierMix({ ...p, distance: 51 }).gain).toBe(0);
+    expect(nearbySkierMix({ ...p, distance: 25 }).gain).toBeLessThan(nearbySkierMix(p).gain/5);
   });
 });
 

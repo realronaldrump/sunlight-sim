@@ -1,6 +1,6 @@
 // Field-recorded snow, winter air and machinery, with contact-driven Foley.
 // Provenance: public/audio/sources.json. Rebuild: pipeline/build_audio.py.
-import { clamp, snowWindMix, terminalMix, type AudioState } from './audioModel';
+import { clamp, snowWindMix, terminalMix, nearbySkierMix, type AudioState } from './audioModel';
 export type { AudioState } from './audioModel';
 
 const FILES = ['ski-glide', 'ski-edge', 'snow-soft', 'lift-motor', 'lift-cable', 'winter-air',
@@ -36,6 +36,7 @@ export class SkiAudio {
   assetsReady: Promise<void> = Promise.resolve();
   readonly loadedSamples = new Set<string>();
   readonly failedSamples = new Set<string>();
+  readonly sampleErrors = new Map<string, string>();
   private master!: GainNode;
   private output!: DynamicsCompressorNode;
   private wind!: Layer;
@@ -46,6 +47,7 @@ export class SkiAudio {
   private powder!: Layer;
   private slide!: Layer;
   private terminals = new Map<string, { motor: Layer; cable: Layer }>();
+  private skiers: { hard: Layer; soft: Layer }[] = [];
   private layers: Layer[] = [];
   private buffers = new Map<Sample, AudioBuffer>();
   private voices = new Set<Voice>();
@@ -147,7 +149,7 @@ export class SkiAudio {
   }
 
   private async loadSamples() {
-    await Promise.all(FILES.map(async sample => {
+    const load = async (sample: Sample) => {
       try {
         const response = await fetch(`${import.meta.env.BASE_URL}audio/${sample}.wav`, { signal: this.abort.signal });
         if (!response.ok) throw new Error(`Audio HTTP ${response.status}`);
@@ -156,10 +158,18 @@ export class SkiAudio {
         this.buffers.set(sample, buffer); this.loadedSamples.add(sample);
         for (const p of this.pending.filter(p => p.sample === sample)) this.addSource(p.layer, buffer, p.offset, true);
         this.pending = this.pending.filter(p => p.sample !== sample);
-      } catch {
-        if (!this.abort.signal.aborted) this.failedSamples.add(sample);
+      } catch (error) {
+        if (!this.abort.signal.aborted) {
+          this.failedSamples.add(sample);
+          this.sampleErrors.set(sample, error instanceof Error ? error.message : String(error));
+        }
         // A missing sample cannot stop gameplay or disable the procedural fallback.
       }
+    };
+    // Keep loading modest while the browser is also streaming terrain and textures.
+    let next = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (next < FILES.length && !this.abort.signal.aborted) await load(FILES[next++]);
     }));
   }
 
@@ -233,6 +243,23 @@ export class SkiAudio {
     }
     for (const [id, sound] of this.terminals) if (!present.has(id)) {
       this.control(sound.motor, 0, at); this.control(sound.cable, 0, at);
+    }
+    // A bounded pool follows actual nearby skiers, including multiplayer interpolation.
+    // No fixed pass-by clip or voices unrelated to people present in the scene.
+    const nearby = (s.skiers ?? []).filter(p => p.active && p.distance < 50 && p.speed > .15)
+      .sort((a,b) => a.distance-b.distance).slice(0,4);
+    for (let i = 0; i < Math.max(nearby.length, this.skiers.length); i++) {
+      let sound = this.skiers[i];
+      const skier = nearby[i];
+      if (!sound) {
+        sound = { hard: this.sampleLayer('ski-glide', 6000, 0, i*2.61+1.3),
+          soft: this.sampleLayer('snow-soft', 2500, 0, i*1.73+.7) };
+        this.skiers.push(sound);
+      }
+      if (!skier) { this.control(sound.hard, 0, at); this.control(sound.soft, 0, at); continue; }
+      const mix = nearbySkierMix(skier), hard = clamp(skier.groomed), rate = .85+.25*clamp(skier.speed/20);
+      this.control(sound.hard, mix.gain*(.25+.75*hard), at, mix.cutoff, rate, skier.pan);
+      this.control(sound.soft, mix.gain*(1-hard), at, Math.min(2300,mix.cutoff), rate, skier.pan);
     }
     if (!this.audible || s.discontinuity) return;
 

@@ -545,8 +545,16 @@ export class Game {
     const st = this.player.st;
     const surface = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
     const forward = this.camera.getWorldDirection(this.tmpV2);
+    const neighbors = this.ambient?.soundSources() ?? [];
+    for (const r of this.net?.remotes.values() ?? []) {
+      if (!r.last) continue;
+      const pos = r.model.root.position, state = r.last;
+      neighbors.push({ pos, speed: Math.hypot(state.vx, state.vy, state.vz), skid: state.plow,
+        groomed: this.surface?.at(pos.x, pos.z).groomed ?? 1,
+        active: !r.ride && state.mode !== 'air' && state.mode !== 'riding' });
+    }
     this.audio.update(dt, this.audioScene.sample(dt, st, this.player.ride,
-      this.lifts.paths, surface, forward, this.env.snowing));
+      this.lifts.paths, surface, forward, this.env.snowing, neighbors));
   }
 
   private modeLabel() {

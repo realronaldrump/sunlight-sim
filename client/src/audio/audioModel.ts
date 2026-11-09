@@ -1,6 +1,7 @@
 // Pure sound controls, separate from the Web Audio graph so physical transitions can be tested.
 export interface AudioPoint { x: number; y: number; z: number }
 export interface AudioTerminal { id: string; distance: number; pan: number; speed: number; variant: number }
+export interface NearbySkier { distance: number; pan: number; speed: number; skid: number; groomed: number; active: boolean }
 export interface AudioState {
   speed: number; skid: number; edge: number; grounded: boolean; groomed: number;
   moguls: number; plow: number; riding: boolean; nearTerminal: number;
@@ -8,6 +9,7 @@ export interface AudioState {
   tuck?: number; fallen?: boolean; snowing?: boolean; altitude?: number;
   impact?: number; landing?: number; boarded?: boolean; unloaded?: boolean;
   discontinuity?: boolean; liftSpeed?: number; terminals?: AudioTerminal[];
+  skiers?: NearbySkier[];
 }
 
 export const clamp = (x: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number.isFinite(x) ? x : lo));
@@ -29,6 +31,14 @@ export function sourcePan(listener: AudioPoint, forward: AudioPoint, source: Aud
   return n > 1e-6 ? clamp((-forward.z*dx + forward.x*dz)/n, -1, 1) * .92 : 0;
 }
 
+export function nearbySkierMix(s: NearbySkier) {
+  const moving = smooth((s.speed-.15)/3), d = Math.max(0, s.distance);
+  return {
+    gain: s.active ? moving*(.24+.18*clamp(s.skid)) / (1+(d/3.5)**1.65) * (1-smooth((d-30)/20)) : 0,
+    cutoff: 650+7000*Math.exp(-d/17),
+  };
+}
+
 export function snowWindMix(s: AudioState, time: number) {
   const speed = clamp(s.riding ? (s.liftSpeed ?? 2.3) : s.speed, 0, 60);
   const moving = smooth((speed-.08)/2.2);
@@ -43,9 +53,9 @@ export function snowWindMix(s: AudioState, time: number) {
   const exposure = clamp(((s.altitude ?? 2700)-2450)/850);
   const airflow = Math.min(1.6, (speed/23)**1.65) * (1-.38*tuck);
   return {
-    wind: (.014 + .27*airflow) * gust,
+    wind: (.012 + .20*airflow) * gust,
     windCutoff: 280 + 2100*clamp(airflow),
-    breeze: (.045 + .025*exposure + (s.snowing ? .012 : 0) + (s.riding ? .012 : 0)) * gust,
+    breeze: (.025 + .015*exposure + (s.snowing ? .008 : 0) + (s.riding ? .008 : 0)) * gust,
     glide: contact * (.12+.17*pace) * (.35+.65*hard) * (1-.62*displacement) * sliding,
     edge: contact * pace * hard * loading * (1-.7*displacement) * .24 * sliding,
     scrape: contact * (.12+.44*pace) * displacement * (.35+.65*hard) * sliding,

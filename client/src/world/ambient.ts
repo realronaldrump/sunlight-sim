@@ -22,6 +22,13 @@ export class AmbientSkiers {
     this.runs = runs.filter((r) => r.kind === 'line' && ['green', 'blue', 'black'].includes(r.difficulty) && r.points.length > 3);
   }
 
+  /** Read-only contacts for spatial pass-by sound; uses the same state as the visible skiers. */
+  soundSources() {
+    return this.agents.map(a => ({ pos: a.st.pos, speed: a.st.speed, skid: a.st.skid,
+      groomed: this.probe.surface(a.st.pos.x, a.st.pos.z).groomed,
+      active: a.st.grounded && a.st.mode !== 'riding' && a.st.mode !== 'air' }));
+  }
+
   private spawn(near: THREE.Vector3, agent?: Agent): Agent | null {
     const cands = this.runs.filter((r) => {
       const p = r.points[0];

@@ -3,13 +3,14 @@ import type { SkierState, SurfaceInfo } from '../../../shared/skiPhysics';
 import { sourcePan, type AudioPoint, type AudioState } from './audioModel';
 
 interface Ride { lift: number; chair: number }
+export interface SkierSoundSource { pos: AudioPoint; speed: number; skid: number; groomed: number; active: boolean }
 
 /** Derives events from continuous travel, suppressing teleports and skipped rides. */
 export class AudioScene {
   private previous: { pos: AudioPoint; ride: string; h: number; grounded: boolean; mode: string; normalSpeed: number; airTime: number } | null = null;
 
   sample(dt: number, st: SkierState, ride: Ride | null, paths: LiftPath[], surf: SurfaceInfo,
-    forward: AudioPoint, snowing: boolean): AudioState {
+    forward: AudioPoint, snowing: boolean, neighbors: SkierSoundSource[] = []): AudioState {
     const prev = this.previous;
     const key = ride ? `${ride.lift}:${ride.chair}` : '';
     const path = ride ? paths[ride.lift] : null;
@@ -41,6 +42,9 @@ export class AudioScene {
       boarded: !discontinuity && !!ride && !prev?.ride,
       unloaded: !discontinuity && !ride && !!prev?.ride,
       discontinuity, liftSpeed: path?.def.speed, terminals,
+      skiers: neighbors.map(p => ({ speed: p.speed, skid: p.skid, groomed: p.groomed, active: p.active,
+        distance: Math.hypot(p.pos.x-listener.x, p.pos.y-listener.y, p.pos.z-listener.z),
+        pan: sourcePan(listener, forward, p.pos) })),
     };
     this.previous = { pos: { ...st.pos }, ride: key, h, grounded: st.grounded, mode: st.mode, normalSpeed, airTime };
     return result;

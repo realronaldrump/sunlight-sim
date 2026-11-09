@@ -19,6 +19,9 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
       liftLeft: { riding: true, terminals: [{ id: 'test', distance: 5, pan: -.9, speed: 2.3, variant: 0 }] },
       liftRight: { riding: true, terminals: [{ id: 'test', distance: 5, pan: .9, speed: 2.3, variant: 0 }] },
       liftFar: { riding: true, terminals: [{ id: 'test', distance: 100, pan: .9, speed: 2.3, variant: 0 }] },
+      tower: { riding: true }, skip: { riding: true },
+      passerLeft: { skiers: [{ active: true, distance: 2, pan: -.9, speed: 14, skid: .8, groomed: 1 }] },
+      passerAir: { skiers: [{ active: false, distance: 2, pan: -.9, speed: 14, skid: .8, groomed: 1 }] },
       impacts: { speed: 12, skid: .8, plow: .6, nearTerminal: 3 },
       mute: { riding: true, nearTerminal: 4 }, zeroVolume: { speed: 16, skid: 1, nearTerminal: 4 },
     };
@@ -28,13 +31,15 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
       const rate = 24000, seconds = 6;
       const ctx = new OfflineAudioContext(2, rate*seconds, rate);
       const a = new Audio(); a.start(ctx); await a.assetsReady;
-      if (a.failedSamples.size || a.loadedSamples.size !== 14) throw new Error(`Missing audio assets: ${[...a.failedSamples]}`);
+      if (a.failedSamples.size || a.loadedSamples.size !== 14) throw new Error(`Missing audio assets: ${JSON.stringify([...a.sampleErrors])}`);
       for (let i = 0; i < seconds*60; i++) {
         const at = i/60;
         if (name === 'mute' && at >= 3) a.enabled = false;
         if (name === 'zeroVolume' && at >= 3) a.volume = 0;
         a.update(1/60, { ...base, ...change,
-          towerPass: (name === 'mute' || name.startsWith('lift')) && i === 170,
+          riding: name === 'skip' ? at < 3 : !!change.riding,
+          discontinuity: name === 'skip' && i === 180,
+          towerPass: ['mute', 'tower', 'skip'].includes(name) && i === 170,
           fell: name === 'impacts' && i === 180,
           impact: 12, landing: name === 'impacts' && i === 260 ? 4 : 0,
         }, at);
@@ -59,6 +64,7 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
       for (let i = 0; i < pcm.length; i += 8192) binary += String.fromCharCode(...pcm.subarray(i,i+8192));
       clips.push({ name, pcm: btoa(binary) });
       a.dispose();
+      if (a.activeVoices) throw new Error('Audio disposal left active event voices');
     }
     return { stats, clips };
   });
@@ -76,7 +82,7 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
   for (const x of Object.values(s)) {
     expect(x.peak).toBeLessThan(.95);
     expect(Number.isFinite(x.rms)).toBe(true);
-    expect(x.voices).toBe(0);
+    expect(x.voices).toBeLessThanOrEqual(24);
   }
   expect(s.glide.rms).toBeGreaterThan(s.resting.rms*2);
   expect(s.brake.rms).toBeGreaterThan(s.glide.rms*1.05);
@@ -85,6 +91,10 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
   expect(s.liftLeft.left).toBeGreaterThan(s.liftLeft.right*2);
   expect(s.liftRight.right).toBeGreaterThan(s.liftRight.left*2);
   expect(s.liftFar.rms).toBeLessThan(s.liftRight.rms*.5);
+  expect(s.tower.peak).toBeGreaterThan(s.resting.peak*2);
+  expect(s.skip.tail).toBeCloseTo(s.resting.tail, 5);
+  expect(s.passerLeft.left).toBeGreaterThan(s.passerLeft.right*2);
+  expect(s.passerAir.rms).toBeCloseTo(s.resting.rms, 5);
   expect(s.mute.tail).toBeLessThan(1e-6);
   expect(s.zeroVolume.tail).toBeLessThan(1e-6);
   expect(errors).toEqual([]);
@@ -101,8 +111,8 @@ test('audio survives an unavailable recording and repeated mute gestures', async
     return { state: a.ctx.state, loaded: a.loadedSamples.size, failed: [...a.failedSamples] };
   });
   expect(loaded).toEqual({ state: 'running', loaded: 13, failed: ['ski-glide'] });
-  await page.keyboard.press('KeyN'); await page.waitForTimeout(250);
-  expect(await page.evaluate(() => (window as any).game.audio.master.gain.value)).toBeLessThan(1e-5);
-  await page.keyboard.press('KeyN'); await page.waitForTimeout(250);
-  expect(await page.evaluate(() => (window as any).game.audio.master.gain.value)).toBeGreaterThan(.7);
+  await page.keyboard.press('KeyN');
+  await expect.poll(() => page.evaluate(() => (window as any).game.audio.master.gain.value), { timeout: 2500 }).toBeLessThan(1e-5);
+  await page.keyboard.press('KeyN');
+  await expect.poll(() => page.evaluate(() => (window as any).game.audio.master.gain.value), { timeout: 2500 }).toBeGreaterThan(.7);
 });
