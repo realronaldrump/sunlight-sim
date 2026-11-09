@@ -109,6 +109,9 @@ export function buildSunlightStructure(b:BuildingDef,height:(x:number,z:number)=
   // This footprint is Tercero's partly buried drive vault, not an above-ground
   // red modular cabin. The lift model supplies its low exterior and collisions.
   if (b.id === 789106639) { const g = new THREE.Group(); g.name = 'tercero-vault-rendered-with-lift'; return g; }
+  // OSM traced this footprint from summer imagery: it is the summer event tent on the snow south of the deck
+  // (owner correction). In winter the spot is open snow with the ski racks, as in the reference photos.
+  if (b.id === 789088639) { const g = new THREE.Group(); g.name = 'summer-event-tent-not-in-winter'; return g; }
   if(b.style==='sunlight_lodge')return buildMainLodge(b,height,colliders);
   if(b.style==='brettelberg')return condos(b,height,colliders);
   if(b.style==='base_modular') {

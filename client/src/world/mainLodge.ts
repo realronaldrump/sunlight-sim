@@ -72,9 +72,46 @@ const concreteFloor = () => canvasTex(256, 256, (g) => {
   g.fillStyle = 'rgba(40,40,40,0.35)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256);
 });
 const deckBoards = () => canvasTex(512, 256, (g) => {
-  const r = rng(53);
-  for (let y = 0; y < 256; y += 18) { const b = 100 + r() * 30; g.fillStyle = `rgb(${b + 30 | 0},${b + 5 | 0},${b * 0.7 | 0})`; g.fillRect(0, y, 512, 15); g.fillStyle = 'rgba(30,20,12,0.9)'; g.fillRect(0, y + 15, 512, 3); }
+  const r = rng(53); // stained a dark red-brown like the 2020 deck photos
+  for (let y = 0; y < 256; y += 18) { const b = 70 + r() * 22; g.fillStyle = `rgb(${b + 42 | 0},${b - 8 | 0},${b * 0.62 | 0})`; g.fillRect(0, y, 512, 15); g.fillStyle = 'rgba(30,14,10,0.9)'; g.fillRect(0, y + 15, 512, 3); }
 });
+/** Horizontal lap siding: `base` board colour, 0.2 m exposure (texture spans 2 m). */
+const lapSiding = (base: [number, number, number], seed: number) => canvasTex(256, 256, (g) => {
+  const r = rng(seed);
+  for (let y = 0; y < 256; y += 25.6) {
+    const k = 0.94 + r() * 0.1;
+    g.fillStyle = `rgb(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0})`; g.fillRect(0, y, 256, 25.6);
+    for (let i = 0; i < 10; i++) { g.fillStyle = `rgba(80,50,25,${r() * 0.08})`; g.fillRect(0, y + r() * 24, 256, 1); }
+    g.fillStyle = 'rgba(40,25,12,0.45)'; g.fillRect(0, y + 22.6, 256, 3);
+    g.fillStyle = 'rgba(255,240,210,0.18)'; g.fillRect(0, y, 256, 1.5);
+  }
+});
+/** Vertical board-and-batten in a dark red-brown stain (the small deck buildings). */
+const boardBatten = (base: [number, number, number], seed: number) => canvasTex(256, 256, (g) => {
+  const r = rng(seed);
+  for (let x = 0; x < 256; x += 32) {
+    const k = 0.9 + r() * 0.16;
+    g.fillStyle = `rgb(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0})`; g.fillRect(x, 0, 32, 256);
+    for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(20,8,5,${r() * 0.12})`; g.fillRect(x + r() * 30, 0, 1, 256); }
+    g.fillStyle = 'rgba(15,6,4,0.55)'; g.fillRect(x + 28, 0, 4, 256);
+    g.fillStyle = `rgb(${base[0] * 1.08 | 0},${base[1] * 1.08 | 0},${base[2] * 1.08 | 0})`; g.fillRect(x + 29, 0, 3, 256);
+  }
+});
+/** The painted wall sign: a rising sun inside a blue arc over a lowercase wordmark. Drawn here, transparent around it. */
+const wallLogo = () => canvasTex(1024, 512, (g) => {
+  const cx = 512, cy = 205;
+  g.lineCap = 'butt';
+  g.strokeStyle = '#2d63b4'; g.lineWidth = 30; g.beginPath(); g.arc(cx, cy, 158, Math.PI, 0); g.stroke();
+  g.strokeStyle = '#7a4fa0'; g.lineWidth = 10; g.beginPath(); g.arc(cx, cy, 136, Math.PI, 0); g.stroke();
+  for (let i = 0; i < 13; i++) {
+    const a0 = Math.PI + (i + 0.12) / 13 * Math.PI, a1 = Math.PI + (i + 0.88) / 13 * Math.PI;
+    g.fillStyle = i % 2 ? '#f6b21b' : '#ffd23a';
+    g.beginPath(); g.moveTo(cx + Math.cos(a0) * 64, cy + Math.sin(a0) * 64); g.lineTo(cx + Math.cos((a0 + a1) / 2) * 126, cy + Math.sin((a0 + a1) / 2) * 126); g.lineTo(cx + Math.cos(a1) * 64, cy + Math.sin(a1) * 64); g.fill();
+  }
+  g.fillStyle = '#f8b51e'; g.beginPath(); g.arc(cx, cy, 62, Math.PI, 0); g.fill();
+  g.fillStyle = '#2b2c30'; g.font = 'bold 205px "Arial Rounded MT Bold", "Helvetica Neue", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillText('sunlight', cx, 420, 980);
+}, false);
 function signTex(lines: { text: string; size: number; color?: string; y: number; font?: string }[], bg: string, w = 1024, h = 256, logo = false) {
   return canvasTex(w, h, (g) => {
     g.fillStyle = bg; g.fillRect(0, 0, w, h);
@@ -87,6 +124,20 @@ function signTex(lines: { text: string; size: number; color?: string; y: number;
     for (const l of lines) { g.fillStyle = l.color ?? '#222'; g.font = l.font ?? `bold ${l.size}px Helvetica, Arial, sans-serif`; g.textAlign = logo ? 'left' : 'center'; g.textBaseline = 'middle'; g.fillText(l.text, logo ? 260 : w / 2, l.y, w - 60); }
   }, false);
 }
+
+/** A trail map board: a stylised drawing of the mountain with coloured runs (not the resort's map artwork). */
+const trailBoard = () => canvasTex(512, 384, (g) => {
+  const r = rng(83);
+  g.fillStyle = '#f1ede2'; g.fillRect(0, 0, 512, 384);
+  g.fillStyle = '#1f4f8f'; g.fillRect(0, 0, 512, 46);
+  g.fillStyle = '#ffffff'; g.font = 'bold 30px Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SUNLIGHT MOUNTAIN', 256, 24);
+  g.fillStyle = '#dfe7ee'; g.beginPath(); g.moveTo(10, 370); g.lineTo(140, 120); g.lineTo(230, 170); g.lineTo(330, 70); g.lineTo(500, 230); g.lineTo(500, 370); g.fill();
+  for (let i = 0; i < 260; i++) { const x = 20 + r() * 470, y = 100 + r() * 270; g.fillStyle = 'rgba(40,85,50,0.55)'; g.beginPath(); g.arc(x, y, 3 + r() * 3, 0, 6.3); g.fill(); }
+  const run = (pts: number[][], c: string) => { g.strokeStyle = c; g.lineWidth = 5; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) g.lineTo(p[0], p[1]); g.stroke(); };
+  run([[330, 75], [300, 170], [250, 260], [230, 360]], '#2f9e44'); run([[330, 75], [370, 180], [330, 280], [260, 360]], '#1f6fd1');
+  run([[140, 125], [170, 220], [200, 330]], '#1f6fd1'); run([[330, 75], [420, 160], [440, 260]], '#111111'); run([[230, 170], [215, 260], [205, 350]], '#111111');
+  g.strokeStyle = '#c0392b'; g.lineWidth = 3; g.setLineDash([8, 6]); g.beginPath(); g.moveTo(240, 362); g.lineTo(330, 80); g.stroke(); g.setLineDash([]);
+});
 
 // ---------------------------------------------------------------- materials
 interface Lamp { p: THREE.Vector3; i: number }
@@ -116,6 +167,13 @@ function finishInterior(m: THREE.MeshStandardNodeMaterial) {
   m.aoNode = float(m.userData.sky);
 }
 
+/** Exterior textured surface with world-scale planar UVs (boards keep their real size). */
+function exterior(opts: { map: THREE.Texture; roughness?: number; worldUV: number }) {
+  const m = new THREE.MeshStandardNodeMaterial({ map: opts.map, roughness: opts.roughness ?? 0.85 });
+  m.userData.worldUV = opts.worldUV;
+  return m;
+}
+
 const stucco = (hex: number, sc = 3) => {
   const m = new THREE.MeshStandardNodeMaterial({ color: hex, roughness: 0.93 });
   const c = new THREE.Color(hex);
@@ -138,10 +196,33 @@ function materials() {
     redDoor: new THREE.MeshStandardNodeMaterial({ color: 0xa0262a, roughness: 0.55 }),
     steel: new THREE.MeshStandardNodeMaterial({ color: 0x9aa0a4, roughness: 0.35, metalness: 0.85 }),
     hvac: new THREE.MeshStandardNodeMaterial({ color: 0xb5b3aa, roughness: 0.6, metalness: 0.4 }),
-    deck: new THREE.MeshStandardNodeMaterial({ map: deckBoards(), roughness: 0.92 }),
-    deckRail: new THREE.MeshStandardNodeMaterial({ color: 0x6b4630, roughness: 0.88 }),
-    awning: new THREE.MeshStandardNodeMaterial({ color: 0xa3302a, roughness: 0.85, side: THREE.DoubleSide }),
-    picnic: new THREE.MeshStandardNodeMaterial({ color: 0x7a5a3c, roughness: 0.9 }),
+    deck: exterior({ map: deckBoards(), roughness: 0.92, worldUV: 3 }),
+    deckRail: new THREE.MeshStandardNodeMaterial({ color: 0x7a3326, roughness: 0.85 }),
+    picnic: new THREE.MeshStandardNodeMaterial({ color: 0x6e4a32, roughness: 0.9 }),
+    picnicTop: new THREE.MeshStandardNodeMaterial({ color: 0x2f7a62, roughness: 0.7 }),
+    // storefront and false-front details from the 2010 and 2020 reference photos
+    maroon: new THREE.MeshStandardNodeMaterial({ color: 0x6a1d1b, roughness: 0.7 }),
+    olive: new THREE.MeshStandardNodeMaterial({ color: 0x77754a, roughness: 0.6, metalness: 0.2 }),
+    cedar: new THREE.MeshStandardNodeMaterial({ color: 0x9a5a2c, roughness: 0.55 }),
+    oak: new THREE.MeshStandardNodeMaterial({ color: 0xc69a62, roughness: 0.5 }),
+    redTrim: new THREE.MeshStandardNodeMaterial({ color: 0x9a2a22, roughness: 0.65 }),
+    siding: exterior({ map: lapSiding([206, 172, 124], 61), roughness: 0.85, worldUV: 2 }),
+    darkSiding: exterior({ map: lapSiding([86, 58, 40], 67), roughness: 0.9, worldUV: 2 }),
+    battens: exterior({ map: boardBatten([96, 42, 32], 71), roughness: 0.9, worldUV: 2 }),
+    blueRoof: new THREE.MeshStandardNodeMaterial({ color: 0x2c5fa6, roughness: 0.45, metalness: 0.45 }),
+    brownRoof: new THREE.MeshStandardNodeMaterial({ color: 0x4a3326, roughness: 0.55, metalness: 0.4 }),
+    greenRoof: new THREE.MeshStandardNodeMaterial({ color: 0x3e6a5c, roughness: 0.5, metalness: 0.4 }),
+    canopy: new THREE.MeshStandardNodeMaterial({ color: 0xc9cdcf, roughness: 0.8, side: THREE.DoubleSide }),
+    galv: new THREE.MeshStandardNodeMaterial({ color: 0xa7acaf, roughness: 0.38, metalness: 0.8 }),
+    yellow: new THREE.MeshStandardNodeMaterial({ color: 0xe0b022, roughness: 0.5 }),
+    dish: new THREE.MeshStandardNodeMaterial({ color: 0xe4e6e4, roughness: 0.5, side: THREE.DoubleSide }),
+    wheel: new THREE.MeshStandardNodeMaterial({ color: 0x5a3f2c, roughness: 0.8 }),
+    patio: new THREE.MeshStandardNodeMaterial({ color: 0x2b2a28, roughness: 0.5, metalness: 0.5 }),
+    bin: new THREE.MeshStandardNodeMaterial({ color: 0x2f4d4a, roughness: 0.55 }),
+    skiA: new THREE.MeshStandardNodeMaterial({ color: 0xd4dce3, roughness: 0.35 }),
+    skiB: new THREE.MeshStandardNodeMaterial({ color: 0x23262b, roughness: 0.35 }),
+    skiC: new THREE.MeshStandardNodeMaterial({ color: 0xc23a2e, roughness: 0.35 }),
+    skiD: new THREE.MeshStandardNodeMaterial({ color: 0x2f6db5, roughness: 0.35 }),
     // interior
     pineWall: interior({ map: pine(), worldUV: 2 }),
     sage: interior({ color: 0x8a9b78, roughness: 0.92 }),
@@ -228,7 +309,7 @@ class Kit {
 }
 
 // ---------------------------------------------------------------- walls with openings
-interface Opening { a: number; b: number; y0: number; y1: number; door?: boolean; dark?: boolean; mullions?: number }
+interface Opening { a: number; b: number; y0: number; y1: number; door?: boolean; dark?: boolean; mullions?: number; frame?: THREE.Material; transom?: number }
 /**
  * Wall along an axis. `axis` 'x' runs from u0 to u1 in x at z = w; 'z' runs in z at x = w. `out` is +1 when the
  * exterior face is on the +w side. Openings cut real holes; windows get frames, mullions and glass.
@@ -259,9 +340,13 @@ function wall(k: Kit, axis: 'x' | 'z', u0: number, u1: number, w: number, out: 1
     piece(o.a, o.b, y0, o.y0); // sill wall
     piece(o.a, o.b, o.y1, y1); // header
     // frame and glazing
-    const fm = M.bronze, f = 0.07, mid = w - out * t * 0.45;
+    const fm = o.frame ?? M.bronze, f = 0.07, mid = w - out * t * 0.45;
     const F = (a: number, b: number, ya: number, yb: number) => B(fm, a, b, ya, yb, mid - 0.05, mid + 0.05);
     F(o.a, o.a + f, o.y0, o.y1); F(o.b - f, o.b, o.y0, o.y1); F(o.a, o.b, o.y1 - f, o.y1);
+    if (o.transom) {
+      F(o.a, o.b, o.transom - f / 2, o.transom + f / 2);
+      if (o.door) B(M.glass, o.a + f, o.b - f, o.transom + f / 2, o.y1 - f, mid - 0.012, mid + 0.012);
+    }
     if (!o.door) {
       F(o.a, o.b, o.y0, o.y0 + f);
       const n = o.mullions ?? Math.max(1, Math.round((o.b - o.a) / 1.4));
@@ -274,7 +359,7 @@ function wall(k: Kit, axis: 'x' | 'z', u0: number, u1: number, w: number, out: 1
       // glazed door leaves standing open, perpendicular to the wall on the inside
       const leaf = Math.min(0.95, (o.b - o.a) / (o.b - o.a > 1.3 ? 2 : 1));
       const hinge = (u: number) => {
-        const ya = o.y0 + 0.02, yb = o.y1 - 0.04, ia = inner, ib = inner - out * leaf;
+        const ya = o.y0 + 0.02, yb = (o.transom ?? o.y1) - 0.04, ia = inner, ib = inner - out * leaf;
         if (axis === 'x') { k.box(M.bronze, u - 0.03, u + 0.03, ya, yb, Math.min(ia, ib), Math.max(ia, ib)); k.box(M.glass, u - 0.01, u + 0.01, ya + 0.1, yb - 0.1, Math.min(ia, ib) + 0.08, Math.max(ia, ib) - 0.08); }
         else { k.box(M.bronze, Math.min(ia, ib), Math.max(ia, ib), ya, yb, u - 0.03, u + 0.03); k.box(M.glass, Math.min(ia, ib) + 0.08, Math.max(ia, ib) - 0.08, ya + 0.1, yb - 0.1, u - 0.01, u + 0.01); }
       };
@@ -335,11 +420,12 @@ function diningTable(k: Kit, x: number, y: number, z: number, ry: number, seats:
 }
 function picnicTable(k: Kit, x: number, y: number, z: number, ry: number) {
   const M = k.M, m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(1, 1, 1));
-  const part = (w: number, h: number, d: number, px: number, py: number, pz: number, rx = 0) => {
-    const g = new THREE.BoxGeometry(w, h, d); if (rx) g.rotateX(rx); g.translate(px, py, pz); k.add(g, M.picnic, m);
+  const part = (w: number, h: number, d: number, px: number, py: number, pz: number, rx = 0, mat: THREE.Material = M.picnic) => {
+    const g = new THREE.BoxGeometry(w, h, d); if (rx) g.rotateX(rx); g.translate(px, py, pz); k.add(g, mat, m);
   };
-  for (let i = 0; i < 4; i++) part(1.8, 0.04, 0.17, 0, 0.75, -0.27 + i * 0.18);
-  for (const s of [-1, 1]) { part(1.8, 0.04, 0.26, 0, 0.45, s * 0.72); for (const e of [-0.65, 0.65]) { part(0.07, 0.95, 0.07, e, 0.42, s * 0.36, s * 0.5); } part(0.07, 0.07, 1.7, e0(s), 0.42, 0); }
+  // green-painted tops and benches on a brown frame, as on the Sunlight deck
+  for (let i = 0; i < 4; i++) part(1.8, 0.04, 0.17, 0, 0.75, -0.27 + i * 0.18, 0, M.picnicTop);
+  for (const s of [-1, 1]) { part(1.8, 0.04, 0.26, 0, 0.45, s * 0.72, 0, M.picnicTop); for (const e of [-0.65, 0.65]) { part(0.07, 0.95, 0.07, e, 0.42, s * 0.36, s * 0.5); } part(0.07, 0.07, 1.7, e0(s), 0.42, 0); }
   function e0(s: number) { return s * 0.65; }
   const seats: { x: number; z: number; h: number }[] = [];
   for (const s of [-1, 1]) for (const e of [-0.45, 0.45]) {
@@ -349,22 +435,89 @@ function picnicTable(k: Kit, x: number, y: number, z: number, ry: number) {
   return seats;
 }
 
+/** Square metal patio table with four slat-back chairs (the east deck in the 2020 photos). */
+function patioSet(k: Kit, x: number, y: number, z: number) {
+  const M = k.M, seats: { x: number; z: number; h: number }[] = [];
+  k.box(M.patio, x - 0.42, x + 0.42, y + 0.72, y + 0.75, z - 0.42, z + 0.42);
+  k.cyl(M.patio, 0.03, 0.03, x, y, y + 0.72, z, 6); k.box(M.patio, x - 0.3, x + 0.3, y, y + 0.03, z - 0.04, z + 0.04); k.box(M.patio, x - 0.04, x + 0.04, y, y + 0.03, z - 0.3, z + 0.3);
+  for (const [dx, dz] of [[0.68, 0], [-0.68, 0], [0, 0.68], [0, -0.68]]) {
+    const h = Math.atan2(dx, dz), m = new THREE.Matrix4().compose(new THREE.Vector3(x + dx, y, z + dz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, h, 0)), new THREE.Vector3(1, 1, 1));
+    const part = (w: number, hh: number, d: number, px: number, py: number, pz: number) => { const g = new THREE.BoxGeometry(w, hh, d); g.translate(px, py, pz); k.add(g, M.patio, m); };
+    part(0.44, 0.03, 0.42, 0, 0.45, 0);
+    for (const [lx, lz] of [[-0.19, -0.18], [0.19, -0.18], [-0.19, 0.18], [0.19, 0.18]]) part(0.025, 0.45, 0.025, lx, 0.225, lz);
+    for (const lx of [-0.19, 0.19]) part(0.025, 0.42, 0.025, lx, 0.66, 0.19);
+    for (const yy of [0.62, 0.72, 0.82]) part(0.4, 0.04, 0.02, 0, yy, 0.19);
+    seats.push({ x: x + dx, z: z + dz, h: h + Math.PI });
+  }
+  return seats;
+}
+/** A pair of skis (or a board) leaning on a rack rail: base at (x, y, z), leaning toward +x by `lean`. */
+function leaningSkis(k: Kit, mat: THREE.Material, x: number, y: number, z: number, lean: number, board = false) {
+  const len = board ? 1.5 : 1.68, w = board ? 0.25 : 0.068;
+  for (const off of board ? [0] : [-0.038, 0.038]) {
+    const g = new THREE.BoxGeometry(0.02, len, w); g.translate(0, len / 2, 0); g.rotateZ(-lean); g.translate(x, y, z + off); k.add(g, mat);
+  }
+}
+/** A wagon wheel hung flat on a wall facing +x. */
+function wagonWheel(k: Kit, x: number, y: number, z: number, r = 0.42) {
+  const M = k.M;
+  const rim = new THREE.TorusGeometry(r, 0.035, 5, 28); rim.rotateY(Math.PI / 2); rim.translate(x, y, z); k.add(rim, M.wheel);
+  const hub = new THREE.CylinderGeometry(0.07, 0.07, 0.1, 10); hub.rotateZ(Math.PI / 2); hub.translate(x, y, z); k.add(hub, M.wheel);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; k.obox(M.wheel, 0.03, r, 0.035, x, y + Math.cos(a) * r / 2, z + Math.sin(a) * r / 2, 0, a); }
+}
+/** A small satellite dish on a short mast, facing roughly south-west (toward +x). */
+function satelliteDish(k: Kit, x: number, y: number, z: number, r = 0.4) {
+  const M = k.M;
+  k.cyl(M.steel, 0.025, 0.025, x, y, y + 0.75, z, 6);
+  // a spherical cap whose hollow faces south-west and a little up
+  const d = new THREE.SphereGeometry(r, 16, 6, 0, Math.PI * 2, 0, 0.55); d.rotateZ(Math.PI / 2 + 0.5); d.rotateY(-0.6); d.translate(x + 0.3 * r / 0.4, y + 0.95, z + 0.2 * r / 0.4); k.add(d, M.dish);
+}
+/**
+ * Extrude a polygon given as (u, y) points. axis 'x': a wall at constant x from w0 to w1 spanning lodge z (u = -z);
+ * axis 'z': a wall at constant z from w0 to w1 spanning lodge x (u = x).
+ */
+function prism(k: Kit, mat: THREE.Material, pts: [number, number][], axis: 'x' | 'z', w0: number, w1: number) {
+  const s = new THREE.Shape(pts.map(([u, y]) => new THREE.Vector2(u, y)));
+  const g = new THREE.ExtrudeGeometry(s, { depth: w1 - w0, bevelEnabled: false });
+  const m = new THREE.Matrix4();
+  if (axis === 'z') m.makeTranslation(0, 0, w0);
+  else m.set(0, 0, 1, w0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1);
+  k.add(g, mat, m);
+}
+
 // ---------------------------------------------------------------- the lodge
 const LODGE = { cx: 115.5, cz: -961, yaw: -1.83 };
 const HX = 15.5, HZ = 7.75, T = 0.3;
 const UP_CEIL = 3.15, ROOF = 3.7, LOW = -3.4, LOW_END = -1.0;
 const EAST = { x0: 1.6, x1: 13.6, z0: -13.8, top: 6.6 };
-const ANNEX = { x0: 12.5, x1: 22.5, z0: HZ, z1: 17.5, top: 3.9 };
-const DECK_S = { x0: HX, x1: 21.0, z0: -6.8, z1: HZ, y: -0.12 };
+// South side, from the owner's 2010 and 2020 photos (layout and sizes are estimates, DECISIONS.md D29):
+// the single-storey west annex (signed wing, then a lower wing under a blue shed roof), the storefront
+// arcade, the wood-framed sunroom, and the open gable canopy over the west end of the deck.
+const ANNEX = { x0: 6.5, x1: 17.0, z0: HZ, zm: 12.9, z1: 18.5 };
+const SUNROOM = { x0: EAST.x1, x1: 17.0, z0: EAST.z0, z1: -HZ };
+const ARCADE = { x: 17.0, col: 16.55, cols: [-5.0, -2.4, 0.2, 2.8, 5.4] };
+const DECK_Y = -0.02, DECK_EDGE = 22.6, DECK_EAST = -17.6;
+const CANOPY = { x0: 17.0, x1: 25.4, z0: 7.2, z1: 18.6, eave: 2.9, ridge: 5.0 };
 const DECK_W = { x0: -4.5, x1: 5.0, z0: HZ, z1: 14.0, y: -0.1 };
-const SKI_RACK_X = 24.6;
-const WEST_RACK = [7, 11] as const;
+const RACK_X = 26.6;
+// racks run along lodge z: [x, z0, z1, banner, side people stand on]; the last is on the snow west of the canopy
+const RACKS: [number, number, number, string, 1 | -1][] = [[RACK_X, -15.5, -11.3, 'SKI & RIDE SCHOOL', -1], [RACK_X, -4.2, 0.0, 'GRIZZ GRILL & BARISTA', -1], [RACK_X, 2.5, 6.7, "TODD'S TAVERN", -1], [17.0, 21.5, 25.7, 'SUNLIGHT MOUNTAIN', 1]];
 
-// Start on the open snow just beyond the west rack, facing past the lodge toward the base slopes.
+// Start on the gentle snow beside the west rack, just past the canopy, facing down toward the base lifts with
+// the chase camera clear of the canopy roof.
 export const LODGE_SKI_START = {
-  ...toWorld(LODGE, SKI_RACK_X, WEST_RACK[1] + 3),
-  heading: headingFromDir(-1, -0.45),
+  ...toWorld(LODGE, 22.5, 23.0),
+  heading: headingFromDir(-0.6, -1),
 };
+
+/** World footprints of the lodge's annex, decks, canopy and small east buildings (trees are kept out of them). */
+export function lodgeSiteFootprints(): { points: number[][] }[] {
+  const m = 0.8, rects = [
+    [ANNEX.x0, ANNEX.x1, ANNEX.z0, ANNEX.z1], [CANOPY.x0, CANOPY.x1, CANOPY.z0, CANOPY.z1 + 3], [EAST.x0, DECK_EDGE, DECK_EAST, CANOPY.z0],
+    [DECK_W.x0, DECK_W.x1, DECK_W.z0, DECK_W.z1 + 5.5], [16.5, 22.0, -22.6, -17.85], [10.3, 23.5, -38.5, -24.3], [16.4, 17.6, 21.5, 25.7],
+  ];
+  return rects.map(([x0, x1, z0, z1]) => ({ points: [[x0 - m, z0 - m], [x1 + m, z0 - m], [x1 + m, z1 + m], [x0 - m, z1 + m]].map(([lx, lz]) => { const w = toWorld(LODGE, lx, lz); return [w.x, w.z]; }) }));
+}
 
 export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) => number, colliders: ColliderGrid) {
   const F = b.roofElevation ? b.roofElevation - ROOF : height(LODGE.cx, LODGE.cz) + 0.3;
@@ -434,23 +587,37 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
   const gN = Math.min(ground(-HX, -HZ), ground(-HX, HZ), ground(-HX, 0));
   k.box(M.concrete, -HX, -HX + T, gN - 1.2, LOW, -HZ, HZ);
   k.box(M.concrete, HX - T, HX, -4.0, -0.35, -HZ, HZ);
-  // roof: membrane, parapet with dark fascia, snow load, rooftop plant like the reference photo
+  // roof: membrane inside a cream parapet with a metal cap, a deep winter snow load, and the rooftop plant
+  // seen in the photos (round turbine vents and tall kitchen stacks near the storefront, a satellite dish)
   k.box(M.roofMembrane, -HX, HX, UP_CEIL, ROOF - 0.25, -HZ, HZ);
-  for (const s of [-1, 1]) { k.box(M.fascia, -HX - 0.05, HX + 0.05, ROOF - 0.55, ROOF, s > 0 ? HZ - 0.05 : -HZ - 0.05, s > 0 ? HZ + 0.05 : -HZ + 0.05); k.box(M.fascia, s > 0 ? HX - 0.05 : -HX - 0.05, s > 0 ? HX + 0.05 : -HX + 0.05, ROOF - 0.55, ROOF, -HZ, HZ); }
-  k.box(M.snow, -HX + 0.1, HX - 0.1, ROOF - 0.25, ROOF - 0.05, -HZ + 0.1, HZ - 0.1);
-  for (const [x, z, w, d, h] of [[-6, -3, 2.4, 1.6, 1.3], [2, 2.5, 1.8, 1.4, 1.1], [8, -4.5, 1.2, 1.2, 0.9], [-11, 3, 1.0, 1.0, 0.8]]) {
+  const parapet = (x0: number, x1: number, z0: number, z1: number) => { k.box(M.stuccoCream, x0, x1, ROOF - 0.55, ROOF, z0, z1); k.box(M.steel, x0 - 0.03, x1 + 0.03, ROOF, ROOF + 0.04, z0 - 0.03, z1 + 0.03); };
+  parapet(-HX - 0.05, -HX + 0.05, -HZ, HZ);                       // north end
+  parapet(-HX, ANNEX.x0, HZ - 0.05, HZ + 0.05);                   // west side (the annex covers the rest)
+  parapet(-HX, EAST.x0, -HZ - 0.05, -HZ + 0.05); parapet(EAST.x1, HX, -HZ - 0.05, -HZ + 0.05);
+  k.box(M.snow, -HX + 0.05, HX + 0.02, ROOF - 0.25, ROOF + 0.14, -HZ + 0.05, HZ - 0.05);
+  for (const [x, z, w, d, h] of [[-6, -3, 2.4, 1.6, 1.3], [2, 2.5, 1.8, 1.4, 1.1], [-11, 3, 1.0, 1.0, 0.8]]) {
     k.box(M.hvac, x - w / 2, x + w / 2, ROOF - 0.05, ROOF - 0.05 + h, z - d / 2, z + d / 2);
-    k.box(M.snow, x - w / 2 + 0.02, x + w / 2 - 0.02, ROOF - 0.05 + h, ROOF + h + 0.08, z - d / 2 + 0.02, z + d / 2 - 0.02);
+    k.box(M.snow, x - w / 2 + 0.02, x + w / 2 - 0.02, ROOF - 0.05 + h, ROOF + h + 0.1, z - d / 2 + 0.02, z + d / 2 - 0.02);
   }
-  for (const [x, z] of [[-2, -5], [4, 5], [11, 1]]) { k.cyl(M.steel, 0.12, 0.12, x, ROOF - 0.2, ROOF + 0.6, z, 10); k.cyl(M.steel, 0.2, 0.16, x, ROOF + 0.6, ROOF + 0.75, z, 10); }
+  for (const [x, z, h] of [[10.5, 5.6, 1.1], [8.2, 1.6, 0.9], [-2, -5, 0.8]]) { k.cyl(M.steel, 0.14, 0.14, x, ROOF - 0.2, ROOF + h, z, 12); k.cyl(M.steel, 0.24, 0.18, x, ROOF + h + 0.12, ROOF + h + 0.3, z, 12); k.cyl(M.steel, 0.04, 0.04, x, ROOF + h, ROOF + h + 0.13, z, 6); }
+  for (const [x, z] of [[12.4, 3.3], [11.8, -0.6], [13.0, -3.6], [6.0, 4.4]]) { // turbine vents
+    k.cyl(M.steel, 0.12, 0.12, x, ROOF - 0.2, ROOF + 0.45, z, 10);
+    const t = new THREE.SphereGeometry(0.26, 14, 8); t.scale(1, 0.85, 1); t.translate(x, ROOF + 0.62, z); k.add(t, M.steel);
+  }
+  satelliteDish(k, 11.0, ROOF + 0.1, -5.6, 0.45); satelliteDish(k, 7.6, ROOF + 0.1, -6.6, 0.38);
 
   // ---------- upper level walls
   const band = { mat: M.pineWall, y: 1.05 };
-  const southStore: Opening[] = [-5.28, -2.64, 0, 2.64, 5.28].map((c) => ({ a: c - 1.27, b: c + 1.27, y0: c === 0 ? 0 : 0.35, y1: 2.85, door: c === 0, mullions: 2 }));
+  // storefront behind the arcade: olive-framed glass with transoms between cream piers, main doors at the east end
+  const SOUTH_DOOR = { a: -7.25, b: -5.35 };
+  const southStore: Opening[] = [
+    { ...SOUTH_DOOR, y0: 0, y1: 2.95, door: true, frame: M.olive, transom: 2.3 },
+    ...[[-4.75, -2.65], [-2.15, -0.05], [0.45, 2.55], [3.05, 5.15], [5.65, 7.45]].map(([a, b]) => ({ a, b, y0: 0.45, y1: 2.95, mullions: 2, frame: M.olive, transom: 2.3 })),
+  ];
   wall(k, 'z', -HZ, HZ, HX, 1, 0, ROOF - 0.55, M.stuccoCream, M.sage, southStore, band);
   const westUp: Opening[] = [
     { a: -13.2, b: -10.8, y0: 0.95, y1: 2.55 }, { a: -8.2, b: -5.8, y0: 0.95, y1: 2.55 },
-    { a: 0.6, b: 1.7, y0: 0, y1: 2.25, door: true }, { a: 3.6, b: 6.0, y0: 0.95, y1: 2.55 }, { a: 8.0, b: 10.4, y0: 0.95, y1: 2.55 }];
+    { a: 0.6, b: 1.7, y0: 0, y1: 2.25, door: true }, { a: 3.6, b: 6.0, y0: 0.95, y1: 2.55 }];
   wall(k, 'x', -HX, ANNEX.x0, HZ, 1, 0, ROOF - 0.55, M.stuccoCream, M.sage, westUp, band);
   wall(k, 'x', ANNEX.x0, HX, HZ, 1, 0, ROOF - 0.55, null, M.sage, [], band); // shared with the annex
   const northUp: Opening[] = [{ a: 0.6, b: 3.0, y0: 0.95, y1: 2.55 }, { a: 4.2, b: 6.6, y0: 0.95, y1: 2.55 }];
@@ -553,8 +720,8 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
     lamp(x, 2.35, z, 0.9);
   }
   // boot-friendly entry mats and trash/recycling by the south doors
-  k.box(M.vinyl, 12.5, HX - T, 0.005, 0.02, -2.5, 2.5);
-  for (const z of [-3.2, -2.6]) { k.box(M.blackMetal, 13.6, 14.1, 0, 0.95, z - 0.25, z + 0.25); }
+  k.box(M.vinyl, 12.5, HX - T, 0.005, 0.02, SOUTH_DOOR.a - 0.15, SOUTH_DOOR.b + 0.15);
+  for (const z of [2.6, 3.2]) { k.box(M.blackMetal, 13.6, 14.1, 0, 0.95, z - 0.25, z + 0.25); }
   for (let x = -12; x < 14; x += 6) lamp(x, 2.8, -6.0, 0.6, false);
 
   // ---------- lower level: rentals, lockers, benches, walk-out door to the west grade
@@ -605,94 +772,316 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
   floor(-8.6, -5.4, HZ, HZ + 1.8, LOW, 'Lower entrance');
   poi('door', -7, LOW, HZ + 2.6, Math.PI, null, 'lower-door'); poi('door', -7, LOW, HZ - 1.2, 0, LOWER, 'lower-door-in');
 
-  // ---------- east section: two storeys (lidar roof 6.6 m), ground-floor sunroom open to the dining hall
-  const E = EAST;
-  const eSouth: Opening[] = [{ a: E.z0 + 0.6, b: -8.4, y0: 0.35, y1: 2.7, mullions: 3 }];
-  wall(k, 'z', E.z0, -HZ, E.x1, 1, 0, 3.3, M.stuccoBeige, M.sage, eSouth, band);
+  // ---------- east section: two storeys (lidar roof 6.6 m). The ground-floor dining room opens south into the
+  // wood-framed sunroom; the upper storey is clad in tan lap siding with red trim under a western false front
+  // with two wagon wheels (owner's 2020 photos; window sizes and positions are estimates).
+  const E = EAST, SR = SUNROOM;
   wall(k, 'x', E.x0, E.x1, E.z0, -1, 0, 3.3, M.stuccoBeige, M.sage, [{ a: 3.0, b: 6.4, y0: 0.9, y1: 2.6 }, { a: 8.2, b: 11.6, y0: 0.9, y1: 2.6 }], band);
   wall(k, 'z', E.z0, -HZ, E.x0, -1, 0, 3.3, M.stuccoBeige, M.sage, [], band);
-  wallColliders(addCol, 'z', E.z0, -HZ, E.x1, 1, 0, E.top, []); wallColliders(addCol, 'x', E.x0, E.x1, E.z0, -1, 0, E.top, []); wallColliders(addCol, 'z', E.z0, -HZ, E.x0, -1, 0, E.top, []);
-  // upper storey offices (not enterable): beige stucco with a ribbon of windows
-  for (const [axis, u0, u1, w, out] of [['z', E.z0, -HZ, E.x1, 1], ['x', E.x0, E.x1, E.z0, -1], ['z', E.z0, -HZ, E.x0, -1]] as const) {
-    const ops: Opening[] = [];
-    for (let u = u0 + 1; u + 1.6 < u1 - 0.5; u += 2.4) ops.push({ a: u, b: u + 1.6, y0: 4.4, y1: 5.8, dark: true });
-    wall(k, axis, u0, u1, w, out, 3.3, E.top - 0.4, M.stuccoBeige, null, ops);
-  }
-  wall(k, 'x', E.x0, E.x1, -HZ, 1, ROOF - 0.55, E.top - 0.4, M.stuccoBeige, null, [{ a: 5, b: 6.6, y0: 4.4, y1: 5.8, dark: true }, { a: 8.6, b: 10.2, y0: 4.4, y1: 5.8, dark: true }]);
-  k.box(M.concrete, E.x0, E.x1, -0.35, 0, E.z0, -HZ); k.box(M.carpet, E.x0 + T, E.x1 - T, -0.01, 0.005, E.z0 + T, -HZ);
-  floor(E.x0, E.x1, E.z0, -HZ, 0, SUN);
-  k.box(M.concrete, E.x0, E.x1, -1.6, -0.35, E.z0, -HZ);
-  k.box(M.ceiling, E.x0 + T, E.x1 - T, 2.98, 3.0, E.z0 + T, -HZ);
+  // the old south wall is now a header over the wide opening into the sunroom
+  k.box(M.sage, E.x1 - 0.15, E.x1 + 0.15, 2.75, 3.3, E.z0, -HZ); k.box(M.beam, E.x1 - 0.17, E.x1 + 0.17, 2.6, 2.78, E.z0 + T, -HZ);
+  wallColliders(addCol, 'z', E.z0, -HZ, E.x1, 1, 2.75, E.top, []); wallColliders(addCol, 'x', E.x0, E.x1, E.z0, -1, 0, E.top, []); wallColliders(addCol, 'z', E.z0, -HZ, E.x0, -1, 0, E.top, []);
+  const red = M.redTrim, upTop = E.top - 0.2;
+  wall(k, 'z', E.z0, -HZ, E.x1, 1, 3.3, upTop, M.siding, null, [
+    { a: -10.0, b: -9.1, y0: 4.2, y1: 5.75, dark: true, frame: red }, { a: -12.95, b: -11.25, y0: 4.4, y1: 5.6, dark: true, frame: red, mullions: 2 }]);
+  wall(k, 'x', E.x0, E.x1, E.z0, -1, 3.3, upTop, M.siding, null, [3.0, 7.5, 10.8].map((a) => ({ a, b: a + 1.0, y0: 4.4, y1: 5.7, dark: true, frame: red })));
+  wall(k, 'z', E.z0, -HZ, E.x0, -1, 3.3, upTop, M.siding, null, [{ a: -12.0, b: -11.0, y0: 4.4, y1: 5.7, dark: true, frame: red }]);
+  wall(k, 'x', E.x0, E.x1, -HZ, 1, ROOF - 0.55, upTop, M.siding, null, [{ a: 5.2, b: 6.2, y0: 4.4, y1: 5.7, dark: true, frame: red }, { a: 10.9, b: 11.9, y0: 4.3, y1: 5.7, dark: true, frame: red }]);
+  for (const [x, z, y0] of [[E.x1, E.z0, 3.3], [E.x1, -HZ, 3.3], [E.x0, E.z0, 3.3], [E.x0, -HZ, ROOF]] as const) k.box(red, x - 0.09, x + 0.09, y0, upTop, z - 0.09, z + 0.09);
   k.box(M.roofMembrane, E.x0, E.x1, E.top - 0.6, E.top - 0.25, E.z0, -HZ);
-  k.box(M.snow, E.x0 + 0.1, E.x1 - 0.1, E.top - 0.25, E.top - 0.07, E.z0 + 0.1, -HZ - 0.1);
-  for (const [x0, x1, z0, z1] of [[E.x0, E.x1, E.z0 - 0.05, E.z0 + 0.05], [E.x0 - 0.05, E.x0 + 0.05, E.z0, -HZ], [E.x1 - 0.05, E.x1 + 0.05, E.z0, -HZ]]) k.box(M.fascia, x0, x1, E.top - 0.5, E.top, z0, z1);
+  k.box(M.snow, E.x0 + 0.05, E.x1 - 0.05, E.top - 0.25, E.top + 0.12, E.z0 + 0.05, -HZ - 0.05);
+  for (const [x0, x1, z0, z1] of [[E.x0, E.x1, E.z0 - 0.06, E.z0 + 0.06], [E.x0 - 0.06, E.x0 + 0.06, E.z0, -HZ], [E.x0, E.x1, -HZ - 0.06, -HZ + 0.06]]) k.box(red, x0, x1, upTop, upTop + 0.12, z0, z1);
+  // western false front on the south face, its shoulders curving up to a flat crest, with a red cap
+  {
+    const u0 = HZ - 0.1, u1 = -E.z0 + 0.1, base = upTop - 0.45, shoulder = 6.85, crest = 7.5, top: [number, number][] = [];
+    for (let i = 0; i <= 8; i++) { const t = i / 8; top.push([u0 + 0.85 * t, shoulder + (crest - shoulder) * (1 - Math.cos(t * Math.PI / 2))]); }
+    for (let i = 0; i <= 8; i++) { const t = i / 8; top.push([u1 - 0.85 + 0.85 * t, shoulder + (crest - shoulder) * (1 - Math.cos((1 - t) * Math.PI / 2))]); }
+    prism(k, M.siding, [[u0, base], ...top, [u1, base]], 'x', E.x1, E.x1 + 0.2);
+    const cap: [number, number][] = [...top, ...top.slice().reverse().map(([u, y]): [number, number] => [u, y + 0.12])];
+    prism(k, red, cap, 'x', E.x1 - 0.04, E.x1 + 0.28);
+    k.box(red, E.x1, E.x1 + 0.26, base - 0.1, base, E.z0 - 0.1, -HZ + 0.1);
+    for (const z of [-9.0, -12.6]) wagonWheel(k, E.x1 + 0.24, 6.72, z);
+  }
+
+  // ---------- sunroom: varnished wood frames on a board base, a sloped glazed band under a brown metal roof
+  k.box(M.concrete, E.x0, SR.x1, -1.6, -0.35, E.z0, -HZ);
+  k.box(M.concrete, E.x0, SR.x1, -0.35, 0, E.z0, -HZ); k.box(M.carpet, E.x0 + T, SR.x1 - 0.12, -0.01, 0.005, E.z0 + 0.12, -HZ);
+  floor(E.x0, SR.x1, E.z0, -HZ, 0, SUN);
+  k.box(M.ceiling, E.x0 + T, E.x1 - 0.15, 2.98, 3.0, E.z0 + T, -HZ);
+  k.box(M.ceiling, E.x1 + 0.15, 16.0, 3.18, 3.2, SR.z0 + 0.1, SR.z1);
+  const SR_DOOR = { a: -11.36, b: -10.14 };
+  const glazed = (axis: 'x' | 'z', posts: number[], w: number, out: 1 | -1, door?: { a: number; b: number }) => {
+    const B = (mat: THREE.Material, a: number, b: number, y0: number, y1: number, t0: number, t1: number) => {
+      const w0 = w - out * t1, w1 = w - out * t0;
+      axis === 'x' ? k.box(mat, a, b, y0, y1, Math.min(w0, w1), Math.max(w0, w1)) : k.box(mat, Math.min(w0, w1), Math.max(w0, w1), y0, y1, a, b);
+    };
+    const lo = posts[0], hi = posts[posts.length - 1];
+    for (let i = 0; i < posts.length - 1; i++) {
+      const a = posts[i], b = posts[i + 1], isDoor = door && Math.abs(a - door.a) < 0.01;
+      if (!isDoor) { B(M.cedar, a, b, 0, 0.55, 0, 0.12); B(M.cedar, a, b, 0.55, 0.6, -0.03, 0.14); B(M.glass, a + 0.05, b - 0.05, 0.6, 2.7, 0.05, 0.07); }
+      else B(M.glass, a + 0.05, b - 0.05, 2.15, 2.7, 0.05, 0.07);
+    }
+    for (const p of posts) B(M.cedar, p - 0.05, p + 0.05, 0, 2.82, -0.02, 0.12);
+    B(M.cedar, lo, hi, 2.08, 2.15, -0.01, 0.12); B(M.cedar, lo, hi, 2.7, 2.82, -0.02, 0.14);
+  };
+  const sPosts = [-13.8, -12.99, -12.17, SR_DOOR.a, SR_DOOR.b, -9.34, -8.55, -7.75];
+  glazed('z', sPosts, SR.x1, 1, SR_DOOR);
+  glazed('x', [E.x1, 14.73, 15.87, SR.x1], SR.z0, -1);
+  glazed('x', [HX, SR.x1], -HZ, 1);
+  // double doors in light oak, standing open
+  for (const [z, s] of [[SR_DOOR.a + 0.04, 1], [SR_DOOR.b - 0.04, -1]] as const) {
+    k.box(M.oak, SR.x1 - 0.72, SR.x1 - 0.12, 0.02, 2.06, z - 0.025, z + 0.025);
+    k.box(M.glass, SR.x1 - 0.66, SR.x1 - 0.18, 0.5, 1.95, z - 0.01 + s * 0.0, z + 0.01);
+  }
+  // sloped glazing and roof
+  const slope = Math.atan2(0.53, 1.0), slen = Math.hypot(0.53, 1.0);
+  k.obox(M.darkGlass, slen, 0.03, -SR.z0 - HZ + 0.05, 16.5, 3.085, (SR.z0 - HZ) / 2, 0, 0, -slope);
+  for (const z of sPosts) k.obox(M.cedar, slen, 0.08, 0.07, 16.5, 3.11, z, 0, 0, -slope);
+  for (const z of [SR.z0, -HZ]) k.box(M.cedar, 16.0, SR.x1, 2.82, 3.08, z - 0.05, z + 0.05);
+  k.box(M.brownRoof, E.x1, 16.15, 3.35, 3.46, SR.z0 - 0.12, -HZ + 0.02);
+  k.box(red, 16.02, 16.16, 3.28, 3.5, SR.z0 - 0.12, -HZ + 0.02);
+  k.box(M.snow, E.x1 + 0.05, 16.05, 3.46, 3.6, SR.z0 - 0.05, -HZ - 0.02);
+  addCol(SR.x1 - 0.15, SR.x1 + 0.05, SR.z0, SR_DOOR.a, 0, 3.4); addCol(SR.x1 - 0.15, SR.x1 + 0.05, SR_DOOR.b, -HZ, 0, 3.4);
+  addCol(E.x1, SR.x1 + 0.05, SR.z0 - 0.06, SR.z0 + 0.12, 0, 3.4); addCol(HX, SR.x1 + 0.05, -HZ - 0.12, -HZ + 0.06, 0, 3.4);
+  for (const z of [-9.05, -12.5]) {
+    for (const s of diningTable(k, 15.2, 0, z, 0, 4)) poi('seat', s.x, 0.45, s.z, s.h, SUN, 'dining');
+    addCol(14.6, 15.8, z - 0.45, z + 0.45, 0, 0.78); lamp(15.2, 2.45, z, 0.6);
+  }
+  const srMid = (SR_DOOR.a + SR_DOOR.b) / 2;
+  poi('door', SR.x1 + 1.1, DECK_Y, srMid, Math.PI / 2, null, 'sunroom-door'); poi('door', SR.x1 - 1.1, 0, srMid, -Math.PI / 2, SUN, 'sunroom-door-in');
   for (const z of [-11.8, -9.6]) for (const s of diningTable(k, 7.5, 0, z, 0, 4)) poi('seat', s.x, 0.45, s.z, s.h, SUN, 'dining');
   for (const z of [-11.8, -9.6]) { addCol(6.9, 8.1, z - 0.45, z + 0.45, 0, 0.78); lamp(7.5, 2.3, z, 0.8); }
   for (const z of [-11.8, -9.6]) for (const s of diningTable(k, 4.0, 0, z, 0, 4)) poi('seat', s.x, 0.45, s.z, s.h, SUN, 'dining');
   for (const z of [-11.8, -9.6]) { addCol(3.4, 4.6, z - 0.45, z + 0.45, 0, 0.78); lamp(4.0, 2.3, z, 0.8); }
-  // red awning over the sunroom glazing, as in the reference photo
-  const aw = new THREE.PlaneGeometry(3.2, -HZ - E.z0); aw.rotateX(-Math.PI / 2); aw.rotateZ(-0.3);
-  aw.translate(E.x1 + 1.55, 2.95, (E.z0 - HZ) / 2); k.add(aw, M.awning);
-  for (const z of [E.z0 + 0.2, -HZ - 0.2]) k.cyl(M.blackMetal, 0.03, 0.03, E.x1 + 3.0, -0.1, 2.5, z, 6);
 
-  // ---------- south-west annex: the signed building with blue trim and a red door (not enterable)
+  // ---------- west annex (not enterable): the signed wing, flush with the main roof, and a lower wing under a
+  // blue standing-seam shed roof with the red door and the ticket window (2010 photo; blue roof also in 2023 NAIP)
   const A = ANNEX;
-  const aHeight = A.top;
-  wall(k, 'z', A.z0, A.z1, A.x1, 1, -0.1, aHeight - 0.3, M.stuccoCream, null, [{ a: 9.6, b: 10.6, y0: -0.1, y1: 2.1, dark: true }, { a: 14.6, b: 16.6, y0: 0.9, y1: 2.2, dark: true }]);
-  k.box(M.redDoor, A.x1, A.x1 + 0.06, -0.1, 2.08, 9.65, 10.55);
-  wall(k, 'x', A.x0, A.x1, A.z1, 1, -0.1, aHeight - 0.3, M.stuccoCream, null, [{ a: 15.0, b: 17.0, y0: 0.9, y1: 2.2, dark: true }, { a: 19.0, b: 21.0, y0: 0.9, y1: 2.2, dark: true }]);
-  wall(k, 'z', A.z0, A.z1, A.x0, -1, -1.5, aHeight - 0.3, M.stuccoCream, null, []);
-  wall(k, 'x', HX, A.x1, A.z0, -1, -0.1, aHeight - 0.3, M.stuccoCream, null, [{ a: 17.0, b: 19.2, y0: 0.9, y1: 2.2, dark: true }]);
-  wallColliders(addCol, 'z', A.z0, A.z1, A.x1, 1, -1, aHeight, []); wallColliders(addCol, 'x', A.x0, A.x1, A.z1, 1, -1, aHeight, []);
-  wallColliders(addCol, 'z', A.z0, A.z1, A.x0, -1, -1.5, aHeight, []); wallColliders(addCol, 'x', HX, A.x1, A.z0, -1, -1, aHeight, []);
-  k.box(M.roofMembrane, A.x0, A.x1, aHeight - 0.3, aHeight - 0.1, A.z0, A.z1);
-  for (const [x0, x1, z0, z1] of [[A.x0, A.x1, A.z1 - 0.05, A.z1 + 0.1], [A.x1 - 0.05, A.x1 + 0.1, A.z0, A.z1], [HX, A.x1, A.z0 - 0.1, A.z0 + 0.05]]) k.box(M.blueTrim, x0, x1, aHeight - 0.45, aHeight + 0.05, z0, z1);
-  k.box(M.snow, A.x0 + 0.1, A.x1 - 0.1, aHeight - 0.1, aHeight + 0.08, A.z0 + 0.1, A.z1 - 0.1);
-  const logo = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'sunlight', size: 150, y: 120, color: '#262a2e', font: 'bold 150px Helvetica, Arial, sans-serif' }], '#f3efe3', 1024, 256, true), roughness: 0.6 });
-  k.plane(logo, 4.6, 1.15, A.x1 + 0.03, 2.77, 12.1, Math.PI / 2);
-  // lift ticket window beside the logo, facing the snow where skiers arrive (location is an estimate)
-  const tix = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'LIFT TICKETS', size: 92, y: 128, color: '#ffffff' }], '#1d3b5e', 1024, 256), roughness: 0.6 });
-  k.plane(tix, 1.9, 0.48, A.x1 + 0.04, 2.45, 15.6, Math.PI / 2);
-  k.box(M.tableTop, A.x1, A.x1 + 0.35, 0.86, 0.92, 14.75, 16.45);
-  k.box(M.steel, A.x1 + 0.01, A.x1 + 0.03, 0.92, 2.15, 15.58, 15.62);
-  poi('counter', A.x1 + 1.2, -0.1, 15.6, Math.PI / 2, null, 'tickets');
-  k.box(M.concrete, A.x0, A.x1, -1.6, -0.1, A.z0, A.z1);
-
-  // ---------- south sun deck at snow grade with picnic tables, steps and ski racks on the snow
-  const D = DECK_S;
-  k.box(M.deck, D.x0, D.x1, D.y - 0.1, D.y, D.z0, D.z1);
-  for (let x = D.x0 + 1.5; x < D.x1; x += 2.5) for (const z of [D.z0 + 0.3, D.z1 - 0.3, 0]) { const gy = ground(x, z); if (gy < D.y - 0.2) k.box(M.deckRail, x - 0.1, x + 0.1, gy - 0.3, D.y - 0.1, z - 0.1, z + 0.1); }
-  k.box(M.deckRail, D.x0, D.x1, D.y - 0.4, D.y - 0.1, D.z0, D.z0 + 0.15);
-  floor(D.x0, D.x1, D.z0, D.z1, D.y, 'South deck');
-  // perimeter rail with two openings to the snow (timber posts and rails as in the reference)
-  const railSeg = (x0: number, x1: number, z0: number, z1: number) => {
-    const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 1.8));
-    for (let i = 0; i <= n; i++) { const t = i / n; const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t; k.box(M.deckRail, x - 0.06, x + 0.06, D.y, D.y + 1.05, z - 0.06, z + 0.06); }
-    for (const h of [0.45, 0.98]) k.box(M.deckRail, Math.min(x0, x1) - 0.04, Math.max(x0, x1) + 0.04, D.y + h - 0.05, D.y + h + 0.05, Math.min(z0, z1) - 0.04, Math.max(z0, z1) + 0.04);
-    addCol(Math.min(x0, x1) - 0.06, Math.max(x0, x1) + 0.06, Math.min(z0, z1) - 0.06, Math.max(z0, z1) + 0.06, D.y, D.y + 1.05);
+  const skirt = (axis: 'x' | 'z', u0: number, u1: number, w: number, inward: 1 | -1, mat: THREE.Material = M.stuccoCream) => {
+    for (let u = u0; u < u1 - 0.01; u += 1.5) {
+      const ub = Math.min(u1, u + 1.5), gy = axis === 'x' ? Math.min(ground(u, w), ground(ub, w)) : Math.min(ground(w, u), ground(w, ub));
+      if (gy > DECK_Y - 0.15) continue;
+      axis === 'x' ? k.box(mat, u, ub, gy - 0.3, DECK_Y - 0.1, Math.min(w, w + inward * 0.3), Math.max(w, w + inward * 0.3))
+        : k.box(mat, Math.min(w, w + inward * 0.3), Math.max(w, w + inward * 0.3), gy - 0.3, DECK_Y - 0.1, u, ub);
+    }
   };
-  railSeg(D.x1, D.x1, D.z0, -3.0); railSeg(D.x1, D.x1, -0.6, 3.6); railSeg(D.x1, D.x1, 6.0, D.z1);
-  railSeg(D.x0 + 0.2, D.x1, D.z0, D.z0);
-  for (const [z0, z1] of [[-3.0, -0.6], [3.6, 6.0]]) {
-    const gy = Math.min(ground(D.x1 + 1.0, (z0 + z1) / 2), D.y - 0.15);
-    stairX(D.x1, D.x1 + Math.max(0.3, (D.y - gy) / 0.18 * 0.3), D.y, gy, z0 + 0.1, z1 - 0.1, M.deck, 'Deck steps');
-    poi('door', D.x1 + 2.2, gy, (z0 + z1) / 2, Math.PI / 2, null, 'deck-steps');
+  skirt('z', A.z0, A.z1, A.x0, 1); skirt('x', A.x0, A.x1, A.z1, -1); skirt('z', A.z0, A.z1, A.x1, -1);
+  const AY = DECK_Y - 0.1, BLUE_HI = 3.2, BLUE_LO = 2.45;
+  // signed wing
+  k.box(M.stuccoCream, A.x1 - 0.3, A.x1, AY, ROOF, A.z0, A.zm); k.box(M.stuccoCream, A.x0, A.x0 + 0.3, AY, ROOF, A.z0, A.zm);
+  k.box(M.stuccoCream, HX, A.x1, AY, ROOF, A.z0, A.z0 + 0.3); k.box(M.stuccoCream, A.x0, A.x1, BLUE_HI - 0.2, ROOF, A.zm - 0.3, A.zm);
+  k.box(M.roofMembrane, A.x0, A.x1, ROOF - 0.55, ROOF - 0.25, A.z0, A.zm);
+  parapet(A.x1 - 0.1, A.x1, A.z0, A.zm); parapet(A.x0, A.x0 + 0.1, A.z0, A.zm); parapet(A.x0, A.x1, A.zm - 0.1, A.zm);
+  k.box(M.snow, A.x0 + 0.05, A.x1 + 0.02, ROOF - 0.25, ROOF + 0.14, A.z0 - 0.05, A.zm - 0.05);
+  // the taller stair penthouse behind the sign, its top sloping down to the west
+  k.box(M.stuccoCream, 9.0, 13.0, ROOF - 0.2, 5.0, 8.3, 11.6);
+  prism(k, M.stuccoCream, [[-11.6, ROOF - 0.2], [-13.1, ROOF - 0.2], [-11.6, 5.0]], 'x', 9.0, 13.0);
+  k.box(M.snow, 9.0, 13.0, 5.0, 5.14, 8.3, 11.6); k.box(M.steel, 8.97, 13.03, 4.97, 5.0, 8.27, 11.63);
+  // lower wing with its sloping eave
+  const shed: [number, number][] = [[-A.zm, AY], [-A.z1, AY], [-A.z1, BLUE_LO], [-A.zm, BLUE_HI]];
+  prism(k, M.stuccoCream, shed, 'x', A.x1 - 0.3, A.x1); prism(k, M.stuccoCream, shed, 'x', A.x0, A.x0 + 0.3);
+  k.box(M.stuccoCream, A.x0, A.x1, AY, BLUE_LO, A.z1 - 0.3, A.z1);
+  {
+    const z0 = A.zm, z1 = A.z1 + 0.35, drop = (BLUE_HI - BLUE_LO) / (A.z1 - A.zm) * (z1 - z0), len = Math.hypot(z1 - z0, drop), rx = Math.atan2(drop, z1 - z0);
+    const yc = BLUE_HI - drop / 2 + 0.04, zc = (z0 + z1) / 2;
+    k.obox(M.blueRoof, A.x1 - A.x0 + 0.5, 0.06, len, (A.x0 + A.x1) / 2, yc, zc, 0, rx);
+    for (let x = A.x0 - 0.2; x <= A.x1 + 0.2; x += 0.45) k.obox(M.blueRoof, 0.035, 0.05, len, x, yc + 0.05, zc, 0, rx);
+    k.box(M.blueRoof, A.x0 - 0.25, A.x1 + 0.25, BLUE_HI - 0.04, BLUE_HI + 0.12, A.zm - 0.12, A.zm + 0.12);
   }
-  for (const [x, z] of [[17.2, -4.6], [17.2, -1.3], [17.2, 2.2], [19.4, -4.6], [19.4, 2.2], [17.2, 5.4]]) for (const s of picnicTable(k, x, D.y, z, Math.PI / 2)) poi('seat', s.x, D.y + 0.45, s.z, s.h, null, 'deck');
-  for (const [x, z] of [[17.2, -4.6], [17.2, -1.3], [17.2, 2.2], [19.4, -4.6], [19.4, 2.2], [17.2, 5.4]]) addCol(x - 0.45, x + 0.45, z - 0.95, z + 0.95, D.y, D.y + 0.8);
-  // ski racks out on the snow below the deck
-  for (const [z0, z1] of [[-9.5, -5.0], WEST_RACK]) {
-    const x = SKI_RACK_X;
-    const gy = ground(x, (z0 + z1) / 2);
-    for (const z of [z0, z1]) k.cyl(M.steel, 0.03, 0.03, x, gy - 0.3, gy + 1.15, z, 8);
-    k.box(M.steel, x - 0.025, x + 0.025, gy + 1.12, gy + 1.17, z0, z1);
-    k.box(M.steel, x - 0.25, x + 0.25, gy + 0.55, gy + 0.58, z0, z1);
-    addCol(x - 0.3, x + 0.3, z0, z1, gy - 0.3, gy + 1.2);
-    poi('rack', x - 1.0, gy, (z0 + z1) / 2, -Math.PI / 2, null, 'ski-rack');
-  }
-  poi('door', HX + 1.2, D.y, 0, Math.PI / 2, null, 'south-door'); poi('door', HX - 1.2, 0, 0, -Math.PI / 2, UPPER, 'south-door-in');
+  // red door, ticket window and sign, an electrical box
+  k.box(M.redDoor, A.x1, A.x1 + 0.06, AY, 2.0, 14.3, 15.3); k.box(M.trim, A.x1, A.x1 + 0.08, 2.0, 2.08, 14.22, 15.38);
+  for (const z of [14.22, 15.3]) k.box(M.trim, A.x1, A.x1 + 0.08, AY, 2.08, z, z + 0.08);
+  k.box(M.steel, A.x1 + 0.06, A.x1 + 0.1, 0.95, 1.1, 15.12, 15.2);
+  k.box(M.darkGlass, A.x1, A.x1 + 0.03, 0.95, 1.95, 16.1, 17.7); k.box(M.bronze, A.x1, A.x1 + 0.06, 1.92, 2.0, 16.05, 17.75);
+  k.box(M.tableTop, A.x1, A.x1 + 0.35, 0.92, 0.97, 16.0, 17.8);
+  const tix = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'LIFT TICKETS', size: 92, y: 128, color: '#ffffff' }], '#1d3b5e', 1024, 256), roughness: 0.6 });
+  k.plane(tix, 1.5, 0.37, A.x1 + 0.04, 2.2, 16.9, Math.PI / 2);
+  k.box(M.hvac, A.x1, A.x1 + 0.12, 1.0, 1.5, 13.3, 13.7);
+  poi('counter', A.x1 + 1.2, DECK_Y, 16.9, Math.PI / 2, null, 'tickets');
+  const logo = new THREE.MeshStandardNodeMaterial({ map: wallLogo(), roughness: 0.8, alphaTest: 0.5 });
+  k.plane(logo, 4.4, 2.2, A.x1 + 0.02, 1.72, 10.3, Math.PI / 2);
+  addCol(A.x0, A.x1, A.z0, A.z1, ground(A.x0, A.z1) - 0.5, ROOF + 0.2);
 
-  // ---------- west deck off the dining room with a stair down to the walk-out grade
+  // ---------- decks: one level with the dining floor, dark red-brown boards, posts down where the snow falls away
+  const deckBlock = (x0: number, x1: number, z0: number, z1: number, name: string) => {
+    k.box(M.deck, x0, x1, DECK_Y - 0.1, DECK_Y, z0, z1);
+    floor(x0, x1, z0, z1, DECK_Y, name);
+    for (let x = x0 + 0.6; x < x1; x += 2.4) for (let z = z0 + 0.6; z < z1; z += 2.4) { const gy = ground(x, z); if (gy < DECK_Y - 0.3) k.box(M.deckRail, x - 0.09, x + 0.09, gy - 0.3, DECK_Y - 0.1, z - 0.09, z + 0.09); }
+  };
+  deckBlock(HX, DECK_EDGE, -HZ, CANOPY.z0, 'South deck');
+  deckBlock(HX, CANOPY.x0, CANOPY.z0, HZ, 'South deck corner');
+  deckBlock(CANOPY.x0, CANOPY.x1, CANOPY.z0, CANOPY.z1, 'Canopy deck');
+  deckBlock(SR.x1, DECK_EDGE, DECK_EAST, -HZ, 'East deck');
+  deckBlock(SR.x0, SR.x1, DECK_EAST, SR.z0, 'East deck corner');
+  skirt('z', CANOPY.z0, CANOPY.z1, CANOPY.x1, -1, M.deckRail); skirt('x', CANOPY.x0, CANOPY.x1, CANOPY.z1, -1, M.deckRail);
+  const rail = (x0: number, z0: number, x1: number, z1: number) => {
+    const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 1.8));
+    for (let i = 0; i <= n; i++) { const t = i / n, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t; k.box(M.deckRail, x - 0.065, x + 0.065, DECK_Y, DECK_Y + 1.05, z - 0.065, z + 0.065); }
+    for (const h of [0.45, 0.98]) k.box(M.deckRail, Math.min(x0, x1) - 0.04, Math.max(x0, x1) + 0.04, DECK_Y + h - 0.05, DECK_Y + h + 0.05, Math.min(z0, z1) - 0.04, Math.max(z0, z1) + 0.04);
+    addCol(Math.min(x0, x1) - 0.07, Math.max(x0, x1) + 0.07, Math.min(z0, z1) - 0.07, Math.max(z0, z1) + 0.07, DECK_Y, DECK_Y + 1.05);
+  };
+  const STEPS = { east: [-12.6, -10.4], main: [-6.9, -4.7], canopy: [12.2, 14.4], west: [18.0, 19.8] };
+  rail(DECK_EDGE, DECK_EAST, DECK_EDGE, STEPS.east[0]); rail(DECK_EDGE, STEPS.east[1], DECK_EDGE, STEPS.main[0]); rail(DECK_EDGE, STEPS.main[1], DECK_EDGE, CANOPY.z0);
+  rail(DECK_EDGE, CANOPY.z0, CANOPY.x1, CANOPY.z0);
+  rail(CANOPY.x1, CANOPY.z0, CANOPY.x1, STEPS.canopy[0]); rail(CANOPY.x1, STEPS.canopy[1], CANOPY.x1, CANOPY.z1);
+  rail(CANOPY.x0, CANOPY.z1, STEPS.west[0], CANOPY.z1); rail(STEPS.west[1], CANOPY.z1, CANOPY.x1, CANOPY.z1);
+  rail(SR.x0, DECK_EAST, 16.5, DECK_EAST); rail(22.0, DECK_EAST, DECK_EDGE, DECK_EAST);
+  rail(SR.x0, DECK_EAST, SR.x0, SR.z0);
+  for (const [z0, z1] of [STEPS.east, STEPS.main]) {
+    const gy = Math.min(ground(DECK_EDGE + 0.8, (z0 + z1) / 2), DECK_Y - 0.12);
+    stairX(DECK_EDGE, DECK_EDGE + Math.max(0.3, (DECK_Y - gy) / 0.18 * 0.3), DECK_Y, gy, z0 + 0.1, z1 - 0.1, M.deck, 'Deck steps');
+    poi('door', DECK_EDGE + 2.0, gy, (z0 + z1) / 2, Math.PI / 2, null, 'deck-steps');
+  }
+  {
+    const [z0, z1] = STEPS.canopy, gy = Math.min(ground(CANOPY.x1 + 0.8, (z0 + z1) / 2), DECK_Y - 0.12);
+    stairX(CANOPY.x1, CANOPY.x1 + Math.max(0.3, (DECK_Y - gy) / 0.18 * 0.3), DECK_Y, gy, z0 + 0.1, z1 - 0.1, M.deck, 'Deck steps');
+    poi('door', CANOPY.x1 + 2.0, gy, (z0 + z1) / 2, Math.PI / 2, null, 'deck-steps');
+    const [x0, x1] = STEPS.west, gw = Math.min(ground((x0 + x1) / 2, CANOPY.z1 + 2.5), DECK_Y - 0.12), run = Math.max(0.3, (DECK_Y - gw) / 0.18 * 0.28);
+    stairZ(CANOPY.z1, CANOPY.z1 + run, DECK_Y, gw, x0 + 0.05, x1 - 0.05, M.deck, 'Deck steps');
+    poi('door', (x0 + x1) / 2, gw, CANOPY.z1 + run + 1.2, 0, null, 'deck-steps');
+  }
+
+  // ---------- storefront arcade: cream piers carry dark red beams whose ends project past the eave
+  k.box(M.roofMembrane, HX, ARCADE.x + 0.05, ROOF - 0.4, ROOF - 0.2, -HZ, HZ);
+  k.box(M.maroon, HX, ARCADE.x, 3.0, 3.08, -HZ, HZ);
+  k.box(M.maroon, ARCADE.x - 0.12, ARCADE.x + 0.05, 2.9, ROOF - 0.12, -HZ, HZ);
+  k.box(M.snow, HX - 0.1, ARCADE.x + 0.16, ROOF - 0.2, ROOF + 0.14, -HZ + 0.02, HZ - 0.02);
+  { const lip = new THREE.CylinderGeometry(0.16, 0.16, 2 * HZ - 0.1, 10); lip.rotateX(Math.PI / 2); lip.translate(ARCADE.x + 0.12, ROOF + 0.0, 0); k.add(lip, M.snow); }
+  for (const z of [...ARCADE.cols, -HZ + 0.2]) {
+    k.box(M.maroon, HX, ARCADE.x + 0.45, 2.86, 3.42, z - 0.17, z + 0.17);
+    if (Math.abs(z) > HZ - 0.5) continue;
+    k.box(M.stuccoCream, ARCADE.col - 0.21, ARCADE.col + 0.21, DECK_Y, 2.88, z - 0.21, z + 0.21);
+    addCol(ARCADE.col - 0.22, ARCADE.col + 0.22, z - 0.22, z + 0.22, DECK_Y, 2.88);
+  }
+  for (const z of [-3.7, 1.5, 4.1]) k.box(M.hvac, HX + 0.02, HX + 0.16, 2.6, 2.76, z - 0.13, z + 0.13);
+  const doorZ = (SOUTH_DOOR.a + SOUTH_DOOR.b) / 2;
+  poi('door', HX + 2.0, DECK_Y, doorZ, Math.PI / 2, null, 'south-door'); poi('door', HX - 1.2, 0, doorZ, -Math.PI / 2, UPPER, 'south-door-in');
+  for (const x of [18.7, 21.0]) for (const z of [-2.9, -0.5, 1.9, 4.3]) {
+    for (const s of picnicTable(k, x, DECK_Y, z, Math.PI / 2)) poi('seat', s.x, DECK_Y + 0.45, s.z, s.h, null, 'deck');
+    addCol(x - 0.45, x + 0.45, z - 0.95, z + 0.95, DECK_Y, DECK_Y + 0.8);
+  }
+  const bin = (x: number, z: number) => { k.cyl(M.bin, 0.28, 0.3, x, DECK_Y, DECK_Y + 0.92, z, 12); k.cyl(M.bin, 0.33, 0.33, x, DECK_Y + 0.92, DECK_Y + 1.0, z, 12); addCol(x - 0.32, x + 0.32, z - 0.32, z + 0.32, DECK_Y, DECK_Y + 1.0); };
+  bin(17.35, 6.85); bin(22.0, -16.95); bin(17.4, -7.3);
+
+  // ---------- the open gable canopy over the west end of the deck, with the grill booth under it (2020 photos)
+  {
+    const C = CANOPY, cx = (C.x0 + C.x1) / 2, half = (C.x1 - C.x0) / 2, rise = C.ridge - C.eave, pitch = Math.atan2(rise, half), sl = Math.hypot(rise, half);
+    const zc = (C.z0 + C.z1) / 2, zl = C.z1 - C.z0;
+    for (const s of [-1, 1]) {
+      const mx = cx + s * half / 2, my = (C.eave + C.ridge) / 2, nx = s * Math.sin(pitch), ny = Math.cos(pitch), rz = -s * pitch;
+      // the south slope overhangs the posts; the north slope stops at the annex wall
+      const e = s > 0 ? 0.2 : 0, ex = mx + s * Math.cos(pitch) * e, ey = my - Math.sin(pitch) * e;
+      k.obox(M.canopy, sl + 2 * e, 0.05, zl, ex, ey, zc, 0, 0, rz);
+      k.obox(M.snow, sl + 2 * e + 0.05, 0.3, zl + 0.1, ex + nx * 0.17, ey + ny * 0.17, zc, 0, 0, rz);
+      for (const z of [C.z0 + 0.15, A.zm, C.z1 - 0.15]) k.obox(M.steel, sl, 0.14, 0.09, mx - nx * 0.1, my - ny * 0.1, z, 0, 0, rz);
+      k.box(M.steel, s > 0 ? C.x1 - 0.25 : C.x0 + 0.2, s > 0 ? C.x1 - 0.05 : C.x0 + 0.4, C.eave - 0.25, C.eave - 0.05, C.z0, C.z1);
+    }
+    { const ridge = new THREE.CylinderGeometry(0.22, 0.22, zl + 0.1, 10); ridge.rotateX(Math.PI / 2); ridge.translate(cx, C.ridge + 0.22, zc); k.add(ridge, M.snow); }
+    for (const z of [C.z0 + 0.15, A.zm, C.z1 - 0.15]) k.box(M.steel, C.x0, C.x1, C.eave - 0.2, C.eave - 0.08, z - 0.05, z + 0.05);
+    const post = (x: number, z: number) => { k.box(M.steel, x - 0.07, x + 0.07, DECK_Y, C.eave - 0.05, z - 0.07, z + 0.07); addCol(x - 0.1, x + 0.1, z - 0.1, z + 0.1, DECK_Y, C.eave); };
+    for (const z of [C.z0 + 0.15, 11.05, 14.75, C.z1 - 0.15]) post(C.x1 - 0.15, z);
+    for (const z of [C.z0 + 0.15, A.zm, C.z1 - 0.15]) post(C.x0 + 0.35, z);
+    // the yellow downspout on the front corner post
+    k.cyl(M.yellow, 0.07, 0.07, C.x1 + 0.0, DECK_Y, C.eave - 0.1, C.z0 + 0.15, 10); k.box(M.yellow, C.x1 - 0.1, C.x1 + 0.1, C.eave - 0.2, C.eave + 0.0, C.z0 + 0.05, C.z0 + 0.25);
+    // grill booth: dark board walls, a service window and counter facing the deck, a banner
+    const bx0 = 20.6, bx1 = 23.3, bz0 = 15.8, bz1 = 18.35;
+    k.box(M.battens, bx0, bx1, DECK_Y, 2.45, bz0, bz1); k.box(M.trim, bx0 - 0.08, bx1 + 0.08, 2.45, 2.58, bz0 - 0.08, bz1 + 0.08);
+    k.box(M.darkGlass, bx0 + 0.35, bx1 - 0.35, 1.0, 2.0, bz0 - 0.02, bz0); k.box(M.oak, bx0 + 0.25, bx1 - 0.25, 0.98, 1.04, bz0 - 0.3, bz0);
+    const grill = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'GRIZZ GRILL', size: 120, y: 105, color: '#ffffff' }, { text: 'ON THE DECK', size: 60, y: 200, color: '#f2c14e' }], '#7a1f1c', 1024, 256), roughness: 0.7 });
+    k.plane(grill, 2.2, 0.55, bx1 + 0.02, 1.85, (bz0 + bz1) / 2, Math.PI / 2);
+    addCol(bx0, bx1, bz0, bz1, DECK_Y, 2.5);
+    poi('counter', (bx0 + bx1) / 2, DECK_Y, bz0 - 1.0, Math.PI, null, 'deck-grill');
+    for (const [x, z] of [[19.6, 9.0], [19.6, 11.5], [22.6, 9.0], [22.6, 11.5]]) {
+      for (const s of picnicTable(k, x, DECK_Y, z, Math.PI / 2)) poi('seat', s.x, DECK_Y + 0.45, s.z, s.h, null, 'deck');
+      addCol(x - 0.45, x + 0.45, z - 0.95, z + 0.95, DECK_Y, DECK_Y + 0.8);
+    }
+  }
+
+  // ---------- east deck: metal patio sets, a kettle grill
+  for (const [x, z] of [[19.5, -8.75], [21.5, -8.75], [19.5, -14.4], [21.5, -14.4], [15.3, -15.7]]) {
+    for (const s of patioSet(k, x, DECK_Y, z)) poi('seat', s.x, DECK_Y + 0.45, s.z, s.h, null, 'deck');
+    addCol(x - 0.45, x + 0.45, z - 0.45, z + 0.45, DECK_Y, DECK_Y + 0.76);
+  }
+  { const x = 14.3, z = -16.9, kettle = new THREE.SphereGeometry(0.3, 14, 8); kettle.translate(x, DECK_Y + 0.82, z); k.add(kettle, M.patio); for (let i = 0; i < 3; i++) { const a = i * 2.1; k.cyl(M.patio, 0.015, 0.015, x + Math.cos(a) * 0.2, DECK_Y, DECK_Y + 0.75, z + Math.sin(a) * 0.2, 4); } addCol(x - 0.32, x + 0.32, z - 0.32, z + 0.32, DECK_Y, DECK_Y + 1.1); }
+
+  // ---------- galvanized ski racks on the snow, each with a banner frame at one end
+  const skiMats = [M.skiA, M.skiB, M.skiC, M.skiD];
+  const rr = rng(97);
+  for (const [x, z0, z1, label, side] of RACKS) {
+    const gy = ground(x, (z0 + z1) / 2), G = M.galv;
+    for (const z of [z0, (z0 + z1) / 2, z1]) for (const s of [-1, 1]) k.obox(G, 0.045, 1.24, 0.045, x + s * 0.24, gy + 0.55, z, 0, 0, s * 0.42);
+    k.box(G, x - 0.03, x + 0.03, gy + 1.08, gy + 1.14, z0, z1);
+    for (const s of [-1, 1]) k.box(G, x + s * 0.44 - 0.02, x + s * 0.44 + 0.02, gy + 0.16, gy + 0.21, z0, z1);
+    for (let z = z0 + 0.12; z < z1 - 0.05; z += 0.2) for (const s of [-1, 1]) k.obox(G, 0.16, 0.018, 0.018, x + s * 0.09, gy + 1.17, z, 0, 0, s * 0.5);
+    for (const zz of [z0, z0 + 1.4]) k.box(G, x - 0.03, x + 0.03, gy - 0.2, gy + 1.98, zz - 0.03, zz + 0.03);
+    k.box(G, x - 0.03, x + 0.03, gy + 1.93, gy + 1.99, z0, z0 + 1.4);
+    const sub = label === 'SUNLIGHT MOUNTAIN' ? 'GLENWOOD SPRINGS, COLORADO' : 'SUNLIGHT MOUNTAIN';
+    const banner = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: label, size: 84, y: 190, color: '#ffffff' }, { text: sub, size: 52, y: 330, color: '#ffd23a' }], '#1f4f8f', 1024, 480), roughness: 0.75 });
+    k.plane(banner, 1.32, 0.62, x + 0.012, gy + 1.55, z0 + 0.7, Math.PI / 2); k.plane(banner, 1.32, 0.62, x - 0.012, gy + 1.55, z0 + 0.7, -Math.PI / 2);
+    for (let z = z0 + 1.6; z < z1 - 0.1; z += 0.2) if (rr() < 0.32) { const s = rr() < 0.5 ? -1 : 1; leaningSkis(k, skiMats[Math.floor(rr() * 4)], x + s * 0.5, gy, z, -s * 0.3, rr() < 0.25); }
+    addCol(x - 0.5, x + 0.5, z0, z1, gy - 0.3, gy + 1.2);
+    poi('rack', x + side * 1.0, gy, (z0 + z1) / 2 + 0.7, side * Math.PI / 2, null, 'ski-rack');
+  }
+
+  // ---------- small deck buildings to the east (2010 and 2020 photos; footprints estimated from NAIP)
+  {
+    // the dark red board-and-batten shack at the east end of the deck: gable roof, a western false front with a
+    // little gabled crest toward the deck, a door and service window, a banner on the slope side
+    const S = { x0: 16.5, x1: 22.0, z0: -22.6, z1: -17.85, eave: 2.6, ridge: 3.9 };
+    const gs = Math.min(ground(S.x0, S.z0), ground(S.x1, S.z0), ground(S.x0, S.z1), ground(S.x1, S.z1));
+    k.box(M.battens, S.x0, S.x1, gs - 0.3, S.eave, S.z0, S.z1);
+    prism(k, M.battens, [[S.x0, S.eave], [S.x1, S.eave], [(S.x0 + S.x1) / 2, S.ridge]], 'z', S.z0, S.z1);
+    const half = (S.x1 - S.x0) / 2, pitch = Math.atan2(S.ridge - S.eave, half), sl = Math.hypot(S.ridge - S.eave, half), cx = (S.x0 + S.x1) / 2;
+    for (const s of [-1, 1]) {
+      const mx = cx + s * half / 2, my = (S.eave + S.ridge) / 2 + 0.05, nx = s * Math.sin(pitch), ny = Math.cos(pitch);
+      k.obox(M.greenRoof, sl + 0.6, 0.06, S.z1 - S.z0 + 0.6, mx + s * 0.2, my, (S.z0 + S.z1) / 2, 0, 0, -s * pitch);
+      k.obox(M.snow, sl + 0.55, 0.26, S.z1 - S.z0 + 0.55, mx + s * 0.2 + nx * 0.16, my + ny * 0.16, (S.z0 + S.z1) / 2, 0, 0, -s * pitch);
+    }
+    const front: [number, number][] = [[S.x0 - 0.15, 2.3], [S.x1 + 0.15, 2.3], [S.x1 + 0.15, 3.55], [20.55, 3.55], [20.55, 4.15], [cx, 4.75], [17.95, 4.15], [17.95, 3.55], [S.x0 - 0.15, 3.55]];
+    prism(k, M.battens, front, 'z', S.z1 - 0.02, S.z1 + 0.16);
+    for (let i = 0; i < front.length - 1; i++) {
+      if (i === 0) continue;
+      const [ua, ya] = front[i], [ub, yb] = front[i + 1], L = Math.hypot(ub - ua, yb - ya);
+      k.obox(M.redTrim, L + 0.08, 0.1, 0.24, (ua + ub) / 2, (ya + yb) / 2 + 0.03, S.z1 + 0.06, 0, 0, Math.atan2(yb - ya, ub - ua));
+    }
+    k.box(M.trim, 18.7, 19.6, 0, 2.1, S.z1, S.z1 + 0.06);
+    k.box(M.darkGlass, 20.25, 21.55, 1.0, 1.9, S.z1, S.z1 + 0.03); k.box(M.redTrim, 20.18, 21.62, 0.94, 1.0, S.z1, S.z1 + 0.1); k.box(M.oak, 20.15, 21.65, 0.95, 1.0, S.z1, S.z1 + 0.32);
+    const pass = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'SEASON PASSES', size: 110, y: 110, color: '#ffffff' }, { text: 'sunlightmtn.com', size: 64, y: 200, color: '#ffd23a' }], '#1f4f8f', 1024, 256), roughness: 0.75 });
+    k.plane(pass, 2.6, 0.65, S.x1 + 0.02, 1.7, (S.z0 + S.z1) / 2, Math.PI / 2);
+    addCol(S.x0, S.x1, S.z0, S.z1, gs - 0.3, S.ridge);
+
+    // the long, low dark-timber building beyond it, with a covered porch toward the slope and a trail map board
+    const L = { x0: 13.0, x1: 23.5, z0: -38.5, z1: -26.0, h: 3.0 };
+    const gl = Math.min(ground(L.x0, L.z0), ground(L.x1, L.z0), ground(L.x0, L.z1), ground(L.x1, L.z1), ground((L.x0 + L.x1) / 2, (L.z0 + L.z1) / 2));
+    k.box(M.darkSiding, L.x0, L.x1, gl - 0.3, L.h, L.z0, L.z1);
+    k.box(M.roofMembrane, L.x0 - 0.35, L.x1 + 0.35, L.h, L.h + 0.14, L.z0 - 0.35, L.z1 + 0.35);
+    k.box(M.redTrim, L.x0 - 0.37, L.x1 + 0.37, L.h - 0.05, L.h + 0.16, L.z1 + 0.33, L.z1 + 0.37);
+    k.box(M.snow, L.x0 - 0.3, L.x1 + 0.3, L.h + 0.14, L.h + 0.5, L.z0 - 0.3, L.z1 + 0.3);
+    for (const [x, z] of [[L.x0, L.z0], [L.x1, L.z0], [L.x0, L.z1], [L.x1, L.z1]]) k.box(M.redTrim, x - 0.08, x + 0.08, gl, L.h, z - 0.08, z + 0.08);
+    const py = Math.max(gl, ground((L.x0 + L.x1) / 2, L.z1 + 0.9)) + 0.12, pz = L.z1 + 1.7;
+    k.box(M.deck, L.x0, L.x1, py - 0.15, py, L.z1, pz);
+    floor(L.x0, L.x1, L.z1, pz, py, 'East porch deck');
+    for (let x = L.x0 + 0.15; x <= L.x1; x += (L.x1 - L.x0 - 0.3) / 5) { k.box(M.darkWood, x - 0.09, x + 0.09, py, 2.55, pz - 0.18, pz); addCol(x - 0.1, x + 0.1, pz - 0.2, pz, py, 2.6); }
+    {
+      const drop = 0.4, len = Math.hypot(pz + 0.4 - L.z1, drop), rx = Math.atan2(drop, pz + 0.4 - L.z1), zc = (L.z1 + pz + 0.4) / 2;
+      k.obox(M.greenRoof, L.x1 - L.x0 + 0.5, 0.06, len, (L.x0 + L.x1) / 2, 2.78, zc, 0, rx);
+      k.obox(M.snow, L.x1 - L.x0 + 0.45, 0.22, len, (L.x0 + L.x1) / 2, 2.92, zc, 0, rx);
+    }
+    for (const a of [14.2, 17.0, 21.6]) { k.box(M.darkGlass, a, a + 1.2, 1.0, 2.1, L.z1, L.z1 + 0.04); k.box(M.redTrim, a - 0.07, a + 1.27, 0.93, 2.17, L.z1, L.z1 + 0.03); }
+    for (const a of [15.9, 19.6]) { k.box(M.trim, a, a + 0.9, py, 2.15, L.z1, L.z1 + 0.06); k.box(M.redTrim, a - 0.07, a + 0.97, 2.15, 2.23, L.z1, L.z1 + 0.08); }
+    const beacon = new THREE.MeshStandardNodeMaterial({ color: 0x5a2a05, emissive: 0xff8a1a, emissiveIntensity: 1.2 });
+    k.cyl(beacon, 0.14, 0.14, 20.0, L.h + 0.45, L.h + 0.8, -33.0, 10);
+    addCol(L.x0, L.x1, L.z0, L.z1, gl - 0.3, L.h + 0.5);
+    // trail map board on two posts under a little gable roof, facing the deck
+    const mx = 11.6, mz = L.z1 + 1.3, mg = ground(mx, mz);
+    for (const x of [mx - 1.05, mx + 1.05]) k.box(M.darkWood, x - 0.08, x + 0.08, mg - 0.2, mg + 2.75, mz - 0.08, mz + 0.08);
+    k.box(M.darkWood, mx - 1.15, mx + 1.15, mg + 0.85, mg + 2.45, mz - 0.06, mz + 0.02);
+    k.plane(new THREE.MeshStandardNodeMaterial({ map: trailBoard(), roughness: 0.8 }), 2.0, 1.45, mx, mg + 1.65, mz + 0.03, 0);
+    prism(k, M.darkWood, [[mx - 1.35, mg + 2.45], [mx + 1.35, mg + 2.45], [mx, mg + 3.05]], 'z', mz - 0.35, mz + 0.35);
+    addCol(mx - 1.2, mx + 1.2, mz - 0.1, mz + 0.1, mg - 0.2, mg + 2.8);
+  }
+
+  // ---------- west deck off the dining room, its stair now running west down the slope past the annex
   const DW = DECK_W;
   k.box(M.deck, DW.x0, DW.x1, DW.y - 0.1, DW.y, DW.z0, DW.z1);
   floor(DW.x0, DW.x1, DW.z0, DW.z1, DW.y, 'West deck');
@@ -702,9 +1091,9 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
     for (const h of [0.45, 0.98]) k.box(M.deckRail, x0 - 0.04, x1 + 0.04, DW.y + h - 0.05, DW.y + h + 0.05, z0 - 0.04, z1 + 0.04);
     addCol(x0 - 0.06, x1 + 0.06, z0 - 0.06, z1 + 0.06, DW.y, DW.y + 1.05);
   };
-  wRail(DW.x0, DW.x0, DW.z0, DW.z1); wRail(DW.x0, DW.x1 - 1.6, DW.z1, DW.z1); wRail(DW.x1, DW.x1, DW.z0, DW.z1 - 1.6);
-  const gW = ground(DW.x1 + 4, DW.z1 - 0.8);
-  stairX(DW.x1, DW.x1 + Math.max(0.6, (DW.y - gW) / 0.18 * 0.28), DW.y, gW, DW.z1 - 1.5, DW.z1 - 0.1, M.deck, 'West deck stairs');
+  wRail(DW.x0, DW.x0, DW.z0, DW.z1); wRail(DW.x0, DW.x1 - 1.6, DW.z1, DW.z1); wRail(DW.x1, DW.x1, DW.z0, DW.z1);
+  const gW = ground(DW.x1 - 0.8, DW.z1 + 5.5);
+  stairZ(DW.z1, DW.z1 + Math.max(0.6, (DW.y - gW) / 0.18 * 0.28), DW.y, gW, DW.x1 - 1.5, DW.x1 - 0.1, M.deck, 'West deck stairs');
   for (const s of picnicTable(k, -1.5, DW.y, 11.0, 0)) poi('seat', s.x, DW.y + 0.45, s.z, s.h, null, 'deck');
   for (const s of picnicTable(k, 2.2, DW.y, 11.0, 0)) poi('seat', s.x, DW.y + 0.45, s.z, s.h, null, 'deck');
   addCol(-2.5, -0.5, 10.1, 11.9, DW.y, DW.y + 0.8); addCol(1.2, 3.2, 10.1, 11.9, DW.y, DW.y + 0.8);
@@ -715,12 +1104,15 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
     const c = W((x0 + x1) / 2, (z0 + z1) / 2);
     walkable.surfaces.addVolume({ cx: c.x, cz: c.z, yaw: LODGE.yaw, hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, y0: F + y0, y1: F + y1, name });
   };
-  vol(-HX, HX, -HZ, HZ, 0, UP_CEIL, UPPER); vol(-HX, LOW_END, -HZ, HZ, LOW, -0.35, LOWER); vol(E.x0, E.x1, E.z0, -HZ, 0, 3.0, SUN);
+  vol(-HX, HX, -HZ, HZ, 0, UP_CEIL, UPPER); vol(-HX, LOW_END, -HZ, HZ, LOW, -0.35, LOWER); vol(E.x0, SR.x1, E.z0, -HZ, 0, 3.0, SUN);
   const cut = (x0: number, x1: number, z0: number, z1: number, y: number) => {
     const c = W((x0 + x1) / 2, (z0 + z1) / 2);
     walkable.cutouts.push({ cx: c.x, cz: c.z, yaw: LODGE.yaw, hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, y: F + y });
   };
-  cut(-HX + 0.05, HX - 0.05, -HZ + 0.05, HZ - 0.05, 0.02); cut(DECK_S.x0, DECK_S.x1, DECK_S.z0, DECK_S.z1, DECK_S.y + 0.25); cut(E.x0 + 0.05, E.x1 - 0.05, E.z0 + 0.05, -HZ, 0.02); cut(A.x0, A.x1 - 0.05, A.z0, A.z1 - 0.05, 0.02);
+  // main block; the deck, sunroom and east deck together (every part of this rectangle is floored); the east
+  // section; the annex
+  cut(-HX + 0.05, HX - 0.05, -HZ + 0.05, HZ - 0.05, 0.02); cut(SR.x0, DECK_EDGE, DECK_EAST, CANOPY.z0, DECK_Y + 0.22);
+  cut(E.x0 + 0.05, E.x1, E.z0 + 0.05, -HZ, 0.02); cut(A.x0, A.x1 - 0.05, A.z0, A.z1 - 0.05, 0.02);
 
   k.build(g);
   g.userData.lodge = { F, frame };

@@ -21,7 +21,7 @@ import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings } from './world/buildings';
-import { LODGE_SKI_START } from './world/mainLodge';
+import { LODGE_SKI_START, lodgeSiteFootprints } from './world/mainLodge';
 import { walkable } from './world/walkable';
 import { GAUGE } from '../../shared/lifts';
 import { OnFoot } from './skier/onFoot';
@@ -238,7 +238,7 @@ export class Game {
     this.probe = this.lifts.buildStationSurfaces(this.probe);
     this.dressStationSnow();
     this.setLoading(0.35, 'Loading trees');
-    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings, Q.antialias);
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, [...this.resort.buildings, ...lodgeSiteFootprints()], Q.antialias);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.probe.height(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);

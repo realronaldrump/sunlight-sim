@@ -27,7 +27,8 @@ PATROL = {
 }
 OVERRIDES = {
     789090241: {"name": "Brettelberg Condominiums", "style": "brettelberg", "levels": 2},
-    789088639: {"name": "Base area modular building", "style": "base_modular", "levels": 1},
+    # Summer event tent south of the lodge deck (owner correction). The client skips it: open snow in winter.
+    789088639: {"name": "Summer event tent", "style": "summer_tent", "levels": 1},
     789101612: {"name": "Base area service building", "style": "base_modular", "levels": 1},
     789106639: {"name": "Base lift operations building", "style": "base_modular", "levels": 1},
 }

@@ -1,5 +1,13 @@
 # Progress
 
+## Lodge exterior from the owner's photos (November 9, 2026)
+
+- Rebuilt the main lodge's south side and the deck to match the owner's 2020 photos (and the 2010 photo where 2020 does not show it): blue-roofed annex with the red door, ticket window and "sunlight" sun sign; the gable canopy over the west deck with the Grizz Grill booth; storefront arcade with cream piers, projecting dark red beams and olive-framed glass, main doors at the east end; wood-framed sunroom (enterable, open to the east dining room); tan lap-sided upper storey with red trim, a western false front, wagon wheels and satellite dishes; red-brown deck with green picnic tables and metal patio sets; a dark red shack and a long porch building east of the deck; galvanized ski racks with banners. Details in DECISIONS.md D29.
+- Removed the summer event tent (OSM way 789088639) from the winter scene (owner correction). Trees are excluded from the new footprints.
+- The desktop start moved just west of the canopy beside a new west rack, facing the lifts; the west deck stair now runs west.
+- Cost: the lodge went from 49 to 77 meshes and from 44k to 58k triangles. Performance spec at 1440p High: 33.5 fps at the new spawn view (the old spawn view measured 37.7 fps in an A/B run; the new view faces the base crowd and lifts), 34 to 37 fps elsewhere, unchanged.
+- Verified: smoke, on-foot, gameplay, lift controls, sign walker, lesson, social, resort day, viewpoints and performance in Chromium; smoke, sign walker, lift controls, social, lesson and phone drone in WebKit; 150 unit tests. Review captures `screenshots/review-lodge-ext/v1` and `v2` (photo-matched views ref, p1 to p4, spawn, interiors).
+
 ## Snowriders' Club lunch in the lodge (November 9, 2026, released)
 
 - Every second lap the lesson ends with lunch (Sunlight's full-day Snowriders' Club includes it): skis off at the line-up, single file to the rental-level door with skis on their shoulders, about five and a half minutes on the lower-level benches in their numbered bibs, then back out to the same spots and another lap. The walk uses the base area's walking graph; without it (ambient people off) the group simply waits at the line-up. Caption, tag-along panel and status board follow along ("at lunch inside, on the lower level").
