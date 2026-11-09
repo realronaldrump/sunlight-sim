@@ -7,11 +7,12 @@
 - The production build from `fea8dde` passed 132 unit tests, five pipeline checks and seven targeted Chromium and WebKit scenarios. The walker completed two simulated circuits, stayed grounded and remained within 12 m of the normal ski start. The High preset close-up is `screenshots/lodge-sign/release-front.png`.
 - Ran `git push origin main` and verified `fea8dde` on `origin/main`. Vercel deployment `dpl_H3TE2LRisbBYSdJ9Spm94hncFA3d` is READY at https://sunlight-sim.vercel.app. Live HTML, JavaScript, resort data and sign artwork match the verified build. The live sign-walker scenario passed in Chromium and WebKit. This feature and release are complete.
 
-## Building signage and release preparation (November 8, 2026)
+## Building signage release (November 8, 2026)
 
 - Segundo and Tercero slope lengths in ACCURACY.md now match the generated world data. The minimap test allows 15 seconds to reach its speed threshold and passed in Chromium with Low WebGL. Generated screenshots are ignored throughout the screenshots directory.
 - Replaced the two freestanding placeholder huts with a lidar-measured summit building and a ticket counter at the main lodge annex. Mounted the patrol sign on the front of its railing and moved the annex logo above the door, clear of the ticket sign and glazing. Reviewed both from snow level in Chromium and confirmed the patrol building has a collider.
-- The isolated production build, 132 unit tests and five pipeline checks passed. Next, finish the Chromium minimap suite, publish the source on main, deploy the matching production build and recheck both buildings on the public site.
+- The isolated production build, 132 unit tests, five pipeline checks and all three Chromium minimap scenarios passed on the release snapshot. Browser checks used Low WebGL.
+- Promoted Vercel deployment `dpl_GJZvieZoLto4SVGopamgUzaMYhUM` from committed source `4214cd4`, verified on `origin/main` after `git push origin main`. The public HTML, bundles and world data matched the tested files. Chromium and WebKit verified the signs and patrol collider through the live Ski solo flow with no browser errors. Captures are under `screenshots/building-signage-4214cd4/`.
 
 ## Minimap trail key and Map only (November 8, 2026)
 - The key shows Green, Blue, Black and Double Black with matching ski symbols. Map only hides the header, key and toolbar while keeping the live map, compass and scale visible. Details restores the controls. The browser remembers this choice separately from zoom and full minimap visibility.
