@@ -71,7 +71,7 @@ Accuracy rule: terrain heights in the game must come from the DEM, not from art.
 
 ## 5. Player experience
 
-- Spawn at the base area near the main lift.
+- On desktop, spawn on skis beside the main lodge's ski racks, with room to ski down to either base lift.
 - Third-person camera by default, first-person toggle. Camera must make slope steepness readable (this matters most for a beginner preparing for real runs).
 - Controls: keyboard (WASD/arrows) and gamepad. Simple to learn: steer, speed control (snowplow/pizza for braking), tuck, stop, and a key to stand back up after a fall.
 - **Lifts work for real:** ski into the loading zone, the chair arrives and picks you up, you ride the full lift at real speed with the real view, and you unload at the top. Option to skip the ride (fast-forward) but default is real time.

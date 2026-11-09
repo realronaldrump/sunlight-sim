@@ -21,6 +21,7 @@ import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
+import { LODGE_SKI_START } from './world/mainLodge';
 import { walkable } from './world/walkable';
 import { GAUGE } from '../../shared/lifts';
 import { OnFoot } from './skier/onFoot';
@@ -162,20 +163,18 @@ export class Game {
     this.scene.add(this.lifts.group);
     for (const c of this.lifts.colliders) this.colliders.add(c);
 
-    // spawn near the main base lift (Segundo/Tercero bottom terminals by the base lodge)
-    const seg = this.resort.lifts.find((l) => l.name === 'Segundo') ?? this.resort.lifts[0];
+    const spawn = LODGE_SKI_START;
     this.setLoading(0.25, 'Loading terrain near the base');
-    await this.hf.ensureArea(0, seg.bottom[0], -seg.bottom[2], 300);
+    await this.hf.ensureArea(0, spawn.x, -spawn.z, 300);
     await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     this.probe = this.lifts.buildStationSurfaces(this.probe);
     this.dressStationSnow();
-    const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
     this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings, Q.antialias);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
-    this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
+    this.player = new Player(new THREE.Vector3(spawn.x, this.probe.height(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
     this.scene.add(this.player.model.root);
     this.onFoot = new OnFoot(this.scene, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, this.camera, this.renderer.domElement, new THREE.Color('#d33a2c'));
     this.runs.buildSigns((x, z) => this.hf.heightAt(x, z), this.colliders);
@@ -316,35 +315,9 @@ export class Game {
     this.playerName = choice.name; this.playerColor = choice.color;
     this.player.model.setJacket(choice.color);
     this.onFoot.setJacket(choice.color);
-    // A real day starts on foot outside the rental level, skis on the shoulder, facing the lifts.
-    const onfoot = this.params.get('onfoot');
-    if (!this.droneOnly && (onfoot === '1' || (onfoot !== '0' && this.params.get('autostart') !== '1' && !choice.room))) this.startOnFoot();
+    if (!this.droneOnly && this.params.get('onfoot') === '1') this.startOnFoot();
     if (choice.room) await this.joinRoom(choice.room);
     this.ready = true;
-  }
-
-  private spawnCache: { x: number; z: number; heading: number } | null = null;
-  /** A gentle spot near the Segundo load line (main base lift), facing the load line. */
-  spawnPoint() {
-    if (this.spawnCache) return this.spawnCache;
-    const li = Math.max(0, this.resort.lifts.findIndex((l) => l.name === 'Segundo'));
-    const path = this.lifts.paths[li];
-    const lp = path.loadPoint();
-    // behind the lift maze, in the open lane that leads straight to the load line
-    const px = lp.x - path.ax * 17, pz = lp.z - path.az * 17;
-    let best = { x: px, z: pz, score: Infinity };
-    for (let i = -20; i <= 20; i++) for (let j = -20; j <= 20; j++) {
-      const x = px + i * 1.5, z = pz + j * 1.5;
-      if (this.hf.bestLevel(x, -z) !== 0) continue;
-      const slope = this.hf.slopeDeg(x, z, 2.5);
-      if (slope > 4.5 || path.inLoadZone(x, z)) continue;
-      if (this.colliders.query(x, z).some((c) => Math.hypot(c.x - x, c.z - z) < 4)) continue;
-      const score = Math.hypot(x - px, z - pz) + slope * 2;
-      if (score < best.score) best = { x, z, score };
-    }
-    const heading = Math.atan2(-(lp.x - best.x), -(lp.z - best.z));
-    if (best.score < Infinity) this.spawnCache = { x: best.x, z: best.z, heading };
-    return { x: best.x, z: best.z, heading };
   }
 
   /** Step out of the bindings (stopped, on snow, not on a lift) or click back in (on open snow). */
@@ -427,10 +400,11 @@ export class Game {
     if (this.droneOnly) { this.recallDrone(); return; }
     if (this.drone?.active) this.toggleDrone();
     this.leaveOnFoot();
-    const s = this.spawnPoint();
-    this.player.teleport(s.x, s.z, s.heading);
+    const { x, z, heading } = LODGE_SKI_START;
+    this.player.teleport(x, z, heading);
+    this.camRig.reset();
     this.net?.markTeleport();
-    this.hud.toast('Back at the base area');
+    this.hud.toast('Back at the lodge ski racks');
   }
 
   private async pauseTravel(action: () => Promise<void>) {

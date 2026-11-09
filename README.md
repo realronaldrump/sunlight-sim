@@ -39,6 +39,8 @@ Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail r
 
 ## Desktop controls
 
+Start on skis outside the main lodge by the ski racks. Press W to push off, then ski down to Segundo or Tercero. Use **Teleport to base** in the pause menu to return to the racks. Primo loads farther up the mountain.
+
 | Key | Action |
 |---|---|
 | A / D or arrow keys | Edge and turn (weight shift, so turns build up) |

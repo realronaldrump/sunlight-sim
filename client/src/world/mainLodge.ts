@@ -14,6 +14,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mx_noise_float, positionWorld, normalWorld, vec3, float, texture, dot, normalize, max, color as tslColor } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
+import { headingFromDir } from '../../../shared/skiPhysics';
 import { toWorld } from '../../../shared/walk';
 import { walkable } from './walkable';
 import type { BuildingDef } from './sunlightBuildings';
@@ -356,6 +357,14 @@ const EAST = { x0: 1.6, x1: 13.6, z0: -13.8, top: 6.6 };
 const ANNEX = { x0: 12.5, x1: 22.5, z0: HZ, z1: 17.5, top: 3.9 };
 const DECK_S = { x0: HX, x1: 21.0, z0: -6.8, z1: HZ, y: -0.12 };
 const DECK_W = { x0: -4.5, x1: 5.0, z0: HZ, z1: 14.0, y: -0.1 };
+const SKI_RACK_X = 24.6;
+const WEST_RACK = [7, 11] as const;
+
+// Start on the open snow just beyond the west rack, facing past the lodge toward the base slopes.
+export const LODGE_SKI_START = {
+  ...toWorld(LODGE, SKI_RACK_X, WEST_RACK[1] + 3),
+  heading: headingFromDir(-1, -0.45),
+};
 
 export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) => number, colliders: ColliderGrid) {
   const F = b.roofElevation ? b.roofElevation - ROOF : height(LODGE.cx, LODGE.cz) + 0.3;
@@ -666,7 +675,8 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
   for (const [x, z] of [[17.2, -4.6], [17.2, -1.3], [17.2, 2.2], [19.4, -4.6], [19.4, 2.2], [17.2, 5.4]]) for (const s of picnicTable(k, x, D.y, z, Math.PI / 2)) poi('seat', s.x, D.y + 0.45, s.z, s.h, null, 'deck');
   for (const [x, z] of [[17.2, -4.6], [17.2, -1.3], [17.2, 2.2], [19.4, -4.6], [19.4, 2.2], [17.2, 5.4]]) addCol(x - 0.45, x + 0.45, z - 0.95, z + 0.95, D.y, D.y + 0.8);
   // ski racks out on the snow below the deck
-  for (const [x, z0, z1] of [[24.6, -9.5, -5.0], [24.6, 7.0, 11.0]]) {
+  for (const [z0, z1] of [[-9.5, -5.0], WEST_RACK]) {
+    const x = SKI_RACK_X;
     const gy = ground(x, (z0 + z1) / 2);
     for (const z of [z0, z1]) k.cyl(M.steel, 0.03, 0.03, x, gy - 0.3, gy + 1.15, z, 8);
     k.box(M.steel, x - 0.025, x + 0.025, gy + 1.12, gy + 1.17, z0, z1);
