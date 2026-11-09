@@ -5,6 +5,7 @@ import { NO_DRONE_INPUT, type DroneInput } from '../../../shared/dronePhysics';
 export interface Actions {
   getUp: boolean; camera: boolean; map: boolean; slope: boolean; skipLift: boolean; help: boolean;
   chat: boolean; respawn: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
+  skis: boolean;
 }
 
 export class InputManager {
@@ -67,6 +68,20 @@ export class InputManager {
     return { steer, tuck: fwd > 0, push: fwd > 0, plow: back, stop };
   }
 
+  /** On foot: camera-relative walking. Shift (or the right bumper) jogs. */
+  walk() {
+    if (!this.enabled || !this.focused) return { forward: 0, right: 0, run: false };
+    const k = this.keys, p = this.pad();
+    let forward = Number(k.has('KeyW') || k.has('ArrowUp')) - Number(k.has('KeyS') || k.has('ArrowDown'));
+    let right = Number(k.has('KeyD') || k.has('ArrowRight')) - Number(k.has('KeyA') || k.has('ArrowLeft'));
+    if (p) {
+      const ax = p.axes[0] ?? 0, ay = p.axes[1] ?? 0;
+      if (Math.abs(ax) > 0.14) right = ax;
+      if (Math.abs(ay) > 0.14) forward = -ay;
+    }
+    return { forward, right, run: k.has('ShiftLeft') || k.has('ShiftRight') || !!p?.buttons[5]?.pressed };
+  }
+
   drone(): DroneInput {
     if (!this.enabled || !this.focused || document.hidden) return { ...NO_DRONE_INPUT, brake: true };
     const k = this.keys, p = this.pad();
@@ -106,6 +121,7 @@ export class InputManager {
       mute: pr.has('KeyN'),
       options: pr.has('KeyP') || pr.has('Escape'),
       drone: pr.has('KeyG') || btn(10),
+      skis: pr.has('KeyK') || btn(11),
     };
     pr.clear();
     return a;

@@ -158,6 +158,8 @@ function materials() {
     vinyl: interior({ color: 0x2a2826, roughness: 0.6 }),
     locker: interior({ color: 0x3d5a73, roughness: 0.45, metalness: 0.5 }),
     rentalSki: interior({ color: 0xd8dde2, roughness: 0.35 }),
+    rentalSkiBlue: interior({ color: 0x2f6db5, roughness: 0.35 }),
+    rentalSkiBlack: interior({ color: 0x24262a, roughness: 0.35 }),
     bootPlastic: interior({ color: 0x27292c, roughness: 0.4 }),
     food: interior({ color: 0xb8742e, roughness: 0.6 }),
     bottle: interior({ color: 0x3f6a3a, roughness: 0.15, metalness: 0.2 }),
@@ -565,10 +567,13 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
   addCol(-6.3, -1.9, 1.1, 1.9, LOW, LOW + 1.1);
   const rentals = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'RENTALS  &  REPAIR', size: 96, y: 128, color: '#f4efe2' }], '#30473a') });
   k.plane(rentals, 3.6, 0.9, -4.1, LOW + 2.45, 0.32, 0);
+  for (const x of [-5.7, -2.5]) k.cyl(M.blackMetal, 0.006, 0.006, x, LOW + 2.9, -0.36, 0.32, 4);
   // ski wall: rental skis stand in racks along the retaining wall
   for (let z = -6.8; z < 6.8; z += 0.16) {
     const h = 1.55 + ((z * 13) % 0.25);
-    k.box(M.rentalSki, LOW_END - T - 0.12, LOW_END - T - 0.08, LOW, LOW + h, z - 0.04, z + 0.04);
+    const skiMat = [M.rentalSki, M.rentalSkiBlue, M.rentalSkiBlack][Math.floor(Math.abs(z * 7.3)) % 3];
+    k.box(skiMat, LOW_END - T - 0.12, LOW_END - T - 0.1, LOW + 0.02, LOW + h, z - 0.04, z + 0.04);
+    k.box(M.bootPlastic, LOW_END - T - 0.135, LOW_END - T - 0.085, LOW + 0.75, LOW + 0.83, z - 0.045, z + 0.045);
     k.box(M.blackMetal, LOW_END - T - 0.14, LOW_END - T - 0.06, LOW + 0.55, LOW + 0.62, z - 0.05, z + 0.05);
   }
   k.box(M.blackMetal, LOW_END - T - 0.2, LOW_END - T, LOW + 1.2, LOW + 1.24, -6.9, 6.9);
@@ -699,7 +704,7 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
     const c = W((x0 + x1) / 2, (z0 + z1) / 2);
     walkable.cutouts.push({ cx: c.x, cz: c.z, yaw: LODGE.yaw, hx: (x1 - x0) / 2, hz: (z1 - z0) / 2, y: F + y });
   };
-  cut(-HX + 0.05, HX - 0.05, -HZ + 0.05, HZ - 0.05, 0.02); cut(E.x0 + 0.05, E.x1 - 0.05, E.z0 + 0.05, -HZ, 0.02); cut(A.x0, A.x1 - 0.05, A.z0, A.z1 - 0.05, 0.02);
+  cut(-HX + 0.05, HX - 0.05, -HZ + 0.05, HZ - 0.05, 0.02); cut(DECK_S.x0, DECK_S.x1, DECK_S.z0, DECK_S.z1, DECK_S.y + 0.25); cut(E.x0 + 0.05, E.x1 - 0.05, E.z0 + 0.05, -HZ, 0.02); cut(A.x0, A.x1 - 0.05, A.z0, A.z1 - 0.05, 0.02);
 
   k.build(g);
   g.userData.lodge = { F, frame };

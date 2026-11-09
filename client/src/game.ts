@@ -21,6 +21,7 @@ import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
 import { walkable } from './world/walkable';
+import { OnFoot } from './skier/onFoot';
 import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
 import { Snowfall } from './sky/snowfall';
@@ -70,6 +71,7 @@ export class Game {
   camRig!: CameraRig;
   hud!: Hud;
   drone!: DroneSystem;
+  onFoot!: OnFoot;
   private launchingDrone = false;
   params = new URLSearchParams(location.search);
   timer = new THREE.Timer();
@@ -152,6 +154,7 @@ export class Game {
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
     this.scene.add(this.player.model.root);
+    this.onFoot = new OnFoot(this.scene, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, this.camera, this.renderer.domElement, new THREE.Color('#d33a2c'));
     this.runs.buildSigns((x, z) => this.hf.heightAt(x, z), this.colliders);
     this.runs.buildBoundary((x, z) => this.hf.heightAt(x, z));
     this.scene.add(this.runs.group);
@@ -253,6 +256,10 @@ export class Game {
     }
     this.playerName = choice.name; this.playerColor = choice.color;
     this.player.model.setJacket(choice.color);
+    this.onFoot.setJacket(choice.color);
+    // A real day starts on foot outside the rental level, skis on the shoulder, facing the lifts.
+    const onfoot = this.params.get('onfoot');
+    if (onfoot === '1' || (onfoot !== '0' && this.params.get('autostart') !== '1' && !choice.room)) this.startOnFoot();
     if (choice.room) await this.joinRoom(choice.room);
     this.ready = true;
   }
@@ -281,8 +288,62 @@ export class Game {
     return { x: best.x, z: best.z, heading };
   }
 
+  /** Step out of the bindings (stopped, on snow, not on a lift) or click back in (on open snow). */
+  toggleSkis() {
+    if (this.drone.active) return;
+    if (this.onFoot.active) {
+      if (!this.onFoot.canClickIn()) { this.hud.toast('Find open snow outside to click into your skis'); return; }
+      const w = this.onFoot.st;
+      this.onFoot.exit();
+      this.player.teleport(w.pos.x, w.pos.z, w.heading);
+      this.player.model.root.visible = true;
+      this.camRig.enabled = true; this.camRig.reset();
+      this.net?.markTeleport();
+      this.hud.toast('Clicked in');
+      return;
+    }
+    const st = this.player.st;
+    if (this.player.ride || st.speed > 1.0 || st.mode === 'air') { this.hud.toast('Stop first to step out of your skis'); return; }
+    this.onFoot.enter(st.pos.x, st.pos.y, st.pos.z, st.heading);
+    this.player.model.root.visible = false;
+    this.camRig.enabled = false;
+    this.hud.toast('Skis off. Shift to jog, K to click back in');
+  }
+
+  private leaveOnFoot() {
+    if (!this.onFoot?.active) return;
+    this.onFoot.exit(); this.player.model.root.visible = true; this.camRig.enabled = true; this.camRig.reset();
+  }
+
+  /** Keep the (hidden) skier state on the walker so map, network and streaming follow them. */
+  private parkSkierAtWalker() {
+    const w = this.onFoot.st, p = this.player.st;
+    p.pos.x = w.pos.x; p.pos.y = w.pos.y; p.pos.z = w.pos.z;
+    p.vel.x = w.vel.x; p.vel.y = 0; p.vel.z = w.vel.z; p.speed = 0;
+    p.heading = w.heading; p.mode = 'standing'; p.grounded = true;
+    this.player.model.root.visible = false;
+  }
+
+  /** Test hook: registered points of interest (doors, seats, counters). */
+  walkablePois() { return walkable.pois; }
+
+  /** Start of the day: on foot outside the lodge's rental-level door, facing the lifts. */
+  startOnFoot() {
+    const door = walkable.pois.find((p) => p.tag === 'lower-door');
+    if (!door) return;
+    const seg = this.lifts.paths.find((p) => p.def.name === 'Segundo') ?? this.lifts.paths[0];
+    const lp = seg.loadPoint();
+    const heading = Math.atan2(-(lp.x - door.x), -(lp.z - door.z));
+    this.player.teleport(door.x, door.z, heading);
+    this.onFoot.enter(door.x, door.y, door.z, heading);
+    this.player.model.root.visible = false;
+    this.camRig.enabled = false;
+    this.hud.toast('Welcome to Sunlight. Walk to the lifts, then press K to click in');
+  }
+
   respawn() {
     if (this.drone?.active) this.toggleDrone();
+    this.leaveOnFoot();
     const s = this.spawnPoint();
     this.player.teleport(s.x, s.z, s.heading);
     this.net?.markTeleport();
@@ -367,7 +428,7 @@ export class Game {
   }
 
   private updateCamera(dt: number) {
-    if (this.drone?.active) return;
+    if (this.drone?.active || this.onFoot?.active) return;
     if (this.flyMode) { this.updateFlyCamera(dt); return; }
     const st = this.player.st;
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
@@ -395,7 +456,13 @@ export class Game {
         this.drone.controlsEnabled = this.input.enabled;
         this.drone.update(dt,this.input.drone());
         this.player.update(dt,{steer:0,tuck:false,plow:0,push:false,stop:true},true);
+      } else if (this.onFoot.active) {
+        if (actions.skis && this.input.enabled) this.toggleSkis();
+        if (actions.camera && this.input.enabled) { this.onFoot.firstPerson = !this.onFoot.firstPerson; this.hud.toast(this.onFoot.firstPerson ? 'Camera: first person' : 'Camera: behind'); }
+        if (actions.respawn && this.input.enabled) this.respawn();
+        if (this.onFoot.active) { this.onFoot.update(dt, this.input.walk()); this.parkSkierAtWalker(); }
       } else {
+      if (actions.skis && this.input.enabled) this.toggleSkis();
       const inp = this.input.ski(dt);
       if (actions.getUp && this.input.enabled) this.player.getUp();
       if (actions.skipLift && this.input.enabled) this.player.skipRide();
@@ -454,7 +521,7 @@ export class Game {
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: this.ready && !this.trailMap.visible, drone: this.drone.active,
     });
-    this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
+    this.hud.update(dt, this.onFoot.active ? this.onFoot.st.speed : st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.drone.hud.update(dt,this.drone.state,this.drone.fpv,Math.hypot(mapPos.x-st.pos.x,mapPos.z-st.pos.z),
       this.drone.area.nearest(mapPos.x,mapPos.z).remaining,this.ready,this.trailMap.visible || this.options.visible,!this.input.enabled);
     this.updateHints();
@@ -567,6 +634,7 @@ export class Game {
 
   /** Teleport next to another player (or to the top of the lift they are riding). */
   async joinFriend(name: string) {
+    this.leaveOnFoot();
     const r = this.net ? [...this.net.remotes.values()].find((x) => x.name === name) : null;
     if (!r) return;
     if (this.drone.active) this.toggleDrone();
@@ -586,6 +654,7 @@ export class Game {
   }
 
   async teleportToRun(name: string) {
+    this.leaveOnFoot();
     const top = this.runs.runTops().get(name);
     if (!top) return;
     if (this.drone.active) this.toggleDrone();
@@ -652,6 +721,7 @@ export class Game {
   }
 
   private modeLabel() {
+    if (this.onFoot?.active) return this.onFoot.st.indoor ?? 'On foot';
     const st = this.player.st;
     if (this.player.ride) return `Riding ${this.lifts.paths[this.player.ride.lift].def.name}`;
     return { skiing: '', standing: '', air: 'Airborne', fallen: 'Fallen: press R', gettingUp: 'Getting up', riding: '' }[st.mode] ?? '';
@@ -659,6 +729,10 @@ export class Game {
 
   private updateHints() {
     if (this.drone.active) { this.hud.hint(null); return; }
+    if (this.onFoot.active) {
+      this.hud.hint(this.onFoot.canClickIn() ? 'On foot in ski boots. Press <b>K</b> to click into your skis.' : null);
+      return;
+    }
     const pl = this.player;
     if (pl.ride) {
       const path = this.lifts.paths[pl.ride.lift];

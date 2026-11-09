@@ -76,6 +76,7 @@ export class Hud {
       <kbd>O</kbd>: slope angle overlay<br>
       <kbd>F</kbd>: skip the lift ride<br>
       <kbd>B</kbd>: back to the base area<br>
+      <kbd>K</kbd>: step out of / click into your skis. On foot, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk, <kbd>Shift</kbd> jogs, the lodge doors are open<br>
       <kbd>P</kbd>: options (time of day, snowfall, volume, quality)<br><kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera<br>
       Enter the loading lane facing uphill. The arriving chair picks you up where it reaches you. Drag the mouse to look around.`;
     document.body.appendChild(help);

@@ -12,4 +12,13 @@ export const walkable = {
   surfaces: new WalkSurfaces(),
   cutouts: [] as TerrainCutout[],
   pois: [] as Poi[],
+  /** Snow height for walking, or -Infinity where a building has hidden the terrain under its floor. */
+  snowHeight(x: number, z: number, h: number) {
+    for (const c of this.cutouts) {
+      if (h >= c.y) continue;
+      const cs = Math.cos(c.yaw), sn = Math.sin(c.yaw), dx = x - c.cx, dz = z - c.cz;
+      if (Math.abs(cs * dx - sn * dz) <= c.hx && Math.abs(sn * dx + cs * dz) <= c.hz) return -Infinity;
+    }
+    return h;
+  },
 };

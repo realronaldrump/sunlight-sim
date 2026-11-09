@@ -63,7 +63,8 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
 
   await page.evaluate(() => {
     const g = (window as any).game, path = g.lifts.paths.find((p: any) => p.def.name === 'Tercero');
-    const lp = path.loadPoint(); g.player.teleport(lp.x - path.ax * 1.2, lp.z - path.az * 1.2, lp.heading);
+    // Stand in a seat lane: chair-contact loading picks up skiers where a seat reaches them.
+    const lp = path.loadPoint(), off = path.seatOffset(0); g.player.teleport(lp.x + path.rx * off, lp.z + path.rz * off, lp.heading);
   });
   await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
   await expect(minimap.locator('.mm-run')).toHaveText('Tercero lift');
