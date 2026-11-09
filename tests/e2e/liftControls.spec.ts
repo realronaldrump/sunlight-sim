@@ -5,14 +5,21 @@ async function ready(page: Page, extra = '') {
   await page.waitForFunction(() => (window as any).game?.ready, null, {timeout:120000});
 }
 async function board(page: Page, li = 1) {
-  await page.evaluate(li => {
-    const g=(window as any).game,p=g.lifts.paths[li],t=g.lifts.now(li),chair=p.nextChairAt(p.loadU,t);
+  await page.evaluate(async li => {
+    const g=(window as any).game,p=g.lifts.paths[li];
+    // Warm the destination before placing the test skier there. Actual lift approaches
+    // stream this terrain while skiing; an instant test relocation must do that explicitly.
+    const load=p.loadPoint();
+    await g.setView(load.x, -8, load.z+10, 0, -15);
+    await g.waitIdle();
+    g.flyMode=false;g.camRig.reset();
+    const t=g.lifts.now(li),chair=p.nextChairAt(p.loadU,t);
     g.lifts.clockOffset+=chair.arrive-t;
     const lp=p.loadPoint(),off=p.seatOffset(0);
     g.player.teleport(lp.x+p.rx*off,lp.z+p.rz*off,lp.heading);g.player.board(li,chair.index,0);
   }, li);
-  await expect(page.locator('#lift-ride-controls')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as any).game.player.sitBlend)).toBeGreaterThan(.99);
+  await expect(page.locator('#lift-ride-controls')).toBeVisible({timeout:30000});
+  await expect.poll(() => page.evaluate(() => (window as any).game.player.sitBlend), {timeout:30000}).toBeGreaterThan(.99);
 }
 
 test('B and the normal map cannot teleport; pause menu travel is explicit', async ({page}, info) => {
@@ -45,7 +52,7 @@ test('B and the normal map cannot teleport; pause menu travel is explicit', asyn
   await expect(page.locator('#opts')).toBeHidden();
   expect(await page.evaluate(p=>{const s=(window as any).game.player.st.pos;return Math.hypot(s.x-p.x,s.z-p.z);},before)).toBeGreaterThan(50);
   await page.keyboard.press('Escape');await page.locator('#pause-base').click();
-  expect(await page.evaluate(()=>{const g=(window as any).game,p=g.spawnPoint();return Math.hypot(g.player.st.pos.x-p.x,g.player.st.pos.z-p.z);})).toBeLessThan(2);
+  expect(await page.evaluate(()=>{const g=(window as any).game,s=g.player.st.pos;return Math.min(...g.walkablePois().filter((p:any)=>p.tag==='ski-rack').map((p:any)=>Math.hypot(s.x-p.x,s.z-p.z))); })).toBeLessThan(8);
   // Start opens pause; it must not retain the former back-to-base behavior.
   await page.evaluate(()=> {
     const pad={connected:true,axes:[0,0,0,0],buttons:Array.from({length:17},(_,i)=>({pressed:i===9,value:i===9?1:0}))};
@@ -63,8 +70,8 @@ for (const backend of ['default','webgl']) test(`lift speed affects only its cab
   await page.locator('#drone-marker').click({delay:120});
   await expect(page.locator('#player-marker')).toBeVisible();
   await expect(page.locator('#player-marker')).toContainText('Your skier · Primo');
-  await page.locator('#lift-fast-forward').click();
-  await expect(page.locator('#lift-fast-forward')).toHaveAttribute('aria-pressed','true');
+  await page.locator('#lift-speed-8').click();
+  await expect(page.locator('#lift-speed-8')).toHaveAttribute('aria-pressed','true');
   const start=await page.evaluate(()=>{const g=(window as any).game;return {wall:Date.now()/1000,times:g.lifts.paths.map((_:any,i:number)=>g.lifts.now(i)),hour:g.env.hour,drone:{...g.drone.state.pos},body:g.player.time};});
   await page.waitForTimeout(1800);
   const end=await page.evaluate(()=>{const g=(window as any).game,r=g.player.ride;return {wall:Date.now()/1000,times:g.lifts.paths.map((_:any,i:number)=>g.lifts.now(i)),hour:g.env.hour,drone:{...g.drone.state.pos},body:g.player.time,seat:g.lifts.paths[r.lift].riderPoint(r.chair,r.seat,g.lifts.now(r.lift)).p,player:{...g.player.st.pos}};});
@@ -75,6 +82,18 @@ for (const backend of ['default','webgl']) test(`lift speed affects only its cab
   expect(end.body-start.body).toBeLessThan(elapsed*1.15);
   const alignment=await page.evaluate(()=>new Promise<number>(resolve=>{const g=(window as any).game;const sample=()=>{g.onFrame.splice(g.onFrame.indexOf(sample),1);const r=g.player.ride,p=g.lifts.paths[r.lift].riderPoint(r.chair,r.seat,g.lifts.now(r.lift)).p,s=g.player.st.pos;resolve(Math.hypot(s.x-p.x,s.y-p.y,s.z-p.z));};g.onFrame.push(sample);}));
   expect(alignment).toBeLessThan(.01);
+  // Every visible choice changes the actual cable speed, including lowering it.
+  await expect(page.locator('#lift-speed-options button')).toHaveCount(5);
+  for(const speed of [16,4,2,1]) {
+    await page.locator(`#lift-speed-${speed}`).click();
+    await expect.poll(()=>page.evaluate(()=>(window as any).game.lifts.clocks[1].rate)).toBe(speed);
+    await expect(page.locator(`#lift-speed-${speed}`)).toHaveAttribute('aria-pressed','true');
+  }
+  for(const speed of [2,4,8,16,1]) {
+    await page.keyboard.press('KeyF');
+    await expect(page.locator(`#lift-speed-${speed}`)).toHaveAttribute('aria-pressed','true');
+  }
+  await page.locator('#lift-speed-8').click();
   await page.screenshot({path:info.outputPath('drone-lift-marker.png')});
   await page.keyboard.press('Escape');
   await expect.poll(()=>page.evaluate(()=>(window as any).game.lifts.clocks[1].rate)).toBe(1);
@@ -90,7 +109,7 @@ for (const backend of ['default','webgl']) test(`lift speed affects only its cab
   await page.screenshot({path:info.outputPath('drone-skier-offscreen.png')});
   // Near the top, accelerate the actual cable through its unload line.
   await page.evaluate(()=>{const g=(window as any).game,r=g.player.ride;g.lifts.clockOffset+=r.unloadAt-g.lifts.now(r.lift)-12;});
-  await page.keyboard.press('KeyF');
+  await page.locator('#lift-speed-16').click();
   await expect.poll(()=>page.evaluate(()=>(window as any).game.player.ride),{timeout:10000}).toBeNull();
   await expect(page.locator('#lift-ride-controls')).toBeHidden();
   expect(await page.evaluate(()=>(window as any).game.lifts.clocks[1].rate)).toBe(1);

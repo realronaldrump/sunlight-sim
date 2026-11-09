@@ -41,7 +41,7 @@ import { TouchControls } from './drone/touchControls';
 import { IPHONE } from './platform';
 import { DroneNavigation } from '../../shared/droneNavigation';
 import { formatDistance } from './ui/units';
-import { LIFT_FAST_RATE } from '../../shared/liftClock';
+import { LIFT_SPEEDS, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { LiftRideControls } from './ui/liftRideControls';
 import { PlayerMarker } from './drone/playerMarker';
 
@@ -217,7 +217,7 @@ export class Game {
     this.playerMarker = new PlayerMarker();
     this.drone.hud.onMarker = () => { this.playerMarker.toggle(); this.drone.hud.marker(this.playerMarker.enabled); };
     this.drone.hud.marker(this.playerMarker.enabled);
-    this.liftControls = new LiftRideControls(); this.liftControls.onToggle = () => this.toggleLiftSpeed();
+    this.liftControls = new LiftRideControls(); this.liftControls.onSpeed = speed => this.setLiftSpeed(speed);
     const stopFast = () => this.stopLiftSpeed();
     window.addEventListener('blur', stopFast);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopFast(); });
@@ -415,17 +415,24 @@ export class Game {
 
   toggleLiftSpeed() {
     const ride = this.player.ride;
-    if (!ride || !this.ready || this.options.visible || this.trailMap.visible || this.chat?.open) return;
+    if (!ride) return;
+    const rate = this.lifts.clocks[ride.lift].rate;
+    const index = isLiftSpeed(rate) ? LIFT_SPEEDS.indexOf(rate) : 0;
+    this.setLiftSpeed(LIFT_SPEEDS[(index + 1) % LIFT_SPEEDS.length]);
+  }
+
+  setLiftSpeed(rate: LiftSpeed) {
+    const ride = this.player.ride;
+    if (!isLiftSpeed(rate) || !ride || !this.ready || this.options.visible || this.trailMap.visible || this.chat?.open) return;
     if (this.net && (!this.net.connected || !this.net.supportsLiftSpeed)) return;
-    if (this.fastLift !== null) { this.stopLiftSpeed(); return; }
-    this.fastLift = ride.lift;
-    if (this.net) this.net.setLiftFast(true);
-    else this.lifts.clocks[ride.lift].setRate(LIFT_FAST_RATE, ride.unloadAt - this.lifts.clockOffset);
+    this.fastLift = rate > 1 ? ride.lift : null;
+    if (this.net) this.net.setLiftSpeed(rate);
+    else this.lifts.clocks[ride.lift].setRate(rate, ride.unloadAt - this.lifts.clockOffset);
   }
 
   private stopLiftSpeed() {
     if (this.fastLift === null) return;
-    if (this.net?.connected) this.net.setLiftFast(false);
+    if (this.net?.connected) this.net.cancelLiftSpeed();
     else this.lifts.clocks[this.fastLift].setRate(1);
     this.fastLift = null;
   }
@@ -651,7 +658,7 @@ export class Game {
     const overlaysClear = this.ready && !this.options.visible && !this.trailMap.visible && !this.chat?.open;
     this.options.update(this.ready, this.drone.active, this.trailMap.visible);
     this.liftControls.update(lift?.def.name ?? null, ride ? ride.unloadAt - this.lifts.now(ride.lift) : 0,
-      ride ? this.lifts.clocks[ride.lift].rate : 1, this.fastLift !== null, overlaysClear,
+      ride ? this.lifts.clocks[ride.lift].rate : 1, overlaysClear,
       !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net);
     this.playerMarker.update(this.camera, st.pos, this.drone.active && !this.droneOnly && overlaysClear, lift?.def.name);
     if (this.touch) {

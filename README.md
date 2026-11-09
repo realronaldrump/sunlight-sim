@@ -52,7 +52,7 @@ Start on skis outside the main lodge by the ski racks. Press W to push off, then
 | G | Launch a camera drone / return to skiing |
 | M | View the trail map |
 | O | Slope angle overlay (green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 degrees) |
-| F | Toggle the occupied lift between 1× and 8× speed |
+| F | Cycle the occupied lift through 1×, 2×, 4×, 8× and 16× speed |
 | Esc / P | Pause menu, teleport destinations and options |
 | T | Chat (multiplayer) |
 | N | Sound on/off |
@@ -64,7 +64,7 @@ Teleportation is available only in the pause menu: return to base, choose a run 
 
 In drone mode, **Show my skier** adds an optional marker that tracks your skier on the moving chair, with distance and an off-screen direction cue. Toggle it off for an unobstructed view.
 
-To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Press F or the lift-speed button to ride at 8× speed, then again for 1×. Only the occupied lift speeds up: other lifts, skiers, drone flight, scenery and daylight keep their normal timing. Speed resets at unloading, on pause, and on focus loss. In multiplayer the selected lift is shared, so its chairs and all riders stay synchronized. See ACCURACY.md for the remaining geometry and operating-speed limitations.
+To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Choose 1×, 2×, 4×, 8× or 16× in the lift-speed controls, or press F to cycle through them. Only the occupied lift speeds up: other lifts, skiers, drone flight, scenery and daylight keep their normal timing. Speed resets at unloading, on pause, and on focus loss. In multiplayer the selected lift is shared, so its chairs and all riders stay synchronized. See ACCURACY.md for the remaining geometry and operating-speed limitations.
 
 ## Explore with a friend (share a link)
 

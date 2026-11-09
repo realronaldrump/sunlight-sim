@@ -7,6 +7,9 @@
 - Deployed source `4561d1e` to https://sunlight-sim.vercel.app as Vercel deployment `dpl_9gWTfM723yDrVdwRN1a7ku99UnUG`. The public HTML and bundle match the tested artifact. Chromium and WebKit each passed the public start-menu, push-off and pause-menu return scenario. The deployment source and test correction `3d7da0f` were pushed and verified on `origin/main`.
 
 ## Lift speed and pause-only travel (November 8, 2026, in progress)
+- Follow-up: owner now requests five speeds: 1×, 2×, 4×, 8× and 16×. Added direct choices and F cycling, numeric per-lift multiplayer speed selection, and controller-aware cancellation. Updated selector/clock/network tests; validating and deploying this follow-up.
+- Initial release `fd3e57e` was pushed and deployed through Vercel (`dpl_69tdXotq9Tvk2UPPxwpgoocEEYpK`) and the mini-PC. Its build, 124 unit tests and five pipeline checks pass. Public two-client WSS checks confirmed 8× on only the selected lift, exact authoritative seating and reset. Public Chrome/WebGL and Safari/default-renderer speed/marker checks pass; pause-only travel, B removal and gamepad pause checks pass. Later parallel releases preserved these features.
+
 - Owner requests lift speed control, removal of B teleport, pause-menu-only teleportation, optional skier tracking marker in drone mode, and deployment. Clarification: speed up only the occupied lift, never the surroundings or other lifts.
 - Added independent 1×/8× lift clocks, per-lift multiplayer synchronization, natural unload deadlines, visible controls, pause travel actions and optional screen-space skier marker. Normal map is view-only; B and live drone recall shortcuts are removed.
 - Baseline build, 107 unit tests and five pipeline checks passed. Implementation build and 114 current unit tests pass, including all three lifts, synchronized seating, unchanged other clocks, unload and disconnect resets. Browser scenarios and immutable release validation are in progress.

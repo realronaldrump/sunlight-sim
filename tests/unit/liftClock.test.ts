@@ -1,10 +1,43 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LiftClock } from '../../shared/liftClock';
+import { LiftClock, LIFT_SPEEDS } from '../../shared/liftClock';
 import { Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
 
 afterEach(() => vi.restoreAllMocks());
 describe('lift speed control', () => {
+  it.each(LIFT_SPEEDS)('supports %sx without changing the other timeline', rate => {
+    let wall=1000;
+    const lift=new LiftClock(()=>wall),other=new LiftClock(()=>wall),remote=new LiftClock(()=>wall+200);
+    lift.setRate(rate,1200);remote.sync(lift.snapshot(),wall);
+    wall+=2;
+    expect(lift.now()).toBe(1000+2*rate);
+    expect(remote.now()).toBe(lift.now());
+    expect(other.now()).toBe(1002);
+    expect(remote.rate).toBe(rate);
+  });
+
+  it('selects every speed, allows lowering it, and does not let an older request cancel the new controller', () => {
+    const paths=loadLifts(),path=paths[0],next=path.nextChairAt(path.loadU,1000);
+    let wall=next.arrive;vi.spyOn(Date,'now').mockImplementation(()=>wall*1000);
+    const room=new Room('SPEEDS',paths),conn={send() {},close() {}};
+    const a=room.join(conn,'A','#ffffff')!,b=room.join(conn,'B','#123456')!,lp=path.loadPoint();
+    for(const p of [a,b]) {
+      room.handle(p.id,{type:'state',s:{...p.s,x:lp.x,y:path.stationHeight(false),z:lp.z,heading:lp.heading}});
+      room.handle(p.id,{type:'board',lift:0,chair:next.index,seat:0});
+    }
+    for(const rate of [...LIFT_SPEEDS,8,4,2,1] as const) {
+      room.handle(a.id,{type:'liftSpeed',rate});const before=room.liftClocks[0].now();
+      wall+=.4;room.snapshot();
+      expect(room.liftClocks[0].rate).toBe(rate);
+      expect(room.liftClocks[0].now()-before).toBeCloseTo(rate*.4,7);
+      expect(room.liftClocks[1].now()).toBe(wall);
+    }
+    room.handle(a.id,{type:'liftSpeed',rate:16});room.handle(b.id,{type:'liftSpeed',rate:2});
+    room.handle(a.id,{type:'liftSpeed',cancel:true});expect(room.liftClocks[0].rate).toBe(2);
+    room.handle(b.id,{type:'liftSpeed',rate:3 as never});expect(room.liftClocks[0].rate).toBe(2);
+    room.handle(b.id,{type:'liftSpeed',cancel:true});expect(room.liftClocks[0].rate).toBe(1);
+  });
+
   it('changes only the selected lift, continuously, then returns to real time at unloading', () => {
     let wall = 1000;
     const clocks = [new LiftClock(() => wall), new LiftClock(() => wall)];

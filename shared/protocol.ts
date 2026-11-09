@@ -1,5 +1,5 @@
 // Multiplayer wire protocol (JSON over WebSocket). Shared by client and server.
-import type { LiftPlayback } from './liftClock';
+import type { LiftPlayback, LiftSpeed } from './liftClock';
 import type { ChairSwing } from './chairSwing';
 
 export const MAX_PLAYERS = 8;
@@ -29,7 +29,7 @@ export type ClientMsg =
   | { type: 'board'; lift: number; chair: number; seat: number }
   | { type: 'unload' }
   | { type: 'liftFall'; swing: ChairSwing }
-  | { type: 'liftSpeed'; fast: boolean }
+  | { type: 'liftSpeed'; rate?: LiftSpeed; cancel?: boolean; fast?: boolean }
   | { type: 'chat'; text: string }
   | { type: 'ping'; t: number };
 

@@ -56,7 +56,7 @@ test('two players in one room', async ({ browser }) => {
   await b.screenshot({ path: 'screenshots/08_multiplayer_chair.png' });
 
   // The selected lift accelerates for both riders without changing other lifts or wall time.
-  await a.locator('#lift-fast-forward').click();
+  await a.locator('#lift-speed-8').click();
   const li=ra.lift;
   await expect.poll(()=>b.evaluate(li=>(window as any).game.lifts.clocks[li].rate,li)).toBe(8);
   expect(await b.evaluate(li=>(window as any).game.lifts.clocks.filter((_:any,i:number)=>i!==li).map((c:any)=>c.rate),li)).toEqual([1,1]);

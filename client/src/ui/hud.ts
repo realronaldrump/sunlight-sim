@@ -74,7 +74,7 @@ export class Hud {
       <kbd>M</kbd>: trail map<br>
       <kbd>V</kbd>: show/hide minimap<br>
       <kbd>O</kbd>: slope angle overlay<br>
-      <kbd>F</kbd>: lift speed (1× / 8×)<br>
+      <kbd>F</kbd>: cycle lift speed (1×, 2×, 4×, 8×, 16×)<br>
       <kbd>K</kbd>: step out of / click into your skis. On foot, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk, <kbd>Shift</kbd> jogs, the lodge doors are open<br>
       <kbd>Esc</kbd> / <kbd>P</kbd>: pause menu, teleport and options<br><kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera<br>
       Enter the loading lane facing uphill. The arriving chair picks you up where it reaches you. Drag the mouse to look around.`;

@@ -256,3 +256,7 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Supersedes the default start in D21. Desktop play begins on skis on the snow beside the west rack below the south deck, facing the clear apron toward the base slopes. The point follows the modeled rack and uses the same measured terrain as skiing. The reference photo confirms the rack area in front of the lodge. The individual rack positions are estimates.
 - Solo, multiplayer and return to base use the same pose. The existing explicit on-foot test option still starts at the rental door.
 - Segundo and Tercero load below the lodge. Primo loads mid-mountain and is reached after a lift ride. The [Sunlight Mountain Master Development Plan](https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/fseprd1123210.pdf) identifies Segundo as the primary connection to Primo.
+
+### Lift speed choices (owner follow-up, November 8, 2026)
+- Replace the initial 1×/8× toggle with exactly 1×, 2×, 4×, 8× and 16×. Show every choice as a labeled button with the active speed highlighted; F cycles through the same ordered list and wraps to 1×. Only the occupied lift's cable clock changes.
+- A rider's deliberate choice sets the actual shared lift speed, including lowering it. Their pause, focus loss, unload or disconnect cancels their request. Once another rider selects a speed, the previous rider's later cancellation does not undo that newer choice. Legacy 8× requests remain supported during client rollout.

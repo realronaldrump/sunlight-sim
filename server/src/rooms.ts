@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
-import { LiftClock, LIFT_FAST_RATE } from '../../shared/liftClock';
+import { LiftClock, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { CHAIR_SWING, carriedSwing, createChairSwing, swingEnergy, chairReleaseVelocity, swingingRiderPoint, validChairSwing, type ChairSwing } from '../../shared/chairSwing';
 import type { NetDrone } from '../../shared/protocol';
 import {
@@ -13,7 +13,7 @@ import {
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; fastLift?: boolean; swingAt?: number }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; liftSpeed?: LiftSpeed; swingAt?: number }
 
 let liftCache: LiftPath[] | null = null;
 let droneArea: FlightArea | null = null;
@@ -82,14 +82,14 @@ export class Room {
     if (m && m.size === 0) this.seats.delete(k);
     p.ride = null;
     p.unloadAt = undefined;
-    p.fastLift = false;
+    p.liftSpeed = 1;
     this.updateLiftSpeed(lift);
   }
 
   private updateLiftSpeed(lift: number) {
     const clock = this.liftClocks[lift];
-    const deadlines = [...this.players.values()].filter(p => p.ride?.lift === lift && p.fastLift && p.unloadAt! > clock.now()).map(p => p.unloadAt!);
-    clock.setRate(deadlines.length ? LIFT_FAST_RATE : 1, deadlines.length ? Math.min(...deadlines) : undefined);
+    const owner = [...this.players.values()].find(p => p.ride?.lift === lift && (p.liftSpeed ?? 1) > 1 && p.unloadAt! > clock.now());
+    clock.setRate(owner?.liftSpeed ?? 1, owner?.unloadAt);
   }
 
   private unload(p: Player) {
@@ -213,12 +213,22 @@ export class Room {
         this.broadcast({ type: 'liftFell', id: p.id, s: p.s });
         return;
       }
-      case 'liftSpeed':
-        if (typeof msg.fast !== 'boolean' || !p.ride || p.controlMode === 'drone') return;
-        p.fastLift = msg.fast;
+      case 'liftSpeed': {
+        if (!p.ride || p.controlMode === 'drone') return;
+        // Older clients can still request/cancel their original 8x control.
+        if (msg.cancel === true || msg.fast === false) p.liftSpeed = 1;
+        else {
+          const rate = msg.rate ?? (msg.fast === true ? 8 : undefined);
+          if (!isLiftSpeed(rate)) return;
+          // A deliberate choice sets the actual shared lift speed. A previous rider's
+          // later pause/disconnect must not undo the newer rider's choice.
+          for (const other of this.players.values()) if (other.ride?.lift === p.ride.lift) other.liftSpeed = 1;
+          p.liftSpeed = rate;
+        }
         this.updateLiftSpeed(p.ride.lift);
         this.broadcast(this.snapshot());
         return;
+      }
       case 'chat': {
         const text = String(msg.text ?? '').replace(/[\u0000-\u001f]/g, '').slice(0, 200).trim();
         if (text) this.broadcast({ type: 'chat', id: p.id, name: p.name, text });

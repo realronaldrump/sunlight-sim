@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
+import type { LiftSpeed } from '../../../shared/liftClock';
 import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
 import type { Player } from '../skier/player';
@@ -286,7 +287,8 @@ export class NetClient {
 
   markTeleport() { this.teleportPending = true; }
 
-  setLiftFast(fast: boolean) { this.send({ type: 'liftSpeed', fast }); }
+  setLiftSpeed(rate: LiftSpeed) { this.send({ type: 'liftSpeed', rate }); }
+  cancelLiftSpeed() { this.send({ type: 'liftSpeed', cancel: true }); }
 
   chat(text: string) { this.send({ type: 'chat', text }); }
 
