@@ -97,7 +97,12 @@ Deploy a committed source snapshot (package manifests, tsconfig, shared, server,
 
 ```bash
 RELEASE_SHA=<full-commit-sha> docker compose -f hosting/compose.yaml up -d --build
-sudo tailscale funnel --bg --https=10000 --set-path=/sunlight http://127.0.0.1:8787
+# Run the host CLI through Docker when the SSH account has no passwordless sudo.
+docker run --rm --network host --user 0 \
+  --mount type=bind,src=/usr/bin/tailscale,dst=/usr/local/bin/tailscale,readonly \
+  --mount type=bind,src=/var/run/tailscale/tailscaled.sock,dst=/var/run/tailscale/tailscaled.sock \
+  sunlight-multiplayer:<full-commit-sha> /usr/local/bin/tailscale \
+  funnel --bg --https=10000 --set-path=/sunlight http://127.0.0.1:8787
 ```
 
 `GET https://davis-mini-pc-1.tail59b3f5.ts.net:10000/sunlight/health` reports the deployed source SHA, room/player counts and drone-only protocol support. Set the Vercel production `VITE_SERVER_URL` to the endpoint above before building the client. Verify the matching public client and server together. All deployments require committing changes, `git push origin main`, and verifying the deployed commit is on `origin/main`.
