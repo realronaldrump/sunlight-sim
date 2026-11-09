@@ -20,6 +20,8 @@ export interface PedestrianPose {
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
+const BOARD_PALM = V(0.035, -0.012, -0.085);
+const BOARD_EDGE = V(0.031, -0.004, -0.111);
 
 function solveIK(root: THREE.Vector3, target: THREE.Vector3, l1: number, l2: number, pole: THREE.Vector3, out: THREE.Vector3) {
   const d = target.clone().sub(root);
@@ -46,6 +48,7 @@ function beanie(color: THREE.Color) {
 }
 
 export interface Appearance { jacket: THREE.Color; skin?: THREE.Color; hat?: 'helmet' | 'beanie'; hatColor?: THREE.Color; instancedGear?: boolean; lod?: 'full' | 'crowd' }
+export interface SignWalkerOutfit { head: THREE.Group; boot: () => THREE.Group; board: THREE.Group }
 
 export class PedestrianModel {
   readonly root = new THREE.Group();
@@ -58,22 +61,23 @@ export class PedestrianModel {
   private stand = Math.random() * 10;
   carrying = true;
 
-  constructor(readonly look: Appearance) {
+  constructor(readonly look: Appearance, private readonly outfit?: SignWalkerOutfit) {
     this.human = new HumanBody(look.jacket, look.skin ?? new THREE.Color(1, 1, 1), look.lod ?? 'full');
-    this.collar = jacketCollar(look.jacket);
+    this.collar = outfit ? null : jacketCollar(look.jacket);
     // Crowd members keep empty anchors; CrowdGear draws their gear instanced at these transforms.
-    const anchor = (make: () => THREE.Group) => look.instancedGear ? new THREE.Group() : make();
-    this.head = anchor(() => look.hat === 'beanie' ? beanie(look.hatColor ?? new THREE.Color(0x2b4a7a)) : helmetAndGoggles());
-    this.boots = [anchor(skiBoot), anchor(skiBoot)];
+    const anchor = (make: () => THREE.Group) => look.instancedGear || outfit ? new THREE.Group() : make();
+    this.head = outfit?.head ?? anchor(() => look.hat === 'beanie' ? beanie(look.hatColor ?? new THREE.Color(0x2b4a7a)) : helmetAndGoggles());
+    this.boots = outfit ? [outfit.boot(), outfit.boot()] : [anchor(skiBoot), anchor(skiBoot)];
     this.skis = [anchor(skiWithBindings), anchor(skiWithBindings)];
     this.poles = [anchor(skiPole), anchor(skiPole)];
     this.root.add(this.human.root, this.head, ...this.boots, ...this.skis, ...this.poles);
-    if (!look.instancedGear) this.root.add(this.collar.group);
+    if (!look.instancedGear && this.collar) this.root.add(this.collar.group);
+    if (outfit) this.root.add(outfit.board);
     this.root.traverse((o) => { o.frustumCulled = false; if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     this.update({ mode: 'stand', stride: 0, speed: 0, time: 0, carry: true });
   }
 
-  setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
+  setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar?.material.color.set(c); }
 
   /** Draw this person's gear through the shared crowd instancer (call after update()). */
   pushGear(gear: CrowdGear, detail: boolean) {
@@ -87,7 +91,7 @@ export class PedestrianModel {
   /** Local frame: feet at the origin, facing -z, +x to the right. */
   update(p: PedestrianPose) {
     const t = p.time + this.stand;
-    const skiMode = p.skis ?? ((p.carry ?? true) ? 'shoulder' : 'none');
+    const skiMode = this.outfit ? 'none' : p.skis ?? ((p.carry ?? true) ? 'shoulder' : 'none');
     const carry = skiMode === 'shoulder';
     const onSkis = skiMode === 'feet';
     let pelvis: THREE.Vector3, chest: THREE.Vector3, ankleL: THREE.Vector3, ankleR: THREE.Vector3;
@@ -131,6 +135,13 @@ export class PedestrianModel {
         pelvis.y -= 0.05; pelvis.z += 0.04;
       }
     }
+    if (this.outfit) {
+      const sway = Math.sin(Math.PI * p.stride) * Math.min(p.speed, 1);
+      handR = chest.clone().add(V(0.42, -0.32 + sway * 0.012, -0.21 + sway * 0.015));
+      // The board's origin is where its bottom edge meets the raised right palm.
+      this.outfit.board.position.copy(handR).add(BOARD_EDGE);
+      this.outfit.board.rotation.set(-0.05, -0.29, 0.18 + sway * 0.04);
+    }
     const neck = chest.clone().add(V(0, 0.12, -0.02));
     const head = neck.clone().add(V(0, 0.1, -0.015));
     const hipL = pelvis.clone().add(V(-0.1, -0.02, 0)), hipR = pelvis.clone().add(V(0.1, -0.02, 0));
@@ -143,9 +154,9 @@ export class PedestrianModel {
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.35, -0.5, 0.3)), elR);
     const look = new THREE.Euler(-0.06 + (p.mode === 'sit' ? 0.1 : 0), p.lookYaw ?? Math.sin(t * 0.21) * 0.25 * (p.mode === 'walk' ? 0.3 : 1), 0, 'YXZ');
     this.human.pose({ pelvis, chest, neck, head, hipL, hipR, kneeL, kneeR, ankleL, ankleR,
-      shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR }, look);
+      shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR }, look, this.outfit ? BOARD_PALM : undefined);
     this.head.position.copy(head); this.head.rotation.copy(look);
-    this.collar.group.position.copy(neck); this.collar.group.rotation.x = -0.05;
+    if (this.collar) { this.collar.group.position.copy(neck); this.collar.group.rotation.x = -0.05; }
     this.boots[0].position.copy(ankleL); this.boots[1].position.copy(ankleR);
     this.boots[0].rotation.set(footPitchL, 0, 0); this.boots[1].rotation.set(footPitchR, 0, 0);
 

@@ -9,8 +9,10 @@ import type { ColliderGrid, Collider } from '../../../shared/collision';
 import type { LiftSystem } from '../lifts/liftSystem';
 import type { LiftPath } from '../../../shared/lifts';
 import { walkable, type Poi } from './walkable';
-import { PedestrianModel, type Appearance } from './pedestrian';
+import { PedestrianModel, type Appearance, type SignWalkerOutfit } from './pedestrian';
 import { CrowdGear } from './crowdGear';
+import { LODGE_SKI_START } from './mainLodge';
+import { dressSignWalker, LODGE_SIGN_WALKER, makeSignWalkerOutfit } from './lodgeSignWalker';
 
 const JACKETS = [0x1d2a44, 0x111317, 0xb3262e, 0x1f6f78, 0x6d1f2f, 0x4b5a2a, 0xe8e6e0, 0xd8642a, 0x55306f, 0x5f8fc4, 0xc9a227, 0x2e5a3c, 0x8c8f94, 0x23324f];
 const SKINS = [[1, 1, 1], [0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [0.64, 0.49, 0.39], [0.47, 0.35, 0.28]];
@@ -31,7 +33,8 @@ function appearance(r: () => number, indoor = false): Appearance {
 }
 
 // ---------------------------------------------------------------- navigation graph
-interface NavNode { id: number; x: number; y: number; z: number; links: number[]; tag?: string }
+interface Waypoint { x: number; y: number; z: number }
+interface NavNode extends Waypoint { id: number; links: number[]; tag?: string }
 type Terrain = (x: number, z: number) => number;
 
 class NavGraph {
@@ -62,7 +65,7 @@ class NavGraph {
     return n;
   }
 
-  clear(a: NavNode, b: NavNode) {
+  clear(a: Waypoint, b: Waypoint, radius = 0.3) {
     const d = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(d / 0.4));
     let y = a.y;
     for (let i = 1; i <= n; i++) {
@@ -72,7 +75,7 @@ class NavGraph {
       const rise = Math.abs(s.h - y), step = d / n;
       if (rise > 0.45 || (s.onSnow && rise > step * 0.45)) return false; // ledges and snow steeper than ~24 degrees
       y = s.h;
-      if (this.blockedAt(x, y, z)) return false;
+      if (this.blockedAt(x, y, z, radius)) return false;
     }
     return Math.abs(y - b.y) < 0.5;
   }
@@ -130,7 +133,7 @@ type Kind = 'seated' | 'walker' | 'group' | 'queue' | 'staff';
 interface Person {
   kind: Kind; model: PedestrianModel; st: WalkState; time: number;
   seatH?: number; tableH?: number; lookYaw: number; lookTimer: number;
-  path?: NavNode[]; dest?: NavNode; wait: number; stuck: number; lastD: number;
+  path?: Waypoint[]; patrol?: Waypoint[]; dest?: NavNode; wait: number; stuck: number; lastD: number;
   queue?: { q: LiftQueue; row: number; seat: number; boarding: number };
   skis: 'shoulder' | 'feet' | 'planted' | 'none'; outdoorSkis: 'shoulder' | 'feet' | 'planted' | 'none'; visible: boolean; frame: number;
 }
@@ -158,8 +161,8 @@ export class BaseLife {
     this.buildMazes();
   }
 
-  private person(kind: Kind, look: Appearance, x: number, y: number, z: number, heading: number, skis: Person['skis']): Person {
-    const model = new PedestrianModel(look);
+  private person(kind: Kind, look: Appearance, x: number, y: number, z: number, heading: number, skis: Person['skis'], outfit?: SignWalkerOutfit): Person {
+    const model = new PedestrianModel(look, outfit);
     model.root.visible = false;
     this.group.add(model.root);
     const p: Person = { kind, model, st: createWalker(x, y, z, heading), time: this.r() * 100, lookYaw: 0, lookTimer: this.r() * 5,
@@ -265,6 +268,7 @@ export class BaseLife {
     this.nav.linkAll();
     this.destinations = this.destinations.filter((n) => n.links.length);
     this.populate();
+    this.populateSignWalker();
   }
 
   private populate() {
@@ -333,7 +337,27 @@ export class BaseLife {
     }
   }
 
+  private populateSignWalker() {
+    // Open apron between the west ski rack and the ticket side of the lodge.
+    const stops = [[-4.3, -0.8], [0.1, 3.5], [4.9, 6.9], [3.1, 11.6], [-3.6, 9.8], [-9.2, 3.6], [-7.6, -2.6]].map(([dx, dz]) => {
+      const x = LODGE_SKI_START.x + dx, z = LODGE_SKI_START.z + dz;
+      return { x, y: this.terrain(x, z), z };
+    });
+    if (!stops.every((a, i) => Number.isFinite(a.y) && this.nav.clear(a, stops[(i + 1) % stops.length], 0.78))) return;
+    const [start, next] = stops;
+    const heading = Math.atan2(start.x - next.x, start.z - next.z);
+    const p = this.person('walker', { jacket: new THREE.Color(0xa5232c) }, start.x, start.y, start.z, heading, 'none', makeSignWalkerOutfit());
+    p.model.root.name = LODGE_SIGN_WALKER;
+    dressSignWalker(p.model.human);
+    p.patrol = [...stops.slice(1), start];
+    p.wait = 0;
+  }
+
   private newDestination(p: Person) {
+    if (p.patrol) {
+      p.path = [...p.patrol]; p.lastD = Infinity; p.stuck = 0;
+      return;
+    }
     const start = this.nav.nearest(p.st.pos.x, p.st.pos.y, p.st.pos.z);
     if (!start) { p.wait = 5; return; }
     for (let tries = 0; tries < 6; tries++) {
@@ -414,7 +438,7 @@ export class BaseLife {
           const ddx = next.x - p.st.pos.x, ddz = next.z - p.st.pos.z, d = Math.hypot(ddx, ddz);
           if (d < (p.path.length > 1 ? 0.9 : 0.4)) {
             p.path.shift(); p.lastD = Infinity; p.stuck = 0;
-            if (!p.path.length) { p.path = undefined; p.wait = 4 + this.r() * 25; }
+            if (!p.path.length) { p.path = undefined; p.wait = p.patrol ? 1.5 : 4 + this.r() * 25; }
           } else {
             inputX = ddx / d; inputZ = ddz / d; moving = true;
             if (d < p.lastD - 0.05) { p.lastD = d; p.stuck = 0; } else if ((p.stuck += dt) > 3) { p.path = undefined; p.wait = 0.5; }
@@ -445,7 +469,7 @@ export class BaseLife {
         p.model.update({ mode, stride: p.st.stride, speed: p.st.speed, time: p.time, skis: p.skis, seat: p.seatH, handsOnTable: p.tableH, lookYaw: p.lookYaw * 0.6 });
       }
       p.model.human.mesh.castShadow = dist < 45;
-      if (dist < 110) p.model.pushGear(this.gear, dist < 50);
+      if (dist < 110 && p.model.look.instancedGear) p.model.pushGear(this.gear, dist < 50);
     }
     this.gear.end();
   }

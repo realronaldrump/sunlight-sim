@@ -268,3 +268,9 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Phone flight defaults to first-person view and an 18 m launch height. Forward speed is 6 m/s and reverse 3 m/s; look pitch directly supplies the vertical component within the existing climb limit. The shared acceleration, braking, altitude, boundary and collision solver remains authoritative for local motion.
 - Independent captured pointers allow looking while a movement button is held. Releasing, cancellation, focus loss, rotation, opening a panel and reconnect cannot leave a movement button latched. Button text stays stable while held.
 - Name sprites use a bounded projected size and hide inside the camera near field. Remote aircraft less than 0.8 m from the camera are visually culled so overlapping spawn points do not fill a first-person view. Network state and map positions remain unchanged.
+
+## Lodge sign walker (November 8, 2026)
+
+- Use a stylized likeness on the existing anatomical pedestrian rig. The base simulation grounds him on the same snow surface as other walkers. His seven-stop loop stays outdoors near the lodge ski racks and reserves clearance for the sign.
+- The printed front is traced vector artwork. The game board's 0.62 by 0.775 m dimensions are estimated from the photos, and the reverse repeats the print so it can be read from either side.
+- The rig keeps the board at the raised palm throughout the walk. UV and vest masks share one vertex buffer to stay within the WebGPU binding limit.

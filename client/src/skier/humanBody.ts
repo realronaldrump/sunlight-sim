@@ -101,7 +101,7 @@ export class HumanBody {
     b.position.copy(start); b.quaternion.copy(this.delta).multiply(r.q); b.scale.set(1, ratio, 1);
   }
 
-  pose(j: Joints, headTilt: THREE.Euler) {
+  pose(j: Joints, headTilt: THREE.Euler, boardPalm?: THREE.Vector3) {
     const p = j.pelvis, neck = j.neck;
     const s1 = p.clone().lerp(neck, 0.15), s2 = p.clone().lerp(neck, 0.27), s3 = p.clone().lerp(neck, 0.38);
     this.segment('pelvis', 'spine_01', p, s1);
@@ -120,9 +120,11 @@ export class HumanBody {
       this.segment('thigh_' + side, 'calf_' + side, j['hip' + label], j['knee' + label]);
       this.segment('calf_' + side, 'foot_' + side, j['knee' + label], j['ankle' + label]);
       const hand = this.bones.get('hand_' + side)!, restHand = this.rest.get('hand_' + side)!;
-      // A vertical, relaxed pole grip. The wrist stays aligned to the forearm, fingers curl below it.
-      const palmEnd = wrist.clone().add(new THREE.Vector3(0, -0.09, -0.03));
+      const holdingBoard = side === 'r' && boardPalm;
+      // Turn the right palm up under the sign. The default grip curls down around a ski pole.
+      const palmEnd = wrist.clone().add(holdingBoard || new THREE.Vector3(0, -0.09, -0.03));
       this.segment('hand_' + side, 'middle_01_' + side, wrist, palmEnd);
+      if (holdingBoard) hand.quaternion.premultiply(this.delta.setFromAxisAngle(this.direction, -0.85));
       const handDelta = hand.quaternion.clone().multiply(restHand.q.clone().invert());
       for (const [name, rest] of this.rest) {
         if (!name.endsWith('_' + side) || !/index|middle|ring|pinky|thumb/.test(name)) continue;
@@ -130,11 +132,12 @@ export class HumanBody {
         bone.position.copy(rest.p).sub(restHand.p).applyQuaternion(handDelta).add(wrist);
         bone.quaternion.copy(handDelta).multiply(rest.q);
       }
+      const curls = holdingBoard ? [0, 1.75, 2.28, 2.55] : [0, -0.65, -1.45, -2.05];
       for (const finger of ['index', 'middle', 'ring', 'pinky']) {
         let start: THREE.Vector3 | null = null;
         for (let part = 1; part <= 3; part++) {
           const name = `${finger}_0${part}_${side}`, rest = this.rest.get(name)!, bone = this.bones.get(name)!;
-          const curl = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -[0, 0.65, 1.45, 2.05][part]);
+          const curl = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), curls[part]);
           bone.position.copy(start ?? rest.p.clone().sub(restHand.p).applyQuaternion(handDelta).add(wrist));
           bone.quaternion.copy(curl).multiply(handDelta).multiply(rest.q);
           if (part < 3) {

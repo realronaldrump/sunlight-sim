@@ -83,6 +83,7 @@ All recordings below are [CC0 1.0](https://creativecommons.org/publicdomain/zero
 ## Base-area crowds
 - `client/public/models/skier-human-crowd.json.gz` is a simplification of the CC0 MakeHuman/MPFB winter human already credited above, produced by `pipeline/build_crowd_human.ts` with [meshoptimizer](https://github.com/zeux/meshoptimizer) 1.1.1 (MIT licence, build-time only). The CC0 dedication of the character is unchanged.
 - Crowd behaviour, knit beanies, lift-maze posts and ropes are original code in `client/src/world/`.
+- The lodge sign walker uses the CC0 anatomical rig with original clothing, hair, glasses and boots. The in-game sign is vector artwork traced from an owner-supplied photo and checked against the second reference. The photos are reference material only.
 
 ## Lift structural follow-up
 - Original procedural rope, bullwheel channels, sheave alignment, Riblet tension carriage/counterweight and drive-vault exterior. Dimensions are estimated from reference imagery, not factory models.

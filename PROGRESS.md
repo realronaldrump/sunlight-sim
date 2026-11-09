@@ -1,5 +1,11 @@
 # Progress
 
+## Lodge sign walker (November 8, 2026)
+
+- Added one animated pedestrian on the snow apron by the main lodge ski racks. He wears a red quilted vest, blue shirt and rectangular glasses, and carries the reference sign in his right hand. Recreated the lettering and layout as a vector from the owner photos.
+- Inspected the normal ski start and close-up Chromium captures under `screenshots/lodge-sign/`. Corrected a floating grip and a WebGPU vertex buffer limit found during visual review. The Chromium on-foot regression and baseline build, 132 unit tests and five pipeline checks passed.
+- Next steps are to verify the committed build on both browser backends, push `main` and release the client to the existing Vercel project.
+
 ## Building signage and release preparation (November 8, 2026)
 
 - Segundo and Tercero slope lengths in ACCURACY.md now match the generated world data. The minimap test allows 15 seconds to reach its speed threshold and passed in Chromium with Low WebGL. Generated screenshots are ignored throughout the screenshots directory.
