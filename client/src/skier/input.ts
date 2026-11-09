@@ -5,7 +5,7 @@ import { NO_DRONE_INPUT, type DroneInput } from '../../../shared/dronePhysics';
 export interface Actions {
   getUp: boolean; camera: boolean; map: boolean; slope: boolean; fastLift: boolean; help: boolean;
   chat: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
-  skis: boolean;
+  skis: boolean; lesson: boolean;
 }
 
 export class InputManager {
@@ -121,6 +121,7 @@ export class InputManager {
       options: pr.has('KeyP') || pr.has('Escape') || btn(9),
       drone: pr.has('KeyG') || btn(10),
       skis: pr.has('KeyK') || btn(11),
+      lesson: pr.has('KeyL'),
     };
     pr.clear();
     return a;

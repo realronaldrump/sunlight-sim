@@ -7,6 +7,8 @@ import { formatDistance } from './units';
 import { IPHONE } from '../platform';
 
 export interface MapPlayer { id?: string; name: string; color: string; x: number; z: number; heading: number; self?: boolean }
+/** Extra drawing on top of the runs: a route to follow, a recorded line, a group's position. */
+export interface MapOverlay { lines?: { x: number; z: number }[][]; color: string; width?: number; dash?: number[]; points?: { x: number; z: number; label: string }[] }
 
 const css = `
 #tmap { position: fixed; inset: 0; z-index: 30; background: rgba(8,16,28,.82); display: none; }
@@ -31,6 +33,7 @@ export class TrailMap {
   visible = false;
   travelEnabled = false;
   players: MapPlayer[] = [];
+  overlays: MapOverlay[] = [];
   onTeleport?: (runName: string) => void;
   onJoinPlayer?: (name: string) => void;
   private hover: RunInfo | null = null;
@@ -241,6 +244,23 @@ export class TrailMap {
       g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText(`${l.name} Chair`, 0, -6);
       g.fillStyle = '#b0123f'; g.fillText(`${l.name} Chair`, 0, -6);
       g.restore();
+    }
+    for (const o of this.overlays) {
+      g.strokeStyle = o.color; g.lineWidth = o.width ?? 4; g.setLineDash(o.dash ?? []); g.lineJoin = 'round'; g.lineCap = 'round';
+      for (const line of o.lines ?? []) {
+        g.beginPath();
+        line.forEach((p, i) => { const [sx, sy] = this.toScreen(p.x, p.z); if (i) g.lineTo(sx, sy); else g.moveTo(sx, sy); });
+        g.stroke();
+      }
+      g.setLineDash([]);
+      for (const p of o.points ?? []) {
+        const [sx, sy] = this.toScreen(p.x, p.z);
+        g.fillStyle = o.color; g.strokeStyle = '#fff'; g.lineWidth = 2;
+        g.beginPath(); g.arc(sx, sy, 7, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.font = 'bold 12px -apple-system, sans-serif'; g.textAlign = 'center';
+        g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(p.label, sx, sy - 12);
+        g.fillStyle = '#fff'; g.fillText(p.label, sx, sy - 12);
+      }
     }
     // labels (greedy, skip overlaps)
     const placed: [number, number, number, number][] = [];

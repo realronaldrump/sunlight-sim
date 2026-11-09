@@ -13,23 +13,10 @@ import { PedestrianModel, type Appearance, type SignWalkerOutfit } from './pedes
 import { CrowdGear } from './crowdGear';
 import { LODGE_SKI_START } from './mainLodge';
 import { dressSignWalker, LODGE_SIGN_WALKER, makeSignWalkerOutfit } from './lodgeSignWalker';
-
-const JACKETS = [0x1d2a44, 0x111317, 0xb3262e, 0x1f6f78, 0x6d1f2f, 0x4b5a2a, 0xe8e6e0, 0xd8642a, 0x55306f, 0x5f8fc4, 0xc9a227, 0x2e5a3c, 0x8c8f94, 0x23324f];
-const SKINS = [[1, 1, 1], [0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [0.64, 0.49, 0.39], [0.47, 0.35, 0.28]];
-const HELMETS = [0xf2f2f0, 0x1a1a1c, 0x5b6068, 0x1c2f55, 0xa8242b, 0x2d5f3c, 0xd8d0c0];
-const BEANIES = [0xb3262e, 0x1c2f55, 0xd9b44a, 0x2e2e2e, 0x7a8a99, 0xe07b39, 0x3d6b4f, 0xe9e4da];
-
-function rng(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
-const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length) % a.length];
+import { makeGuest, guestAppearance, rng, pick, type Guest } from './guests';
 
 function appearance(r: () => number, indoor = false): Appearance {
-  const beanie = r() < (indoor ? 0.55 : 0.28);
-  const sk = pick(SKINS, r);
-  return {
-    jacket: new THREE.Color(pick(JACKETS, r)), skin: new THREE.Color(sk[0], sk[1], sk[2]),
-    hat: beanie ? 'beanie' : 'helmet', hatColor: new THREE.Color(beanie ? pick(BEANIES, r) : pick(HELMETS, r)),
-    instancedGear: true, lod: 'crowd',
-  };
+  return guestAppearance(makeGuest(r, { indoor }));
 }
 
 // ---------------------------------------------------------------- navigation graph
@@ -134,11 +121,13 @@ interface Person {
   kind: Kind; model: PedestrianModel; st: WalkState; time: number;
   seatH?: number; tableH?: number; lookYaw: number; lookTimer: number;
   path?: Waypoint[]; patrol?: Waypoint[]; dest?: NavNode; wait: number; stuck: number; lastD: number;
+  /** In a lift line. seat -1: just arrived from a run, waiting at the maze entrance for a place in the back row. */
   queue?: { q: LiftQueue; row: number; seat: number; boarding: number };
+  guest?: Guest;
   skis: 'shoulder' | 'feet' | 'planted' | 'none'; outdoorSkis: 'shoulder' | 'feet' | 'planted' | 'none'; visible: boolean; frame: number;
 }
 
-interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number; boarding: Map<number, Person[]> }
+interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number; boarding: Map<number, Person[]>; arrivals: Person[] }
 
 export class BaseLife {
   readonly group = new THREE.Group();
@@ -222,7 +211,7 @@ export class BaseLife {
     this.lifts.paths.forEach((path, li) => {
       const rows = Math.max(1, Math.round(this.budget.queueRows * (path.def.name === 'Segundo' ? 1.3 : path.def.name === 'Tercero' ? 1 : 0.8)));
       const lp = path.loadPoint();
-      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(li), heading: lp.heading, boarding: new Map() };
+      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(li), heading: lp.heading, boarding: new Map(), arrivals: [] };
       this.group.add(this.mazeGeo(path, rows));
       this.queues.push(q);
     });
@@ -329,12 +318,49 @@ export class BaseLife {
           if (row === q.rows - 1 && r() < 0.4) { q.members[row].push(null); continue; }
           const s = this.queueSpot(q, row, seat);
           if (!Number.isFinite(s.y)) { q.members[row].push(null); continue; }
-          const p = this.person('queue', appearance(r), s.x, s.y, s.z, q.heading, 'feet');
-          p.queue = { q, row, seat, boarding: 0 };
-          q.members[row].push(p);
+          q.members[row].push(this.queuer(q, row, seat, s, makeGuest(r)));
         }
       }
     }
+  }
+
+  private queuer(q: LiftQueue, row: number, seat: number, at: Waypoint, guest: Guest) {
+    const p = this.person('queue', guestAppearance(guest), at.x, at.y, at.z, q.heading, 'feet');
+    p.queue = { q, row, seat, boarding: 0 };
+    p.guest = guest;
+    return p;
+  }
+
+  /** Where people who have just skied down wait, single file, before stepping into the back row. */
+  private entrance(q: LiftQueue, k = 0) { return this.queueSpot(q, q.rows + 1.5 + k * 1.6, (q.seats - 1) / 2); }
+
+  /** A skier finished a run near a lift: they ski over and join the back of its line, keeping who they are. */
+  arrive(guest: Guest, x: number, z: number) {
+    if (!this.built) return false;
+    let best: LiftQueue | null = null, bd = 160;
+    for (const q of this.queues) {
+      const e = this.entrance(q), d = Math.hypot(e.x - x, e.z - z);
+      if (d < bd && q.arrivals.length < 6) { bd = d; best = q; }
+    }
+    const y = this.terrain(x, z);
+    if (!best || !Number.isFinite(y)) return false;
+    const e = this.entrance(best);
+    const from = this.nav.nearest(x, y, z), to = Number.isFinite(e.y) ? this.nav.nearest(e.x, e.y, e.z) : null;
+    const route = from && to ? this.nav.path(from, to) : null;
+    if (!route) return false;
+    const p = this.queuer(best, best.rows, -1, { x, y, z }, guest);
+    p.path = [...route, e];
+    best.arrivals.push(p);
+    return true;
+  }
+
+  /** Fill an empty back-row place with the next person waiting at the entrance. */
+  private admit(q: LiftQueue, seat: number) {
+    const i = q.arrivals.findIndex((m) => !m.path?.length);
+    if (i < 0) return null;
+    const [m] = q.arrivals.splice(i, 1);
+    m.queue!.row = q.rows - 1; m.queue!.seat = seat;
+    return m;
   }
 
   private populateSignWalker() {
@@ -402,15 +428,15 @@ export class BaseLife {
           q.members.shift();
           q.members.push(Array.from({ length: q.seats }, () => null));
           q.members.forEach((row, ri) => row.forEach((m) => { if (m?.queue) m.queue.row = ri; }));
-          // new arrivals glide into the back row
+          // new arrivals glide into the back row: first whoever just skied down, then newcomers from the base
           const back = q.members[q.rows - 1];
           for (let seat = 0; seat < q.seats; seat++) {
+            const known = this.admit(q, seat);
+            if (known) { back[seat] = known; continue; }
             if (this.r() < 0.35) continue;
             const s = this.queueSpot(q, q.rows + 1.5, seat);
             if (!Number.isFinite(s.y)) continue;
-            const p = this.person('queue', appearance(this.r), s.x, s.y, s.z, q.heading, 'feet');
-            p.queue = { q, row: q.rows - 1, seat, boarding: 0 };
-            back[seat] = p;
+            back[seat] = this.queuer(q, q.rows - 1, seat, s, makeGuest(this.r));
           }
         }
       }
@@ -418,8 +444,15 @@ export class BaseLife {
         const group = q.boarding.get(chair);
         if (!group) continue;
         q.boarding.delete(chair);
-        for (const m of group) { m.model.root.visible = false; m.visible = false; this.people.splice(this.people.indexOf(m), 1); this.group.remove(m.model.root); }
+        for (const m of group) {
+          // the chair carries exactly these people up the mountain
+          if (m.guest && m.queue) this.lifts.assignRider(q.li, chair, m.queue.seat, m.guest);
+          m.model.root.visible = false; m.visible = false; this.people.splice(this.people.indexOf(m), 1); this.group.remove(m.model.root);
+        }
       }
+      // people who skied down fill any gap in the back row
+      const back = q.members[q.rows - 1];
+      if (back && q.arrivals.length) for (let seat = 0; seat < q.seats; seat++) if (!back[seat]) { const m = this.admit(q, seat); if (m) back[seat] = m; }
     }
     this.gear.begin();
     for (const p of this.people) {
@@ -447,6 +480,19 @@ export class BaseLife {
         if (dist < 220 || moving) stepWalker(p.st, { x: inputX, z: inputZ, run: false }, this.terrain, walkable.surfaces, this.colliders, dt);
         // skis stay in the racks outside; nobody carries them through the lodge
         p.skis = p.st.indoor ? 'none' : p.outdoorSkis;
+      } else if (p.kind === 'queue' && p.queue && p.queue.seat < 0) {
+        // skiing over from the bottom of a run, then waiting single file at the maze entrance
+        const q = p.queue.q, k = q.arrivals.indexOf(p);
+        const next = p.path?.length ? p.path[0] : this.entrance(q, Math.max(0, k));
+        const ddx = next.x - p.st.pos.x, ddz = next.z - p.st.pos.z, d = Math.hypot(ddx, ddz);
+        if (p.path?.length && d < 1.2) p.path.shift();
+        else if (d > 0.15) {
+          const v = Math.min(p.path?.length ? 2.6 : 1.0, d * 1.5);
+          p.st.pos.x += ddx / d * v * dt; p.st.pos.z += ddz / d * v * dt;
+          const y = this.terrain(p.st.pos.x, p.st.pos.z); if (Number.isFinite(y)) p.st.pos.y = y;
+          p.st.speed = v; p.st.stride += v * dt / 0.4; moving = true;
+          p.st.heading = Math.atan2(-ddx, -ddz);
+        } else { p.st.speed = 0; p.st.heading = q.heading; }
       } else if (p.kind === 'queue' && p.queue) {
         const s = this.queueSpot(p.queue.q, p.queue.row, p.queue.seat);
         const ddx = s.x - p.st.pos.x, ddz = s.z - p.st.pos.z, d = Math.hypot(ddx, ddz);

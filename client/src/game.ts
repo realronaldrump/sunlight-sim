@@ -44,6 +44,13 @@ import { formatDistance } from './ui/units';
 import { LIFT_SPEEDS, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { LiftRideControls } from './ui/liftRideControls';
 import { PlayerMarker } from './drone/playerMarker';
+import { LessonGroup, INSTRUCTOR_NAME, LESSON_NAME } from './world/lesson';
+import { LessonHud } from './ui/lessonHud';
+import { resortClock } from './world/resortClock';
+import { ConditionsBoard } from './world/conditionsBoard';
+import { conditionsFor } from './world/conditions';
+import { LINEUP } from './world/lesson';
+import { collideCylinder } from '../../shared/skiPhysics';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
@@ -89,6 +96,13 @@ export class Game {
   private fastLift: number | null = null;
   onFoot!: OnFoot;
   baseLife: BaseLife | null = null;
+  lesson: LessonGroup | null = null;
+  private lessonHud: LessonHud | null = null;
+  /** Following the Snowriders' Club lesson to learn the route. */
+  tagging = false;
+  private lessonNear = Infinity;
+  board: ConditionsBoard | null = null;
+  private boardTimer = 0;
   private launchingDrone = false;
   params = new URLSearchParams(location.search);
   timer = new THREE.Timer();
@@ -254,7 +268,18 @@ export class Game {
       this.baseLife = new BaseLife(this.lifts, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, budget);
       this.scene.add(this.baseLife.group);
       this.scene.add(this.ambient.group);
+      // skiers finishing a run at the base ski over and line up again as the same people
+      this.ambient.onFinish = (guest, st) => this.baseLife?.arrive(guest, st.pos.x, st.pos.z) ?? false;
     }
+    if (this.params.get('lesson') === '1' || (this.params.get('lesson') !== '0' && this.params.get('ambient') !== '0')) {
+      // the Snowriders' Club: one recognizable lesson group on the shared resort clock
+      this.lesson = new LessonGroup(this.lifts, this.probe, this.resort.runs, this.colliders);
+      this.scene.add(this.lesson.group);
+      this.lessonHud = new LessonHud();
+    }
+    // mountain status board at the Lesson Line-Up Area, facing skiers leaving the lodge racks
+    this.board = new ConditionsBoard(LINEUP.x - 6, LINEUP.z + 8, 0.67, (x, z) => this.probe.height(x, z), this.colliders);
+    this.scene.add(this.board.group);
     if (this.params.get('snow') === '1') this.setSnow(true);
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
@@ -595,6 +620,10 @@ export class Game {
       const st2 = this.drone.state ? {pos:this.drone.state.pos,heading:this.drone.state.yaw} : this.player.st;
       this.trailMap.players = [{ name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true },
         ...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{name:'Your skier',color:this.playerColor,x:this.player.st.pos.x,z:this.player.st.pos.z,heading:this.player.st.heading}] : [])];
+      const L = this.lesson;
+      this.trailMap.overlays = L?.ready ? [
+        ...(this.tagging ? [{ color: 'rgba(255,122,26,.9)', width: 5, dash: [10, 7], lines: L.routeLines() }] : []),
+        { color: '#ff7a1a', points: [{ x: L.poses[0].x, z: L.poses[0].z, label: `${LESSON_NAME} lesson` }] }] : [];
       if (Math.random() < 0.2) this.trailMap.draw();
     }
     if (actions.slope) {
@@ -608,6 +637,8 @@ export class Game {
     ], this.camera.position);
     this.ambient?.update(dt, this.player.position, this.camera.position);
     this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
+    this.updateLesson(dt, actions.lesson && this.input.enabled);
+    this.updateBoard(dt);
     this.updateCamera(dt);
     for (const remote of this.net?.remotes.values() ?? []) {
       fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
@@ -823,6 +854,51 @@ export class Game {
     } finally { this.launchingDrone = false; }
   }
 
+  private updateBoard(dt: number) {
+    if (!this.board || (this.boardTimer -= dt) > 0) return;
+    this.boardTimer = 1;
+    const now = resortClock.now();
+    let lesson = 'Snowriders\' Club (ages 7 to 12) meets here at 9:30 AM and 12:30 PM';
+    if (this.lesson?.ready) {
+      const T = this.lesson.timeline!, { tau } = this.lesson.clock(now), left = T.period - tau;
+      const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+      lesson = tau < T.lineup ? `${LESSON_NAME} lining up now with ${INSTRUCTOR_NAME}. Leaves for Segundo in ${mmss(T.lineup - tau)}`
+        : tau < T.lineup + T.toLift + T.lift ? `${LESSON_NAME} is riding Segundo. Back here in about ${Math.ceil(left / 60)} min`
+        : `${LESSON_NAME} is skiing Ute. Back here in about ${Math.ceil(left / 60)} min`;
+    }
+    this.board.update(conditionsFor({ now, hour: this.env.hour, snowing: this.env.snowing, runs: this.resort.runs, liftNames: ['Primo', 'Segundo', 'Tercero'], lesson }));
+  }
+
+  /** The lesson group: move them on the shared clock, tag along with L, captions and the panel. */
+  private updateLesson(dt: number, toggle: boolean) {
+    const L = this.lesson, hud = this.lessonHud;
+    if (!L?.ready || !hud) return;
+    const now = resortClock.now();
+    L.update(dt, now, this.camera.position);
+    const st = L.status(now);
+    const me = this.onFoot.active ? this.onFoot.st.pos : this.player.st.pos;
+    let near = Infinity;
+    for (const p of L.positions()) near = Math.min(near, Math.hypot(p.x - me.x, p.z - me.z));
+    this.lessonNear = this.drone.active ? Infinity : near;
+    const toInstructor = Math.hypot(st.instructor.x - me.x, st.instructor.z - me.z);
+    if (toggle && !this.drone.active) {
+      if (this.tagging) { this.tagging = false; this.hud.toast(`You left the ${LESSON_NAME} lesson`); }
+      else if (near < 45) { this.tagging = true; this.hud.toast(`Tagging along with ${INSTRUCTOR_NAME}'s ${LESSON_NAME} lesson`, 3.5); }
+      else this.hud.toast(`${LESSON_NAME}: ${st.label}. Find them to tag along.`, 4);
+    }
+    // Solo, the group waits at its stops for a tag-along who fell behind. In a room the shared schedule keeps going.
+    const waiting = this.tagging && !this.net && L.waitFor(now, dt, toInstructor > 35);
+    if (this.tagging || near < 30) hud.say(st.sayKey, INSTRUCTOR_NAME, st.say);
+    hud.update(dt, { tagging: this.tagging, title: `${LESSON_NAME} with ${INSTRUCTOR_NAME}`, now: st.label, next: st.next, distance: toInstructor, waiting });
+    const head = L.members[0].model.root.position;
+    hud.placeTag(this.camera, (this.tagging || near < 25) && !this.options?.visible && !this.trailMap?.visible ? this.tmpV.set(head.x, head.y + 2.15, head.z) : null, `${INSTRUCTOR_NAME} · ${LESSON_NAME}`);
+    // skiing into the kids gives them a nudge, not a pass-through
+    if (!this.player.ride && !this.onFoot.active) for (const m of L.members) {
+      const p = m.model.root.position;
+      if (Math.abs(p.x - this.player.st.pos.x) < 1.2 && Math.abs(p.z - this.player.st.pos.z) < 1.2 && Math.abs(p.y - this.player.st.pos.y) < 1.5) collideCylinder(this.player.st, p.x, p.z, 0.3 * m.scale);
+    }
+  }
+
   private updateLiftArrow() {
     const st = this.player.st;
     if (this.player.ride || this.flyMode || this.drone.active) { this.hud.hideLiftDirection(); return; }
@@ -907,6 +983,8 @@ export class Game {
       this.hud.hint(`${path.def.name}: face uphill and let the chair scoop you up. Next chair in ${wait} s.`);
     } else if (pl.st.mode === 'fallen' && pl.st.grounded && pl.st.speed < 1) {
       this.hud.hint('You fell. Press <b>R</b> to get up');
+    } else if (!this.tagging && this.lessonNear < 30) {
+      this.hud.hint(`${LESSON_NAME} ski lesson with ${INSTRUCTOR_NAME}. Press <b>L</b> to tag along and learn the route.`);
     } else this.hud.hint(null);
   }
 }

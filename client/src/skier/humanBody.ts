@@ -91,6 +91,7 @@ export class HumanBody {
   }
 
   setJacket(color: THREE.ColorRepresentation) { this.jacket.value.set(color); }
+  setSkin(color: THREE.ColorRepresentation) { this.skinTint.value.set(color); }
 
   private segment(name: string, child: string, start: THREE.Vector3, end: THREE.Vector3) {
     const b = this.bones.get(name)!, r = this.rest.get(name)!, c = this.rest.get(child)!;

@@ -9,11 +9,9 @@ import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
 import type { RunInfo } from '../game';
 import type { LiftSystem } from '../lifts/liftSystem';
+import { makeGuest, type Guest } from './guests';
 
-const COLORS = ['#1f6fd1', '#f2b705', '#2e9e44', '#7b3fbf', '#ff6f91', '#111111', '#1aa3a3', '#e86a1a', '#f5f5f5', '#8b1e3f', '#1d2a44', '#6d1f2f', '#4b5a2a', '#5f8fc4'];
-const SKINS = [[1, 1, 1], [0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [0.64, 0.49, 0.39], [0.47, 0.35, 0.28]];
-
-interface Agent { st: SkierState; bot: SkiBot; model: SkierModel; time: number; run: string; fromLift: boolean }
+interface Agent { st: SkierState; bot: SkiBot; model: SkierModel; time: number; run: string; fromLift: boolean; guest: Guest }
 
 export class AmbientSkiers {
   readonly group = new THREE.Group();
@@ -21,6 +19,8 @@ export class AmbientSkiers {
   private spare: SkierModel[] = [];
   private runs: RunInfo[];
   private lastLiftT: number[] = [];
+  /** A skier finished their run at the bottom. Return true when the base area takes them (into a lift line). */
+  onFinish: ((guest: Guest, st: SkierState) => boolean) | null = null;
 
   constructor(runs: RunInfo[], private probe: TerrainProbe, private count = 8, private lifts: LiftSystem | null = null) {
     this.group.name = 'ambient-skiers';
@@ -34,22 +34,24 @@ export class AmbientSkiers {
       active: a.st.grounded && a.st.mode !== 'riding' && a.st.mode !== 'air' }));
   }
 
-  private model() {
-    const m = this.spare.pop();
-    if (m) { m.root.visible = true; return m; }
-    const sk = SKINS[Math.floor(Math.random() * SKINS.length)];
-    const model = new SkierModel(new THREE.Color(COLORS[Math.floor(Math.random() * COLORS.length)]), 'crowd', new THREE.Color(sk[0], sk[1], sk[2]));
-    this.group.add(model.root);
-    return model;
+  private model(guest: Guest) {
+    let m = this.spare.pop();
+    if (m) m.root.visible = true;
+    else { m = new SkierModel(new THREE.Color(guest.look.jacket), 'crowd'); this.group.add(m.root); }
+    m.dress(guest.look);
+    return m;
   }
 
   private release(a: Agent) { a.model.root.visible = false; this.spare.push(a.model); }
 
-  private persona(difficulty: string): Persona {
-    const r = Math.random();
-    if (difficulty === 'green') return r < 0.6 ? 'beginner' : 'intermediate';
+  /** A guest skis to their own ability: beginners stay on greens where they can, nobody below intermediate on a black. */
+  private persona(difficulty: string, guest: Guest): Persona {
     if (difficulty === 'black') return 'intermediate';
-    return r < 0.8 ? 'intermediate' : 'beginner';
+    return guest.persona;
+  }
+
+  private suits(run: RunInfo, guest: Guest) {
+    return guest.persona === 'beginner' ? run.difficulty === 'green' : run.difficulty !== 'black' || Math.random() < 0.35;
   }
 
   /** Densify a run centerline into bot waypoints with a little personal line choice. */
@@ -68,26 +70,30 @@ export class AmbientSkiers {
     return path;
   }
 
-  private agent(path: { x: number; z: number }[], run: RunInfo, fromLift: boolean, heading?: number): Agent | null {
+  private agent(path: { x: number; z: number }[], run: RunInfo, fromLift: boolean, guest: Guest, heading?: number): Agent | null {
     if (path.length < 4) return null;
-    const persona = this.persona(run.difficulty);
+    const persona = this.persona(run.difficulty, guest);
     const cfg = { ...PERSONAS[persona], targetSpeed: PERSONAS[persona].targetSpeed * (0.8 + Math.random() * 0.4) };
     const p0 = path[0];
     const st = createSkier({ x: p0.x, y: this.probe.height(p0.x, p0.z), z: p0.z }, heading ?? headingFromDir(path[3].x - p0.x, path[3].z - p0.z));
-    return { st, bot: new SkiBot(path, cfg), model: this.model(), time: Math.random() * 10, run: run.name, fromLift };
+    return { st, bot: new SkiBot(path, cfg), model: this.model(guest), time: Math.random() * 10, run: run.name, fromLift, guest };
   }
 
   /** Riders leaving a chair at the unload line ski off the ramp onto a run that starts near that lift top. */
-  private fromLiftTop(li: number, seat: number) {
+  private fromLiftTop(li: number, chair: number, seat: number) {
     const path = this.lifts!.paths[li], up = path.unloadPoint(seat);
+    // the person who rode this seat stands up and skis away
+    const guest = this.lifts!.takeRider(li, chair, seat);
     const near = this.runs.filter((r) => Math.hypot(r.points[0][0] - up.x, r.points[0][2] - up.z) < 260);
     if (!near.length) return null;
-    const run = near[Math.floor(Math.random() * near.length)];
+    const fits = near.filter((r) => this.suits(r, guest));
+    const pool = fits.length ? fits : near;
+    const run = pool[Math.floor(Math.random() * pool.length)];
     // straight off the unload ramp, peel away to the side, then join the run's line
     const fx = -Math.sin(up.heading), fz = -Math.cos(up.heading), side = seat < (path.def.seats - 1) / 2 ? -1 : 1;
     const lead = [{ x: up.x, z: up.z }, { x: up.x + fx * 5, z: up.z + fz * 5 }, { x: up.x + fx * 10 - fz * side * 6, z: up.z + fz * 10 + fx * side * 6 }];
     const pts = this.waypoints(run.points);
-    return this.agent([...lead, ...pts], run, true, up.heading);
+    return this.agent([...lead, ...pts], run, true, guest, up.heading);
   }
 
   private onSlopeNear(near: THREE.Vector3) {
@@ -98,7 +104,7 @@ export class AmbientSkiers {
     let nearest = 0, best = Infinity;
     run.points.forEach((p, i) => { const d = Math.hypot(p[0] - near.x, p[2] - near.z); if (d < best) { best = d; nearest = i; } });
     const from = Math.max(0, Math.min(run.points.length - 4, nearest - 1 - Math.floor(Math.random() * 3)));
-    return this.agent(this.waypoints(run.points, from), run, false);
+    return this.agent(this.waypoints(run.points, from), run, false, makeGuest(Math.random));
   }
 
   update(dt: number, player: THREE.Vector3, camera: THREE.Vector3) {
@@ -112,7 +118,7 @@ export class AmbientSkiers {
           for (const chair of this.lifts!.chairsPassing(li, path.unloadU, previous, t)) {
             for (const seat of this.lifts!.riderSeats(li, chair)) {
               if (this.agents.length >= this.count) return;
-              const a = this.fromLiftTop(li, seat);
+              const a = this.fromLiftTop(li, chair, seat);
               if (a) this.agents.push(a);
             }
           }
@@ -132,6 +138,7 @@ export class AmbientSkiers {
       stepSkier(a.st, inp, this.probe, dt);
       if (a.st.mode === 'fallen' && a.st.speed < 0.5 && a.st.modeTime > 2.5) { a.st.mode = 'standing'; }
       const far = Math.hypot(a.st.pos.x - player.x, a.st.pos.z - player.z) > 1700;
+      if (a.bot.done && !far) this.onFinish?.(a.guest, a.st);
       if (a.bot.done || far || a.time > 900) { this.release(a); this.agents.splice(i, 1); continue; }
       const dCam = Math.hypot(a.st.pos.x - camera.x, a.st.pos.z - camera.z);
       a.model.root.visible = dCam < 400;

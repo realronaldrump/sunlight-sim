@@ -1,6 +1,7 @@
 // Multiplayer client: sends the local skier at 15 Hz, interpolates remote skiers ~120 ms in the past,
 // asks the server for chair seats, syncs the lift clock, and relays chat.
 import * as THREE from 'three/webgpu';
+import { resortClock } from '../world/resortClock';
 import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
 import type { LiftSpeed } from '../../../shared/liftClock';
@@ -154,7 +155,7 @@ export class NetClient {
 
   private onWelcome(m: Extract<ServerMsg, { type: 'welcome' }>) {
     this.id = m.id; this.room = m.room; this.connected = true;
-    this.clockOffset = m.serverTime - Date.now() / 1000;
+    this.clockOffset = m.serverTime - Date.now() / 1000; resortClock.offset = this.clockOffset;
     this.supportsLiftSpeed = !!m.liftPlayback;
     this.lifts.clockOffset = 0;
     this.lifts.clocks.forEach((clock, i) => clock.sync(m.liftPlayback?.[i] ?? {time:m.serverTime,at:m.serverTime,rate:1}, m.serverTime));
@@ -277,7 +278,7 @@ export class NetClient {
         const rtt = nowL - m.t;
         if (rtt < this.rttBest) {
           this.rttBest = rtt;
-          this.clockOffset = m.serverTime + rtt / 2 - nowL;
+          this.clockOffset = m.serverTime + rtt / 2 - nowL; resortClock.offset = this.clockOffset;
           if (!this.supportsLiftSpeed) this.lifts.clocks.forEach(clock => clock.sync({time:m.serverTime,at:m.serverTime,rate:1},m.serverTime+rtt/2));
         }
         break;

@@ -63,6 +63,23 @@ export class SkierModel {
   }
 
   setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
+  private helmetShell: THREE.MeshStandardNodeMaterial | null = null;
+  /** Give this skier a helmet colour of their own (the shell material is otherwise shared). */
+  setHelmet(c: THREE.ColorRepresentation) {
+    if (!this.helmetShell) {
+      const shell = this.headGear.children[0] as THREE.Mesh;
+      this.helmetShell = (shell.material as THREE.MeshStandardNodeMaterial).clone();
+      shell.material = this.helmetShell;
+    }
+    this.helmetShell.color.set(c);
+  }
+  /** Dress as a particular resort guest: jacket, skin tone, helmet (or beanie colour) and body size. */
+  dress(look: { jacket: number; skin: number[]; hatColor: number; scale?: number }) {
+    this.setJacket(look.jacket);
+    this.human.setSkin(new THREE.Color(look.skin[0], look.skin[1], look.skin[2]));
+    this.setHelmet(look.hatColor);
+    this.root.scale.setScalar(look.scale ?? 1);
+  }
 
   /** Update joint positions. Local frame: feet at origin, skier faces -z, +x right. */
   update(p: SkierPose) {
