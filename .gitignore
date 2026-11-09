@@ -10,6 +10,6 @@ playwright-report/
 .vercel
 *.log
 tests/scratch/
-screenshots/*.png
+/screenshots/
 .env*
 __pycache__/

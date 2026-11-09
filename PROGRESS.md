@@ -1,5 +1,10 @@
 # Progress
 
+## Building signage and release preparation (November 8, 2026)
+
+- Segundo and Tercero slope lengths in ACCURACY.md now match the generated world data. The minimap test allows 15 seconds to reach its speed threshold and passed in Chromium with Low WebGL. Generated screenshots are ignored throughout the screenshots directory.
+- The pending summit patrol and lodge ticket window changes pass the production build, 132 unit tests and five pipeline checks. The local browser review found that the patrol sign sits behind a balcony rail and the ticket sign overlaps the lodge logo. Fix and review both placements, then deploy the committed client build.
+
 ## Minimap trail key and Map only (November 8, 2026)
 - The key shows Green, Blue, Black and Double Black with matching ski symbols. Map only hides the header, key and toolbar while keeping the live map, compass and scale visible. Details restores the controls. The browser remembers this choice separately from zoom and full minimap visibility.
 - Reviewed the expanded key, Map only view and short-window layout in Chromium. The new scenario passed in Chromium and WebKit, including a live trail change, keyboard restoration and a reload with older settings. The isolated production build, 131 unit tests and five pipeline checks passed.

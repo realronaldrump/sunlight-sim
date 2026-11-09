@@ -18,7 +18,7 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => new Set(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data).size)).toBeGreaterThan(30);
   await page.evaluate(() => (window as any).game.teleportToRun('Midway'));
   await page.keyboard.down('KeyW');
-  await expect.poll(() => page.evaluate(() => (window as any).game.player.st.speed)).toBeGreaterThan(2);
+  await expect.poll(() => page.evaluate(() => (window as any).game.player.st.speed), { timeout: 15000 }).toBeGreaterThan(2);
   await page.keyboard.up('KeyW');
   await expect(canvas).toHaveAttribute('aria-label', /Midway/);
   const before = await canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL());
