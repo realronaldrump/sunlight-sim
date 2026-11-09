@@ -841,7 +841,7 @@ export class Game {
     if (this.patrol) {
       this.patrol.update(dt, resortClock.now(), this.clockMode, this.env.hour, this.camera.position);
       const me = this.player.st.pos, pat = this.patrol.nearby(me.x, me.z);
-      if (pat) this.lessonHud?.say(`patrol/${Math.floor(resortClock.now() / 90)}`, 'Ski patrol', PATROL_CALL);
+      if (pat && !this.drone.active) this.lessonHud?.say(`patrol/${Math.floor(resortClock.now() / 90)}`, 'Ski patrol', PATROL_CALL);
     }
     if (this.snowcats) {
       this.snowcats.update(dt, resortClock.now(), this.env.hour, this.env.night.value, this.camera.position);
@@ -1183,7 +1183,9 @@ export class Game {
     }
     // Solo, the group waits at its stops for a tag-along who fell behind. In a room the shared schedule keeps going.
     const waiting = this.tagging && !this.net && L.waitFor(now, dt, toInstructor > 35);
-    if (this.tagging || near < 30) hud.say(st.sayKey, INSTRUCTOR_NAME, st.say);
+    // captions are speech: only heard standing near the group, never from the drone
+    if (!this.drone.active && near < 30) hud.say(st.sayKey, INSTRUCTOR_NAME, st.say);
+    else if (this.drone.active) hud.hush();
     hud.update(dt, { tagging: this.tagging, title: `${LESSON_NAME} with ${INSTRUCTOR_NAME}`, now: st.label, next: st.next, distance: toInstructor, waiting });
     const head = L.members[0].model.root.position;
     hud.placeTag(this.camera, (this.tagging || near < 25) && !this.options?.visible && !this.trailMap?.visible ? this.tmpV.set(head.x, head.y + 2.15, head.z) : null, `${INSTRUCTOR_NAME} · ${LESSON_NAME}`);

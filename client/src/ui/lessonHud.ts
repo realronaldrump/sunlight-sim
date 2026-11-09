@@ -42,6 +42,9 @@ export class LessonHud {
     this.captionTimer = Math.min(11, 3 + text.length / 18);
   }
 
+  /** Drop any caption on screen right away (out of earshot). */
+  hush() { if (this.captionTimer > 0) { this.captionTimer = 0; this.caption.classList.remove('show'); } }
+
   update(dt: number, s: { tagging: boolean; title: string; now: string; next: string; distance: number; waiting: boolean } | null) {
     if (this.captionTimer > 0) { this.captionTimer -= dt; if (this.captionTimer <= 0) this.caption.classList.remove('show'); }
     if (!s || !s.tagging) { this.panel.classList.remove('show'); return; }

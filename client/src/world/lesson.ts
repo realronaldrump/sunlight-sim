@@ -151,7 +151,7 @@ const KIDS: { jacket: number; hat: number; skin: number[]; scale: number; plow: 
   { jacket: 0x6a3fa0, hat: 0xd8642a, skin: [0.84, 0.68, 0.56], scale: 0.74, plow: 0.55 },
   { jacket: 0x111317, hat: 0x1aa3a3, skin: [0.47, 0.35, 0.28], scale: 0.84, plow: 0.25 },
 ];
-export const INSTRUCTOR_NAME = 'Maya';
+export const INSTRUCTOR_NAME = 'Ronald';
 export const LESSON_NAME = "Snowriders' Club";
 
 export class LessonGroup {
