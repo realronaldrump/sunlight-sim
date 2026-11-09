@@ -330,3 +330,10 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Option: "Auto disembark at the top of the lift" in the pause menu, off by default, saved in the browser. A rider who is away (flying the drone, in the menus) is set down automatically either way. `?autounload=1` or `0` overrides it for tests.
 - Multiplayer: the server no longer unloads riders at the unload line; clients report getting off (standing up, automatic, flung or jumped). The server frees a seat 12 lift seconds after the line if a client never did, and accepts a deliberate jump as a fall without rocking. Clients connected to an older server keep automatic unloading and cannot jump.
 
+
+## D31. Santa Sighting (owner request, November 9, 2026)
+
+- Donald Trump in a Santa ski suit is a single resident of each solo world or multiplayer room. He chooses among all 68 mapped skiable lines, including the park and double blacks. The route planner finds a new line over the measured snow, choosing lift access and detours around trees and steep banks. The skier uses the shared ski solver downhill and takes short, articulated steps on flats, tight turns and uphill connectors.
+- Chair pickup requires actual contact and a free seat. The occupied lift's clock carries him to the unload ramp, where he stands up and carries the chair's forward momentum onto the snow. The room supplies the same authoritative pose and seat to every browser. Room checkpoints persist on the mini-PC volume, and solo checkpoints live in the browser. A world with nobody in it resumes from its last checkpoint, including the cable phase if he was on a chair.
+- A clear sighting from play within 23 m for about three quarters of a second earns Santa Sighting. The award is kept per browser and appears in the pause or flight menu after discovery. He has no map marker.
+- The outfit uses an original sculpt and layered Santa gear on the CC0 anatomical rig. The hat moves with the skier, and each ski gets its own measured snow-contact pitch and height.

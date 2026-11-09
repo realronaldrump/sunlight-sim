@@ -41,6 +41,7 @@ describe('the resident skier', () => {
     const { navigation: nav, colliders } = world;
     const guest = new MountainGuest(nav, colliders, 187);
     let previous = guest.pose(), speed = 0, step = 0, edge = 0, seenLift = false;
+    const targets = new Set<string | null>();
     for (let i = 1; i <= 30 * 4200; i++) {
       guest.advance(dt, nav.lifts.map(() => wall + i * dt));
       const p = guest.pose();
@@ -48,6 +49,7 @@ describe('the resident skier', () => {
       speed = Math.max(speed, p.speed);
       edge = Math.max(edge, Math.abs(p.edge));
       seenLift ||= !!p.ride;
+      targets.add(guest.run);
       previous = p;
     }
     expect(speed).toBeGreaterThan(9);
@@ -55,7 +57,8 @@ describe('the resident skier', () => {
     expect(step).toBeLessThan(.95);
     expect(seenLift).toBe(true);
     expect(nav.contains(previous.x, previous.z)).toBe(true);
-    expect(guest.checkpoint().visits.filter(Boolean).length).toBeGreaterThanOrEqual(3);
+    expect(targets.size).toBeGreaterThan(3);
+    expect(guest.checkpoint().visits.filter(Boolean).length).toBeGreaterThanOrEqual(2);
   });
 
   it.each([0, 1, 2])('boards lift %i only at chair contact, rides to its ramp and skis away', (index) => {

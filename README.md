@@ -117,7 +117,7 @@ npx vercel@latest deploy --prod
 
 The production service is the isolated `sunlight-multiplayer` container from `hosting/compose.yaml`, listening only on `127.0.0.1:8787`. It restarts automatically. Its public WebSocket endpoint is `wss://davis-mini-pc-1.tail59b3f5.ts.net:10000/sunlight/`, through an added Tailscale Funnel path. The existing portal and other app routes remain separate.
 
-Deploy a committed source snapshot (package manifests, tsconfig, shared, server, hosting/compose.yaml and client/public/world/resort.json), then on the mini-PC:
+Deploy a committed source snapshot containing the package manifests, TypeScript config, `shared/`, `server/`, `hosting/compose.yaml` and the world and terrain files listed in `server/Dockerfile`. The Compose volume saves the roaming guest's room state across restarts. Then run on the mini-PC:
 
 ```bash
 RELEASE_SHA=<full-commit-sha> docker compose -f hosting/compose.yaml up -d --build

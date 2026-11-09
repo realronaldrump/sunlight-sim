@@ -90,3 +90,5 @@ All recordings below are [CC0 1.0](https://creativecommons.org/publicdomain/zero
 ## Lift structural follow-up
 - Original procedural rope, bullwheel channels, sheave alignment, Riblet tension carriage/counterweight and drive-vault exterior. Dimensions are estimated from reference imagery, not factory models.
 - Reference only: [Lift Blog's Tercero survey](https://liftblog.com/tercero-sunlight-co/), especially the top station, counterweight and lower vault drive photos. Images are cached privately for comparison and are not redistributed with the app.
+
+- The Santa skier's costume, hair, face sculpt, fabric shading and holiday ski equipment are original procedural art on the CC0 anatomical rig. Shealah Craighead's White House portrait was used as a likeness reference. [Official portrait](https://commons.wikimedia.org/wiki/File:Donald_Trump_official_portrait_(3x4_cropped_2).jpg)

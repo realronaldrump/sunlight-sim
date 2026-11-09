@@ -26,7 +26,7 @@ A browser-based, open-world, multiplayer ski simulator of **one mountain: Sunlig
 
 Reference point: bonvo.ski models 6,000+ resorts in the browser at modest fidelity. This project models one resort, so spend every bit of that saved effort on accuracy and realism for Sunlight alone. It should be clearly better than Bonvo for Sunlight in terrain accuracy, visual quality, and ski feel.
 
-No scores, timers, races, or achievements. Open world: spawn, ski anywhere, ride lifts, ski with a friend.
+No scores, timers, or races. Open world: spawn, ski anywhere, ride lifts, ski with a friend. Discovering the skier in the Santa suit earns the hidden Santa Sighting achievement.
 
 ## 2. Platform and stack
 
