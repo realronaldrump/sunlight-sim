@@ -39,12 +39,14 @@ test('a networked fall releases its seat and broadcasts the landing instead of t
     });
     await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
     await expect.poll(() => skiers.find(p => p.name === 'Rocker')?.ride).toBeTruthy();
-    await page.keyboard.press('KeyF');
+    if (await page.locator('#lift-speed-8').count()) await page.locator('#lift-speed-8').click();
+    else await page.keyboard.press('KeyF');
     await expect.poll(() => page.evaluate(() => {
       const g = (window as any).game, r = g.player.ride, p = g.lifts.paths[r.lift];
       return p.loopPoint(p.chairU(r.chair, g.lifts.now(r.lift))).h;
     }), { timeout: 20_000 }).toBeGreaterThan(160);
-    await page.keyboard.press('KeyF');
+    if (await page.locator('#lift-speed-1').count()) await page.locator('#lift-speed-1').click();
+    else await page.keyboard.press('KeyF');
     const started = Date.now(); let last = '';
     while (Date.now() - started < 25_000 && await page.evaluate(() => !!(window as any).game.player.ride)) {
       const key = Math.cos((Date.now() - started) / 1000 * 1.65) >= 0 ? 'KeyD' : 'KeyA';
