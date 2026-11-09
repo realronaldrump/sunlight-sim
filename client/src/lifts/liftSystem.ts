@@ -12,7 +12,7 @@ import { seatedSkierGeometry } from '../skier/seatedGeometry';
 import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion } from './chairModel';
 import { buildHut, buildTerminal, buildTower, liftStyle, type LiftCollider } from './liftStructures';
 import { cableLoopGeometry } from './cableGeometry';
-import { createChairSwing, stepChairSwing, type ChairSwing } from '../../../shared/chairSwing';
+import { createChairSwing, stepChairSwing, swingEnergy, type ChairSwing } from '../../../shared/chairSwing';
 
 
 const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
@@ -35,13 +35,18 @@ export class LiftSystem {
   private e = new THREE.Euler();
   private spinners: { lift: number; object: THREE.Object3D; speed: number; radius: number; direction: number }[] = [];
   private swings = new Map<string, { state: ChairSwing; at: number; updated: number }>();
+  private reservedTrips = new Map<string, number>();
 
-  setChairSwing(lift: number, chair: number, state: ChairSwing) {
+  setChairSwing(lift: number, chair: number, state: ChairSwing, source = 'local') {
     const now = performance.now() / 1000;
-    this.swings.set(`${lift}/${chair}`, { state: { ...state }, at: now, updated: now });
+    this.swings.set(`${lift}/${chair}/${source}`, { state: { ...state }, at: now, updated: now });
   }
 
-  chairSwing(lift: number, chair: number) { return this.swings.get(`${lift}/${chair}`)?.state; }
+  chairSwing(lift: number, chair: number) {
+    let selected: ChairSwing | undefined;
+    for (const [key, motion] of this.swings) if (key.startsWith(`${lift}/${chair}/`) && (!selected || swingEnergy(motion.state) > swingEnergy(selected))) selected = motion.state;
+    return selected;
+  }
 
   constructor(defs: LiftDef[]) {
     this.group.name = 'lifts';
@@ -88,6 +93,7 @@ export class LiftSystem {
 
   /** Seats taken by ambient riders on a chair (the crowd queue boards exactly these). */
   riderSeats(li: number, chair: number) {
+    if ((this.reservedTrips.get(`${li}/${chair}`) ?? 0) > this.now(li)) return [];
     const R = this.riders[li];
     return R ? R.slots.filter((s) => s.chair === chair).map((s) => s.seat) : [];
   }
@@ -208,6 +214,13 @@ export class LiftSystem {
 
   update(occupied: { lift: number; chair: number }[] = [], viewer?: THREE.Vector3) {
     const t = this.now();
+    // An occupied trip stays empty of ambient passengers even if its player falls,
+    // teleports or disconnects. Do not conjure a replacement halfway up the mountain.
+    for (const r of occupied) {
+      const path = this.paths[r.lift], now = this.now(r.lift);
+      this.reservedTrips.set(`${r.lift}/${r.chair}`, now + path.remainingRideTime(r.chair, now) + 1);
+    }
+    for (const [key, until] of this.reservedTrips) if (this.now(Number(key.split('/')[0])) >= until) this.reservedTrips.delete(key);
     const realTime = performance.now() / 1000;
     for (const [key, motion] of this.swings) {
       if (realTime - motion.at > .1) stepChairSwing(motion.state, { right: 0, forward: 0 }, realTime - motion.updated, false);
@@ -259,7 +272,7 @@ export class LiftSystem {
         R.slots.forEach((sl, k) => {
           const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
           // riders board at the load line (base queues board these chairs) and stand up at the unload line
-          if (!info.uphill || info.h < LOAD_OFFSET + 0.2 || info.h > path.horiz - UNLOAD_OFFSET + 0.3 || occupied.some(o => o.lift === li && o.chair === sl.chair)) return;
+          if (!info.uphill || info.h < LOAD_OFFSET + 0.2 || info.h > path.horiz - UNLOAD_OFFSET + 0.3 || this.reservedTrips.has(`${li}/${sl.chair}`)) return;
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
           this.m4.compose(p, this.q, new THREE.Vector3(1, 1, 1));
           R.mesh.setMatrixAt(visible, this.m4);

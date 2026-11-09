@@ -166,6 +166,10 @@ The upper-left minimap follows your position while skiing and riding lifts. Nort
 
 Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the trail map for an overview. Use the pause menu for teleport destinations. Clicking the minimap itself does not teleport you.
 
+## Chairlift easter egg
+
+On a chair, WASD or the arrow keys shift your weight. A small lean settles; repeated rocking in time with the swing can make you lose your seat. The chair creaks under motion, and a fall carries your momentum into freefall and the terrain landing. Once you stop sliding, press **R** to get up and ski from there. Chair motion and falls are visible in multiplayer. The fall threshold and recovery are gameplay approximations.
+
 ## Audio
 
 Sound starts after the first key press or click. N toggles sound; P opens the volume control. Ski contact responds to speed, edge pressure, braking, grooming and airborne state. Lift machinery has direction and distance, while chair rollers follow tower crossings. All source recordings are CC0; credits and exact processing are in `CREDITS.md` and `client/public/audio/sources.json`.

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import { LiftClock, LIFT_FAST_RATE } from '../../shared/liftClock';
-import { CHAIR_SWING, chairReleaseVelocity, swingingRiderPoint, validChairSwing } from '../../shared/chairSwing';
+import { CHAIR_SWING, carriedSwing, createChairSwing, swingEnergy, chairReleaseVelocity, swingingRiderPoint, validChairSwing, type ChairSwing } from '../../shared/chairSwing';
 import type { NetDrone } from '../../shared/protocol';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
@@ -241,13 +241,18 @@ export class Room {
   /** Authoritative snapshot (riders are placed on their chair by the server's lift clock). */
   snapshot(): ServerMsg {
     const t = now();
+    const carriers = new Map<string, ChairSwing>();
+    for (const p of this.players.values()) if (p.ride && p.s.swing) {
+      const key = `${p.ride.lift}/${p.ride.chair}`, old = carriers.get(key);
+      if (!old || swingEnergy(p.s.swing) > swingEnergy(old)) carriers.set(key, p.s.swing);
+    }
     for (const p of this.players.values()) {
       if (p.ride) {
         const lift = this.lifts[p.ride.lift];
         if (lift) {
           const liftTime = this.liftClocks[p.ride.lift].now();
-          const lp = p.s.swing ? swingingRiderPoint(lift, p.ride.chair, p.ride.seat, liftTime, p.s.swing)
-            : lift.riderPoint(p.ride.chair, p.ride.seat, liftTime);
+          const swing = carriedSwing(p.s.swing ?? createChairSwing(), carriers.get(`${p.ride.lift}/${p.ride.chair}`));
+          const lp = swingingRiderPoint(lift, p.ride.chair, p.ride.seat, liftTime, swing);
           p.s = { ...p.s, x: lp.p.x, y: lp.p.y, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
           p.t = t;
           // Deadline also catches a suspended client which missed an entire loop.

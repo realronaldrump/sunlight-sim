@@ -9,7 +9,7 @@ import type { Player } from '../skier/player';
 import type { LiftSystem } from '../lifts/liftSystem';
 import type { SkierState } from '../../../shared/skiPhysics';
 import { DroneModel } from '../drone/droneModel';
-import { swingingRiderPoint } from '../../../shared/chairSwing';
+import { carriedSwing, createChairSwing, swingingRiderPoint } from '../../../shared/chairSwing';
 import type { ChairSwing } from '../../../shared/chairSwing';
 
 interface Sample { t: number; s: NetSkier }
@@ -312,6 +312,7 @@ export class NetClient {
     }
     const renderT = this.serverNow() - 0.12;
     const tmp = new THREE.Vector3();
+    for (const r of this.remotes.values()) if (r.ride && r.last?.swing) this.lifts.setChairSwing(r.ride.lift, r.ride.chair, r.last.swing, r.id);
     for (const r of this.remotes.values()) {
       r.time += dt;
       if(r.flight && r.drone) {
@@ -327,10 +328,9 @@ export class NetClient {
       let loading = false;
       if (r.ride) {
         // ride exactly on the shared chair clock
-        const path = this.lifts.paths[r.ride.lift], swing = r.last?.swing;
+        const path = this.lifts.paths[r.ride.lift], swing = carriedSwing(r.last?.swing ?? createChairSwing(), this.lifts.chairSwing(r.ride.lift, r.ride.chair));
         const info = swing ? swingingRiderPoint(path, r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift), swing)
           : path.riderPoint(r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift));
-        if (swing && !(this.player.ride?.lift === r.ride.lift && this.player.ride.chair === r.ride.chair)) this.lifts.setChairSwing(r.ride.lift, r.ride.chair, swing);
         r.model.root.position.set(info.p.x, info.p.y, info.p.z);
         heading = info.heading;
         if (r.pickupOffset && r.ride.boardedAt !== undefined) {
@@ -358,7 +358,7 @@ export class NetClient {
       r.heading = heading;
       orientSkier(r.model.root, heading, r.ride ? undefined : this.player.terrainNormal(r.model.root.position.x, r.model.root.position.z));
       if (!s) continue;
-      const swing = r.ride ? s.swing : undefined, tumble = !r.ride ? s.tumble : undefined;
+      const swing = r.ride ? carriedSwing(s.swing ?? createChairSwing(), this.lifts.chairSwing(r.ride.lift, r.ride.chair)) : undefined, tumble = !r.ride ? s.tumble : undefined;
       if (swing || tumble) r.model.root.rotation.set(swing?.pitch ?? tumble!.pitch, heading, swing?.roll ?? tumble!.roll, 'YXZ');
       const speed = Math.hypot(s.vx, s.vy, s.vz);
       if (!loading) r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 5);

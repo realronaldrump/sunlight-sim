@@ -35,6 +35,11 @@ for (const [name, keys] of [['Primo', ['KeyD', 'KeyA']], ['Segundo', ['ArrowUp',
     // One small intentional shift remains safe and returns when released.
     await page.keyboard.down(keys[0]); await page.waitForTimeout(400); await page.keyboard.up(keys[0]);
     expect(await page.evaluate(() => !!(window as any).game.player.ride)).toBe(true);
+    if (name === 'Tercero') {
+      await page.keyboard.press('KeyC');
+      await page.screenshot({ path: `screenshots/chairfall-${name}-${info.project.name}-first.png` });
+      await page.keyboard.press('KeyC'); await page.keyboard.press('KeyC');
+    }
     await page.waitForTimeout(1000);
     await page.evaluate(() => { (window as any).game.fallReview.phase = 'rocking'; });
     const started = Date.now();
@@ -55,6 +60,12 @@ for (const [name, keys] of [['Primo', ['KeyD', 'KeyA']], ['Segundo', ['ArrowUp',
     const debug = await page.evaluate(() => { const g = (window as any).game; return { swing: g.player.chairSwing, ride: g.player.ride,
       pos: g.player.st.pos, input: g.player.lastInput, frames: g.fallReview.frames.length, ready: g.ready, fly: g.flyMode }; });
     expect(release, JSON.stringify({ errors, debug })).not.toBeNull(); expect(release.grounded).toBe(false);
+    const replacement = await page.evaluate(liftName => {
+      const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === liftName), path = g.lifts.paths[li];
+      const seat = path.seatPoint(0, 0, g.lifts.now(li)).p, mesh = g.lifts.riders[li].mesh, a = mesh.instanceMatrix.array;
+      return Array.from({ length: mesh.count }, (_, i) => Math.hypot(a[i * 16 + 12] - seat.x, a[i * 16 + 13] - seat.y, a[i * 16 + 14] - seat.z)).some(d => d < 3);
+    }, name);
+    expect(replacement).toBe(false);
     expect(Math.hypot(release.vel.x, release.vel.z)).toBeGreaterThan(.5);
     await page.screenshot({ path: `screenshots/chairfall-${name}-${info.project.name}-air.png` });
     await expect.poll(() => page.evaluate(() => !!(window as any).game.fallReview.landing), { timeout: 15_000 }).toBe(true);
@@ -71,6 +82,17 @@ for (const [name, keys] of [['Primo', ['KeyD', 'KeyA']], ['Segundo', ['ArrowUp',
     const after = await page.evaluate(() => { const g = (window as any).game; return { ...g.player.st.pos, ride: g.player.ride, mode: g.player.st.mode }; });
     expect(after.ride).toBeNull(); expect(after.mode).not.toBe('gettingUp');
     expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(3);
+    // Recovery places skis across the fall line. Use real steering to face downhill
+    // before pushing, rather than expecting W to climb an arbitrary off-piste bank.
+    let steering = '';
+    for (let i = 0; i < 45; i++) {
+      const delta = await page.evaluate(() => { const s = (window as any).game.player.st, h = Math.atan2(-s.normal.x, -s.normal.z); return Math.atan2(Math.sin(h - s.heading), Math.cos(h - s.heading)); });
+      if (Math.abs(delta) < .2) break;
+      const key = delta < 0 ? 'KeyD' : 'KeyA';
+      if (key !== steering) { if (steering) await page.keyboard.up(steering); await page.keyboard.down(key); steering = key; }
+      await page.waitForTimeout(80);
+    }
+    if (steering) await page.keyboard.up(steering);
     await page.keyboard.down('KeyW'); await page.waitForTimeout(1800); await page.keyboard.up('KeyW');
     const finish = await page.evaluate(() => { const g = (window as any).game; return { ...g.player.st, frames: g.fallReview.frames }; });
     expect(finish.speed).toBeGreaterThan(.2);

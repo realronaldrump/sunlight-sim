@@ -35,6 +35,11 @@ describe('multiplayer rooms', () => {
       f.at(start + elapsed);
       const release = stepChairSwing(swing, { right: Math.sign(Math.cos(elapsed * 1.65)), forward: 0 }, 1 / 60);
       f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, swing: { ...swing } } });
+      if (elapsed > 3 && elapsed < 3.02) {
+        f.room.snapshot();
+        const bp = swingingRiderPoint(f.lift, b.p.ride!.chair, b.p.ride!.seat, f.room.liftClocks[0].now(), { ...swing, slip: 0 }).p;
+        expect(b.p.s.x).toBeCloseTo(bp.x, 6); expect(b.p.s.y).toBeCloseTo(bp.y, 6);
+      }
       if (release) break;
     }
     expect(elapsed).toBeLessThan(13);

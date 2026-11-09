@@ -335,7 +335,7 @@ export class Game {
       return;
     }
     const st = this.player.st;
-    if (this.player.ride || st.speed > 1.0 || st.mode === 'air') { this.hud.toast('Stop first to step out of your skis'); return; }
+    if (this.player.ride || !st.grounded || st.speed > 1.0 || st.mode === 'air') { this.hud.toast('Stop first to step out of your skis'); return; }
     this.onFoot.enter(st.pos.x, st.pos.y, st.pos.z, st.heading);
     this.player.model.root.visible = false;
     this.camRig.enabled = false;
@@ -433,6 +433,7 @@ export class Game {
   async toggleDrone() {
     if (this.droneOnly) return;
     if (!this.ready || this.chat?.open || this.launchingDrone) return;
+    if (!this.drone.active && this.player.tumble) return;
     if (this.drone.active) {
       this.drone.exit(); this.camRig.enabled = true; this.camRig.reset();
       this.audioScene = new AudioScene();
@@ -538,8 +539,8 @@ export class Game {
     const st = this.player.st;
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
     this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
-      { pitch: this.player.ride ? this.player.chairSwing.pitch : this.player.tumble?.pitch ?? 0,
-        roll: this.player.ride ? this.player.chairSwing.roll : this.player.tumble?.roll ?? 0,
+      { pitch: this.player.ride ? this.player.rideSwing.pitch : this.player.tumble?.pitch ?? 0,
+        roll: this.player.ride ? this.player.rideSwing.roll : this.player.tumble?.roll ?? 0,
         airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact });
   }
 
@@ -883,7 +884,7 @@ export class Game {
     const sound = this.audioScene.sample(dt, st, flight ? null : this.player.ride,
       this.lifts.paths, surface, forward, this.env.snowing, neighbors);
     if (this.player.ride && !flight) {
-      const s = this.player.chairSwing;
+      const s = this.player.rideSwing;
       sound.rocking = { angle: Math.hypot(s.roll, s.pitch), velocity: Math.hypot(s.rollV, s.pitchV), slip: s.slip, pan: Math.sin(s.roll) };
     }
     this.audio.update(dt, sound);

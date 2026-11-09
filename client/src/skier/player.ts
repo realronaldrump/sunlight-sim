@@ -6,7 +6,7 @@ import { SkierModel } from './skierModel';
 import { orientSkier } from './orientation';
 import type { LiftSystem } from '../lifts/liftSystem';
 import { BOARD_FACING_COS } from '../../../shared/lifts';
-import { createChairSwing, stepChairSwing, swingingRiderPoint, chairReleaseVelocity, type ChairSwing } from '../../../shared/chairSwing';
+import { carriedSwing, createChairSwing, stepChairSwing, swingingRiderPoint, chairReleaseVelocity, type ChairSwing } from '../../../shared/chairSwing';
 
 export interface RideState { lift: number; chair: number; seat: number; boardedAt: number; unloadAt: number }
 
@@ -41,6 +41,7 @@ export class Player {
   }
 
   get position() { return new THREE.Vector3(this.st.pos.x, this.st.pos.y, this.st.pos.z); }
+  get rideSwing() { return carriedSwing(this.chairSwing, this.ride ? this.lifts.chairSwing?.(this.ride.lift, this.ride.chair) : undefined); }
 
   teleport(x: number, z: number, heading: number) {
     if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l, true); }
@@ -113,7 +114,7 @@ export class Player {
   fallFromLift() {
     const r = this.ride;
     if (!r) return;
-    const path = this.lifts.paths[r.lift], t = this.lifts.now(r.lift), swing = this.chairSwing;
+    const path = this.lifts.paths[r.lift], t = this.lifts.now(r.lift), swing = this.rideSwing;
     const point = swingingRiderPoint(path, r.chair, r.seat, t, swing);
     this.st.pos = { ...point.p };
     this.st.heading = point.heading;
@@ -147,11 +148,11 @@ export class Player {
         ? { right: input.steer, forward: Number(input.push || input.tuck) - input.plow }
         : { right: 0, forward: 0 }, dt, onLine);
       this.lifts.setChairSwing?.(r.lift, r.chair, this.chairSwing);
-      const info = swingingRiderPoint(path, r.chair, r.seat, t, this.chairSwing);
+      const info = swingingRiderPoint(path, r.chair, r.seat, t, this.rideSwing);
       st.pos = { ...info.p };
       st.heading = info.heading;
       st.speed = path.def.speed;
-      st.vel = chairReleaseVelocity(path, r.chair, r.seat, t, this.chairSwing);
+      st.vel = chairReleaseVelocity(path, r.chair, r.seat, t, this.rideSwing);
       if (t >= r.unloadAt || !info.uphill) { this.unload(); st = this.st; }
       else if (released) this.fallFromLift();
     } else if (!parked || this.tumble) {
@@ -205,7 +206,7 @@ export class Player {
     if (this.ride && this.pickupOffset) {
       const progress = Math.min(1, Math.max(0, (t - this.pickupStartedAt) / .85));
       const blend = progress * progress * (3 - 2 * progress);
-      const point = swingingRiderPoint(this.lifts.paths[this.ride.lift], this.ride.chair, this.ride.seat, t, this.chairSwing);
+      const point = swingingRiderPoint(this.lifts.paths[this.ride.lift], this.ride.chair, this.ride.seat, t, this.rideSwing);
       st.pos = { x: point.p.x + this.pickupOffset.x * (1 - blend), y: point.p.y + this.pickupOffset.y * (1 - blend), z: point.p.z + this.pickupOffset.z * (1 - blend) };
       st.heading = this.pickupHeading + Math.atan2(Math.sin(point.heading - this.pickupHeading), Math.cos(point.heading - this.pickupHeading)) * blend;
       this.sitBlend = this.pickupSitStart + (1 - this.pickupSitStart) * blend;
@@ -214,7 +215,7 @@ export class Player {
     this.model.root.position.set(st.pos.x, st.pos.y, st.pos.z);
     if (!this.ride) this.model.root.position.y += this.sitBlend * .18;
     orientSkier(this.model.root, st.heading, this.ride || !st.grounded ? undefined : st.normal);
-    if (this.ride) this.model.root.rotation.set(this.chairSwing.pitch, st.heading, this.chairSwing.roll, 'YXZ');
+    if (this.ride) this.model.root.rotation.set(this.rideSwing.pitch, st.heading, this.rideSwing.roll, 'YXZ');
     else if (this.tumble) this.model.root.rotation.set(this.tumble.pitch, st.heading, this.tumble.roll, 'YXZ');
     const footGroundY = this.ride ? this.probe.height(st.pos.x - Math.sin(st.heading) * .2, st.pos.z - Math.cos(st.heading) * .2) - st.pos.y : undefined;
     const groundNormal = this.ride ? this.terrainNormal(st.pos.x, st.pos.z) : st.normal;

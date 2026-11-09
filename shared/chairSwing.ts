@@ -10,6 +10,11 @@ export interface ChairSwing {
 export interface RockInput { right: number; forward: number }
 export const CHAIR_SWING = { length: HANGER + .15, gravity: 9.81, damping: .16, drive: .36, releaseAngle: .62, releaseSlip: .72 };
 export const createChairSwing = (): ChairSwing => ({ roll: 0, pitch: 0, rollV: 0, pitchV: 0, leanX: 0, leanZ: 0, slip: 0, slipX: 0, slipZ: 0 });
+export const swingEnergy = (s: ChairSwing) => s.roll * s.roll + s.pitch * s.pitch + (s.rollV * s.rollV + s.pitchV * s.pitchV) * CHAIR_SWING.length / CHAIR_SWING.gravity;
+/** Share carrier rotation, while each occupant keeps their own lean and cushion contact. */
+export function carriedSwing(own: ChairSwing, carrier?: ChairSwing): ChairSwing {
+  return carrier ? { ...own, roll: carrier.roll, pitch: carrier.pitch, rollV: carrier.rollV, pitchV: carrier.pitchV } : own;
+}
 const clamp = (x: number, n: number) => Number.isFinite(x) ? Math.max(-n, Math.min(n, x)) : 0;
 
 /** A held lean settles; reversing in time with the swing adds energy. Never count keypresses. */
