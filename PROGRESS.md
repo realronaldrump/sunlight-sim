@@ -122,3 +122,11 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Refined ski spray into finer, less opaque grains after reviewing the first plume close-up. Tracks sample the shared physical surface probe, so they follow the concurrently added lift snow ramps as well as the DEM.
 - Validation: build and 9 focused graphics tests pass. Snow, weather and track scenarios pass on WebGPU and WebGL2; Chromium and Safari smoke tests pass. The complete fixed-viewpoint sweep passed again after the last tree geometry corrections. Screenshots remain in the ignored `screenshots/` directory.
 - Other agents continue building, lift and audio work. Commit only graphics-owned files/hunks. Use an immutable committed-source snapshot for final combined validation; do not publish arbitrary uncommitted parallel work.
+
+## Minimap implementation and release (November 8, 2026)
+- Added the skiing minimap from tested branch `codex/skiing-minimap`, release revision `8bfe7d0`. It follows the skier, shows heading, nearby runs with difficulty symbols, lifts and friends, and retains the independent full trail map. V hides/restores it; zoom and visibility persist.
+- Map widths are 1,500 / 3,000 / 6,000 ft with shared U.S. display conversions. Static terrain/trails are cached, dynamic painting is limited to 12 Hz, and the smaller layout clears the speed HUD. See D16 for decisions.
+- Validation on the isolated release source (including committed U.S. units and snow work through `2f49035`): build, 42 unit tests, all 3 pipeline checks and all 12 Chromium/WebKit browser scenarios passed. These results do not claim validation of the separate, ongoing character/building/audio work in this checkout.
+- Inspected skiing, compact-window and lift screenshots. Tests cover movement, heading correctness, zoom limits, saved settings, full-map transitions, lift rides, multiplayer, chat input, missing hillshade and corrupt local settings.
+- Staged production deployment `dpl_CYDURad3C2f56tMGqqYuBFR2oqKY` is READY and its HTML serves the expected `index-DS4vd5br.js` bundle. Public promotion and live browser verification are the remaining release steps.
+- Integration preserved all existing unstaged work; only the minimap hunks and these notes were staged. Future deployments from master retain this feature.

@@ -8,15 +8,15 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
     viewport: { width: 1600, height: 900 },
     launchOptions: { args: gpuArgs },
   },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium', launchOptions: { args: gpuArgs } } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /smoke\.spec\.ts/ },
+    { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /(smoke|minimap)\.spec\.ts/ },
   ],
-  webServer: {
+  webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,

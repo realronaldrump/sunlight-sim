@@ -12,6 +12,7 @@ import { Hud } from './ui/hud';
 import { TreeSystem } from './trees/trees';
 import { RunSystem } from './runs/runs';
 import { TrailMap } from './ui/trailMap';
+import { Minimap } from './ui/minimap';
 import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
@@ -30,8 +31,8 @@ import { mogulOffset } from '../../shared/moguls';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
-export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][] }
-export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[] }
+export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][]; outline?: number[][][] }
+export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[]; map?: { x0: number; x1: number; z0: number; z1: number } }
 
 export class Game {
   renderer!: THREE.WebGPURenderer;
@@ -49,6 +50,7 @@ export class Game {
   trees!: TreeSystem;
   runs!: RunSystem;
   trailMap!: TrailMap;
+  minimap!: Minimap;
   net: NetClient | null = null;
   chat!: ChatUI;
   quality!: QualityPreset;
@@ -150,6 +152,8 @@ export class Game {
     this.trailMap = new TrailMap(this.resort, WORLD_BASE);
     this.trailMap.onTeleport = (name) => this.teleportToRun(name);
     this.trailMap.onJoinPlayer = (name) => this.joinFriend(name);
+    this.minimap = new Minimap(this.resort, WORLD_BASE);
+    this.minimap.onOpenMap = () => this.trailMap.toggle(true);
     if (this.surface) {
       const s = this.surface;
       const tex = new THREE.DataTexture(s.data, s.w, s.h, THREE.RGBAFormat);
@@ -332,6 +336,7 @@ export class Game {
     if (actions.help) this.hud.toggleHelp();
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
+    if (actions.minimap) this.minimap.toggle();
     if (actions.options) this.options.toggle();
     if (this.trailMap.visible) {
       const st2 = this.player.st;
@@ -361,6 +366,12 @@ export class Game {
 
     const st = this.player.st;
     const run = this.player.ride ? null : (this.runAt(st.pos.x, st.pos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
+    this.minimap.update(dt, {
+      self: { name: this.playerName, color: this.playerColor, x: st.pos.x, z: st.pos.z, heading: st.heading, self: true },
+      others: this.remoteMapPlayers(), run,
+      lift: this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
+      active: this.ready && !this.trailMap.visible,
+    });
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.updateHints();
     this.updateLiftArrow();

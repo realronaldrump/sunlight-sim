@@ -113,3 +113,9 @@ It needs Python 3.12 (`uv` or `python3 -m venv`); `pipeline/run_all.sh` creates 
 ## Project docs
 
 - `SPEC.md` the build spec. `PROGRESS.md` status and next steps. `DECISIONS.md` design decisions and real-world values. `ACCURACY.md` run statistics vs DEM and published figures. `CREDITS.md` sources and licenses.
+
+## Minimap while skiing
+
+The upper-left minimap follows your position while skiing and riding lifts. North stays up; the cyan arrow shows your ski heading, and nearby friends use their jacket colors. The header keeps your current run or lift visible. Difficulty-colored trails, run names, lifts and a distance scale help you choose a route.
+
+Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the existing trail map for overview and travel. Clicking the minimap itself does not teleport you.

@@ -14,6 +14,11 @@ test('two players in one room', async ({ browser }) => {
   await boot(b, 'Bob', '2e9e44', room);
   await expect.poll(() => a.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
   await expect.poll(() => b.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
+  await expect(a.locator('#minimap canvas')).toHaveAttribute('aria-label', /1 other skier in the room/);
+  await expect(b.locator('#minimap canvas')).toHaveAttribute('aria-label', /1 other skier in the room/);
+  // Room controls leave enough space above the minimap.
+  const roomBox = (await b.locator('#roombox').boundingBox())!, mapBox = (await b.locator('#minimap').boundingBox())!;
+  expect(mapBox.y).toBeGreaterThan(roomBox.y + roomBox.height);
 
   // Alice moves; Bob sees her there
   await a.evaluate(() => (window as any).game.teleportToRun('Midway'));
@@ -64,6 +69,11 @@ test('two players in one room', async ({ browser }) => {
   // chat
   await a.evaluate(() => (window as any).game.net.chat('See you at the top'));
   await expect.poll(() => b.evaluate(() => document.getElementById('chatlog')?.textContent ?? ''), { timeout: 5_000 }).toContain('See you at the top');
+  await b.keyboard.press('KeyT');
+  await expect(b.locator('#chatin')).toBeVisible();
+  await b.locator('#chatin').pressSequentially('view from the lift');
+  await expect(b.locator('#minimap canvas')).toBeVisible(); // Typing V in chat must not hide the map.
+  await b.keyboard.press('Enter');
   await a.context().close();
   await b.context().close();
 });
