@@ -49,7 +49,7 @@
 - DONE Ambient skiers from lift unloads (D22 addendum), lift maze lanes, lift operators and maze boards.
 - DONE Generic buildings measured from lidar (D23): `houses.ts`, `build_structures.py` lidar_massing. Reviewed `screenshots/review-houses/{condos,bnb,base}.png` (review views `condos`, `bnb`).
 - NEXT (in order):
-  1. NPC life (remaining): base-area pedestrians, skiers queuing in the lift maze, ambient skiers on varied runs with personalities and speeds, carrying skis.
+  1. NPC life (remaining): base-area pedestrians, skiers queuing in the lift maze, ambient skiers on varied runs with personalities and speeds, carrying skis. See [A living resort day](#a-living-resort-day-planned) for the shared routine and first playable milestone.
   2. Station snow ramps are hard-edged rectangular slabs; blend edges into the terrain (shared/liftStations.ts, after the other agent's work).
   3. Base-area navigation at 1:1: lift maze ropes, load boards, signs, liftie shacks colored per lift, lodge to lift paths. Consider a lower camera FOV (currently 62 vertical) for natural scale.
   4. Conifer near/far look under the new lighting, mid-distance forest density, snow on conifer boughs.
@@ -176,6 +176,18 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 5. Host the multiplayer server only if deployment credentials are available (Fly.io config in hosting/); otherwise retain exact deploy instructions.
 
 "Join friend" map travel is already implemented and passed the multiplayer browser scenario again in session 2.
+
+### A living resort day (planned)
+
+Connect the existing lodge, lift queues, ambient skiers, weather and ski tracks so activity continues while players are elsewhere. Players in a room share the simulated time of day, group routines and mountain conditions.
+
+**First milestone.** Build one loop from the lodge ski racks up Segundo and back to the lodge. Choose a connected beginner route from the existing trail data. Carry one recognizable lesson group from its meetup through the lift queue and down the run. Keep player and NPC tracks visible on one trail across laps, and update a conditions board outside the lodge as the day changes. Use the normal invite flow to verify that two players see the same group, tracks and board. Repeat the lap and check that the changes are apparent from the scene and sound alone.
+
+1. **Lesson groups and daily routines.** Give an instructor and group recognizable clothing and a continuous itinerary. Meet at the lodge breezeway, queue at Segundo, regroup at junctions on an easy route and return to the lodge for lunch. Let players join or leave the group freely to learn the route. Use [Sunlight's lesson lineup](https://sunlightmtn.com/ski-lessons/multi-week-clubs/) as a reference.
+2. **Snow that changes across laps.** Keep a bounded set of tracks left by players and NPCs. Traffic scrapes the main line and changes grip while the edges stay soft. Fresh snowfall covers the tracks, and grooming restores corduroy. Keep the measured terrain elevations as the base. The lodge board shows simulated weather, open trails and lifts, and what was groomed and when. Use the [real mountain status report](https://sunlightmtn.com/explore/mountain-status/) as a reference for the board.
+3. **Visible lift, patrol and grooming crews.** Animate lift operators signaling and briefly holding chairs for missed loads. Show patrol sweeping a run at closing and updating rope lines, then snowcats working under headlights after last chair. Offer **Resort Day** for shared operating hours and **Free Explore** with lifts available at any hour. Keep the resort clock independent of the occupied lift's speed controls.
+4. **Lodge stops and social gestures.** Let players leave skis in a rack and retrieve them, then meet and sit with friends on the deck. Fade outdoor wind as players enter and bring up local sounds like ski boots, conversation and coffee orders. Add a wave and a downhill point that friends can see without opening chat. Use the [main lodge dining](https://sunlightmtn.com/explore/glenwood-springs-dining/) as a reference for indoor activity.
+5. **Quiet terrain and uphill exploration.** Let a passing squall hide and reveal Mount Sopris from the chair. Give sheltered aspen groves quieter, more enclosed sound than exposed ridges. After the core day loop, add ski touring on one route from [Sunlight's designated uphill network](https://sunlightmtn.com/uphill-pass-program/) so players can skin up before first chair.
 
 ## Character and building verification checkpoint (November 8, 2026)
 - Character commit `adbb728`: anatomical human bodies and detailed ski gear for the player, friends, ambient skiers and seated chair passengers. The source hash, license and reproducible pipeline are committed. Building and startup work was included by the concurrent repository checkpoint `2d2d062`.
