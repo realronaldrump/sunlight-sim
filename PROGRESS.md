@@ -1,9 +1,10 @@
 # Progress
 
-## Snowriders' Club lunch in the lodge (November 9, 2026, in progress)
+## Snowriders' Club lunch in the lodge (November 9, 2026, released)
 
 - Every second lap the lesson ends with lunch (Sunlight's full-day Snowriders' Club includes it): skis off at the line-up, single file to the rental-level door with skis on their shoulders, about five and a half minutes on the lower-level benches in their numbered bibs, then back out to the same spots and another lap. The walk uses the base area's walking graph; without it (ambient people off) the group simply waits at the line-up. Caption, tag-along panel and status board follow along ("at lunch inside, on the lower level").
 - The schedule is still a pure function of the shared clock (now a two-lap cycle with lunch); two local clients agreed on loop, positions (1 cm) and chairs. `LessonGroup.jumpTo` is the new test hook for the two-lap cycle.
+- Release `dd09993`: pushed and verified on `origin/main`; Vercel deployment `dpl_FGZawhiy5cKb3WK536NiZgGTJ3AP` READY at https://sunlight-sim.vercel.app serving `index-DEQ2D1oA.js`; the live lesson scenario passed in Chromium and WebKit.
 - Verified: lesson and social scenarios in Chromium and WebKit, 150 unit tests; review captures `screenshots/review-lesson/lunch-*.png`.
 
 ## Weather rolling through (November 9, 2026, released)
@@ -71,7 +72,7 @@
 - **Shared resort clock** (`resortClock.ts`) follows the server clock in a room. Two Chromium clients in one local room agreed on the lesson loop and phase, member positions within 4 cm and the same two Segundo chairs.
 - Visual review (`screenshots/review-lesson/`, `screenshots/review-guests/`): line-up, single file to the lift, the group in the open lane, boarding, riding with the instructor, the regroup on Ute, the line home, the status board and chair riders with matching colours. Fixed during review: the top regroup and turns on narrow Segundo Road clipped trees (smaller turns there, render-time step around trunks).
 - Release `baf94f9`: build, 137 unit tests and the Chromium smoke, gameplay, multiplayer, lift loading (all three lifts), characters, on-foot, sign walker and new lesson scenarios passed (a first-run Primo loading failure from a dev-server reload passed on rerun). Ran `git push origin main` and verified `baf94f9` on `origin/main`. Vercel deployment `dpl_eeS6AApJTy3toCkLtp5RoZKM24HG` is READY at https://sunlight-sim.vercel.app and serves the tested `index-Cd53wldo.js` with the public WSS endpoint. The live lesson scenario passed, and two live Chromium clients in one public room (Funnel host resolved through public DNS) agreed on the lesson loop, positions within 4 cm and chairs. The multiplayer server did not change and stays on `77af31d`.
-- Next: the personal ski log and coverage map, snow that remembers tracks and grooming, crews, lodge stops and gestures, distinct sound in the lodge, aspens and ridges, weather over Mount Sopris, Resort Day / Free Explore, and uphill touring.
+- Done since: the personal ski log and coverage map, snow that remembers tracks and grooming, crews, lodge stops and gestures, distinct sound in the lodge, aspens and ridges, weather over Mount Sopris, Resort Day / Free Explore, and uphill touring.
 
 ## Lodge sign walker (November 8, 2026)
 
