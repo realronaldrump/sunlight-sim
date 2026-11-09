@@ -33,12 +33,17 @@ export class DroneHud {
   private heading: HTMLElement;
   private distance: HTMLElement;
   private elapsed = 0;
+  private launchHintRemaining = 8_000;
+  private lastLaunchHintFrame: number | null = null;
+  private togglePressed = false;
   onToggle?: () => void; onCamera?: () => void; onMarker?: () => void;
   constructor() {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.toggle.id = 'drone-toggle'; this.toggle.className = 'drone-button'; this.toggle.type = 'button'; this.toggle.hidden = true;
     this.toggle.textContent = 'Fly a drone  G'; this.toggle.setAttribute('aria-pressed','false');
     this.toggle.onclick = () => this.onToggle?.();
+    this.toggle.addEventListener('pointerdown',() => { this.togglePressed = true; });
+    for (const event of ['pointerup','pointercancel','blur']) window.addEventListener(event,() => { this.togglePressed = false; });
     this.panel.id = 'drone-panel'; this.panel.hidden = true; this.panel.setAttribute('aria-label','Drone flight controls');
     this.panel.innerHTML = `<header><strong>DRONE FLIGHT</strong><span id="drone-view-label">CHASE</span></header>
       <p>Explore Sunlight from above.<br>Your skier stays on the mountain.</p>
@@ -70,7 +75,14 @@ export class DroneHud {
   update(dt: number,s: DroneState | null,fpv: boolean,distance: number,remaining: number,ready: boolean,obscured: boolean,paused: boolean) {
     const active = !!s;
     document.body.classList.toggle('drone-mode',active);
-    this.toggle.hidden = !ready || obscured;
+    if (ready && !obscured && !active && this.launchHintRemaining > 0) {
+      const now = performance.now();
+      if (this.lastLaunchHintFrame !== null) this.launchHintRemaining = Math.max(0, this.launchHintRemaining - (now - this.lastLaunchHintFrame));
+      this.lastLaunchHintFrame = now;
+    } else this.lastLaunchHintFrame = null;
+    // Do not remove a control while someone is focusing or pressing it.
+    const interacting = document.activeElement === this.toggle || this.togglePressed;
+    this.toggle.hidden = !ready || obscured || (!active && this.launchHintRemaining === 0 && !interacting);
     // Keep the button's text node stable between pointerdown and pointerup. WebKit
     // can cancel a click when the hit-tested node is replaced during that interval.
     this.text(this.toggle,active ? 'Return to skiing  G' : 'Fly a drone  G');
