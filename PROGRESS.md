@@ -30,12 +30,15 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Prioritize visual accuracy and polish over FPS optimization in this phase.
 
 ## Session 2 verification and findings
+- Character implementation checkpoint: anatomical player/friend/ambient models, ski equipment, slope alignment and seated instancing are ready for commit. Combined working-tree production build and 53 unit tests pass. Concurrent lift/tree refinements and the new building models remain in progress; run the final browser scenarios again after those changes settle.
 - `npm run build`, `npm test`, `npm run test:pipeline`, and `npx playwright test`: all passed at the starting commit `16ebdec`.
 - Fresh 1440p High measurements were 51 to 59 fps on this M3 Pro, lower than the earlier recorded results. FPS work is deferred by owner instruction.
 - Reviewed base, Sun King, multiplayer chair and ambient skier screenshots. Terrain layout works, but characters are visibly assembled from primitive shapes, buildings have repetitive generic facades, and trees are too uniformly pale/striped.
 - Reviewed official Sunlight winter photos from https://sunlightmtn.com/ for comparison. Cached references remain in gitignored `data/raw/reference/`.
-- Found and downloaded a CC0 MakeHuman/MPFB anatomical human with a 53-bone rig, repackaged by Innerscene: https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1. Source is in `data/raw/characters/`; no character asset is shipped yet.
-- An uncommitted `tests/unit/skierModel.test.ts` was started for a skinned-character replacement and currently fails until that replacement is implemented. Do not confuse it with a pre-existing failure.
+- Replaced capsule characters with a CC0 MakeHuman/MPFB anatomical human and 53-bone rig, repackaged by Innerscene. Added fitted winter clothing, articulated fingers, helmet/goggles, buckled boots, shaped skis, bindings and poles. The 1.9 MB derived asset and license ship under `client/public/models/`; rebuild with `npm run data:skier`.
+- Character regression tests pass: real skinned topology, no capsule limbs, finite standing/carving/wedge/tuck/fall/seated poses, and sub-millimeter attachment after translation to mountain coordinates. Gameplay, two-client multiplayer and Chromium/WebKit smoke scenarios passed with the new body. Terrain alignment and final gear refinements are being checked with the current combined tree.
+- Close-up visual review 6 (`27` through `32`): face and proportions now read as human; corrected open hands, hard seams, reversed ski/goggle faces, helmet/goggle intersections and boot alignment when seated. These are original renders, not generated mockups.
+- Found the main lodge was missing from OSM imports. A 2023 NAIP roof trace is now in `pipeline/build_structures.py`; custom lodge and Brettelberg models are in progress and have a first visual review (`33` through `36`). Heights, window modules and deck dimensions are photo estimates. Continue refining before claiming accurate replicas.
 
 ## Definition of Done checklist
 1. `npm install && npm run dev` starts client (5173) and multiplayer server (8787); the page loads Sunlight. VERIFIED (Playwright webServer uses exactly `npm run dev`).
@@ -104,3 +107,10 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Verification: build passed; 7 new grooming/track unit tests plus 5 existing terrain tests passed; all 3 pipeline checks passed. Fixed production-snapshot browser review passed 4 scenarios: Chromium smoke, WebGPU snow, WebGL2 snow, Safari smoke. Inspected screenshots `snow_webgpu_midway_11.png`, `snow_webgpu_midway_15.5.png`, `snow_webgpu_segundo_11.png`, `snow_webgpu_falling.png`, and `snow_webgpu_tracks.png`.
 - Parallel-work caveat: a shared-checkout full unit run caught a lift-spacing failure during another agent's active lift refactor. A dev-server browser run was also interrupted by concurrent hot reload. Snow-specific checks pass; use a frozen production preview for reliable visual review while agents edit the shared checkout.
 - Next in this graphics pass: improve the stretched sheet-like conifer branches and snow distribution, then review the required scenery viewpoints. Character, lift and building changes remain owned by the other active work.
+
+## Audio realism pass (Codex, November 8, 2026, in progress)
+- Scope: audio only. Other active agents own characters, lifts, buildings and scenery; preserve their changes in the shared checkout.
+- Starting checks: production build and all 3 pipeline checks passed. Unit suite: 49 passed, 1 failed in the concurrently edited lift skip/unload behavior (`liftRiding.test.ts`). Recheck after that agent's work settles.
+- Audited the old audio: 3-second correlated noise loops, fixed oscillator motor, resonant noise creaks, frame-triggered tower bursts, and no landing or camera-relative machinery placement.
+- Verified CC0 field recordings for alpine ski contact (Lydmakeren), lift motor (indieground), lift machinery (13FPanska_Marval_Lukas), winter wind (HECKFRICKER), and dry snow compression (qubodup). Raw source downloads and license pages are cached under gitignored `data/raw/audio/`.
+- In progress: reproducible compact sample bank, responsive snow and wind mix, spatial lift sounds, bounded event scheduling, and browser audio renders for validation. Sources and transformations will be recorded in CREDITS.md and a committed asset manifest.

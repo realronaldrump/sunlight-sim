@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
+import { attribute, mix, vec3 } from 'three/tsl';
+import { seatedSkierGeometry } from '../skier/seatedGeometry';
 import { LiftStations } from '../../../shared/liftStations';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
 
@@ -37,27 +39,8 @@ function hutMaterials() {
   return hutMats;
 }
 
-const riderMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, vertexColors: true });
-
-/** Low-poly seated skier (origin at the seat surface, facing -z). Jacket takes the instance colour. */
-function riderGeometry() {
-  const parts: THREE.BufferGeometry[] = [];
-  const paint = (g: THREE.BufferGeometry, c: number) => {
-    const col = new THREE.Color(c), n = g.getAttribute('position').count, a = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { a[i * 3] = col.r; a[i * 3 + 1] = col.g; a[i * 3 + 2] = col.b; }
-    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g.toNonIndexed();
-  };
-  const torso = new THREE.CapsuleGeometry(0.17, 0.42, 3, 8); torso.translate(0, 0.42, 0.14); parts.push(paint(torso, 0xffffff));
-  const head = new THREE.SphereGeometry(0.13, 10, 8); head.translate(0, 0.9, 0.1); parts.push(paint(head, 0xf2f2f2));
-  const thighs = new THREE.BoxGeometry(0.34, 0.16, 0.46); thighs.translate(0, 0.1, -0.12); parts.push(paint(thighs, 0x1d2330));
-  const shins = new THREE.BoxGeometry(0.3, 0.5, 0.14); shins.translate(0, -0.18, -0.36); parts.push(paint(shins, 0x1d2330));
-  for (const x of [-0.12, 0.12]) {
-    const ski = new THREE.BoxGeometry(0.09, 0.03, 1.5); ski.rotateX(0.3); ski.translate(x, -0.5, -0.42); parts.push(paint(ski, 0x1565c0));
-  }
-  const g = mergeGeometries(parts);
-  // instance colour multiplies vertex colour: keep pants/skis/helmet dark-ish so only the jacket reads the colour
-  return g;
-}
+const riderMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.8 });
+riderMat.colorNode = attribute('color', 'vec3').mul(mix(vec3(1), attribute('riderColor', 'vec3'), attribute('jacket', 'float')));
 
 function chairGeometry(seats: number) {
   const w = seats * 0.6 + 0.1;
@@ -109,10 +92,12 @@ export class LiftSystem {
         const start = Math.floor(rnd() * (def.seats - n + 1));
         for (let k = 0; k < n; k++) slots.push({ chair: c, seat: start + k });
       }
-      const rm = new THREE.InstancedMesh(riderGeometry(), riderMat, slots.length);
+      const rm = new THREE.InstancedMesh(seatedSkierGeometry(), riderMat, slots.length);
       const col = new THREE.Color();
       const palette = [0xd33a2c, 0x1f6fd1, 0xf2b705, 0x2e9e44, 0x7b3fbf, 0xff6f91, 0x222222, 0x1aa3a3, 0xe86a1a, 0x5b6b7a];
-      for (let i = 0; i < slots.length; i++) rm.setColorAt(i, col.setHex(palette[Math.floor(rnd() * palette.length)]));
+      const riderColors = new Float32Array(slots.length * 3);
+      for (let i = 0; i < slots.length; i++) col.setHex(palette[Math.floor(rnd() * palette.length)]).toArray(riderColors, i * 3);
+      rm.geometry.setAttribute('riderColor', new THREE.InstancedBufferAttribute(riderColors, 3));
       rm.castShadow = true; rm.frustumCulled = false;
       this.group.add(rm);
       this.riders.push({ mesh: rm, slots });

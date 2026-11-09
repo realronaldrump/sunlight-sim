@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:pipeline": ".venv/bin/python pipeline/test_pipeline.py"
+    "test:pipeline": ".venv/bin/python pipeline/test_pipeline.py",
+    "data:skier": "tsx pipeline/build_skier.ts"
   },
   "dependencies": {
     "three": "^0.187.0",

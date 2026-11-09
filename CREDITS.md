@@ -1,6 +1,6 @@
 # Credits and licenses
 
-Every data source and asset used by Sunlight Mountain Simulator. Nothing copyrighted is shipped: official resort materials were used for reference only.
+Every data source and asset used by Sunlight Mountain Simulator. Official resort photographs and trail-map images are reference only and are not shipped.
 
 ## Data (processed into client/public/world)
 
@@ -26,7 +26,8 @@ Every data source and asset used by Sunlight Mountain Simulator. Nothing copyrig
 
 ## Art and audio
 
-- Skier character, chairlifts, towers, buildings, signs, conifer/aspen/oak models, branch and impostor textures: generated procedurally in code in this repository (no external assets).
+- Skier anatomy: [Human base mesh with editable 53-bone rig](https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1), built by Innerscene from MakeHuman/MPFB assets, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The derived winter-clothed body is in `client/public/models/skier-human.json.gz`, with its license beside it. Source SHA-256 is pinned in `pipeline/build_skier.ts`; rebuild with `npm run data:skier`.
+- Ski clothing modifications, helmets, goggles, boots, skis, bindings, poles, chairlifts, towers, buildings, signs, conifer/aspen/oak models, branch and impostor textures: original procedural work in this repository.
 - Sky: three.js SkyMesh (Preetham analytic daylight model), MIT.
 - Audio: every sound (wind, ski on snow, lift hum, chair creak and clunk, falls) is synthesized at runtime with the WebAudio API from noise and oscillators. No recorded samples are used.
 

@@ -5,6 +5,7 @@ import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrain
 import { Environment } from './sky/environment';
 import { LiftSystem } from './lifts/liftSystem';
 import { Player } from './skier/player';
+import { loadHumanAsset } from './skier/humanBody';
 import { InputManager } from './skier/input';
 import { CameraRig } from './camera/cameraRig';
 import { Hud } from './ui/hud';
@@ -103,6 +104,7 @@ export class Game {
       this.hf.init(),
       fetch(`${WORLD_BASE}/resort.json`).then((r) => r.json()),
       SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
+      loadHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')),
     ]);
     void _;
     this.resort = resort;
@@ -473,7 +475,7 @@ export class Game {
       x = up.x; z = up.z; heading = up.heading;
     } else {
       const p = r.model.root.position;
-      heading = r.model.root.rotation.y;
+      heading = r.heading;
       x = p.x + Math.cos(heading) * 2.5; z = p.z - Math.sin(heading) * 2.5; // 2.5 m to their right
     }
     await this.hf.ensureArea(0, x, -z, 200);

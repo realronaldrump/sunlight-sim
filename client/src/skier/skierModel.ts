@@ -1,7 +1,8 @@
-// Procedurally rigged and animated skier. Joint positions are computed each frame from pose
-// parameters (stance height, inclination, wedge, tuck, fall, sitting) with 2-bone IK for the legs and
-// arms; limb meshes are then placed between joints. No external assets or licenses involved.
+// Anatomical human skier with CC0 MakeHuman/MPFB skin and original ski equipment.
+// Ski-specific two-bone IK drives the shared poses for the player, friends and ambient skiers.
 import * as THREE from 'three/webgpu';
+import { HumanBody } from './humanBody';
+import { helmetAndGoggles, skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
 
 export interface SkierPose {
   speed: number;     // m/s
@@ -17,13 +18,6 @@ export interface SkierPose {
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
-
-function limb(r: number, mat: THREE.Material) {
-  const g = new THREE.CapsuleGeometry(r, 1, 4, 10);
-  const m = new THREE.Mesh(g, mat);
-  m.castShadow = true;
-  return m;
-}
 
 function solveIK(root: THREE.Vector3, target: THREE.Vector3, l1: number, l2: number, pole: THREE.Vector3, outMid: THREE.Vector3) {
   const d = target.clone().sub(root);
@@ -41,87 +35,29 @@ function solveIK(root: THREE.Vector3, target: THREE.Vector3, l1: number, l2: num
 export class SkierModel {
   readonly root = new THREE.Group();
   private body = new THREE.Group(); // tilted for falls
-  private parts: Record<string, THREE.Mesh> = {};
-  private skis: THREE.Mesh[] = [];
-  private poles: THREE.Mesh[] = [];
-  readonly jacketMat: THREE.MeshStandardNodeMaterial;
+  readonly human: HumanBody;
+  private headGear = helmetAndGoggles();
+  private boots = [skiBoot(), skiBoot()];
+  private skis = [skiWithBindings(), skiWithBindings()];
+  private poles = [skiPole(), skiPole()];
+  private collar;
   private fallSide = 1;
   private lastFallen = 0;
   private lastEdgeSign = 0;
   private plant = 0;      // 0..1 pole plant animation phase
+  private lastTime = 0;
   private plantSide = 1;  // which pole (+1 right, -1 left)
 
   constructor(jacket = new THREE.Color('#d33a2c')) {
-    const jacketMat = new THREE.MeshStandardNodeMaterial({ color: jacket, roughness: 0.75 });
-    this.jacketMat = jacketMat;
-    const pantsMat = new THREE.MeshStandardNodeMaterial({ color: 0x1d2330, roughness: 0.8 });
-    const helmetMat = new THREE.MeshStandardNodeMaterial({ color: 0xf2f2f2, roughness: 0.35 });
-    const goggleMat = new THREE.MeshStandardNodeMaterial({ color: 0xffa52a, roughness: 0.1, metalness: 0.6 });
-    const skinMat = new THREE.MeshStandardNodeMaterial({ color: 0xd9a585, roughness: 0.7 });
-    const bootMat = new THREE.MeshStandardNodeMaterial({ color: 0x2a2a2e, roughness: 0.5 });
-    const gloveMat = new THREE.MeshStandardNodeMaterial({ color: 0x111111, roughness: 0.8 });
-    const skiMat = new THREE.MeshStandardNodeMaterial({ color: 0x1565c0, roughness: 0.4 });
-    const poleMat = new THREE.MeshStandardNodeMaterial({ color: 0x9aa0a6, roughness: 0.3, metalness: 0.8 });
-
+    this.human = new HumanBody(jacket);
+    this.collar = jacketCollar(jacket);
     this.root.add(this.body);
-    const add = (name: string, m: THREE.Mesh) => { this.parts[name] = m; this.body.add(m); return m; };
-    // jacket body: lathe profile hips -> waist -> chest -> shoulders, oval cross-section, unit height
-    const prof = [[0.0, 0.0], [0.155, 0.0], [0.16, 0.12], [0.15, 0.3], [0.17, 0.55], [0.175, 0.75], [0.15, 0.9], [0.08, 1.0], [0.0, 1.0]]
-      .map(([r, y]) => new THREE.Vector2(r, y));
-    const torsoGeo = new THREE.LatheGeometry(prof, 18);
-    torsoGeo.scale(1.12, 1, 0.8);
-    const torso = new THREE.Mesh(torsoGeo, jacketMat); torso.castShadow = true; torso.userData.lathe = true;
-    add('torso', torso);
-    // zipper and hem details
-    const zip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.9, 0.01), new THREE.MeshStandardNodeMaterial({ color: 0x222222 }));
-    zip.position.set(0, 0.5, -0.142); torso.add(zip);
-    add('shoulders', limb(0.1, jacketMat));
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.09, 12), jacketMat); add('collar', collar);
-    add('pelvis', limb(0.14, pantsMat));
-    for (const s of ['L', 'R']) {
-      add('thigh' + s, limb(0.075, pantsMat));
-      add('shin' + s, limb(0.065, pantsMat));
-      add('upper' + s, limb(0.055, jacketMat));
-      add('fore' + s, limb(0.05, jacketMat));
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), gloveMat); hand.castShadow = true; add('hand' + s, hand);
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.26, 0.33), bootMat); boot.castShadow = true; add('boot' + s, boot);
-      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.03, 0.12), poleMat); buckle.position.set(0, 0.04, -0.03); boot.add(buckle);
-      const ski = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.025, 1.65), skiMat);
-      ski.castShadow = true;
-      // turned-up tip
-      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.18), skiMat);
-      tip.position.set(0, 0.03, -0.86); tip.rotation.x = 0.45; ski.add(tip);
-      this.skis.push(ski); this.body.add(ski);
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 1.2, 6), poleMat);
-      const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.01, 10), new THREE.MeshStandardNodeMaterial({ color: 0x222222 }));
-      basket.position.y = -0.52; pole.add(basket);
-      pole.castShadow = true; this.poles.push(pole); this.body.add(pole);
-    }
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 16, 12), skinMat); head.castShadow = true; add('head', head);
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), helmetMat);
-    helmet.castShadow = true; head.add(helmet); helmet.position.y = 0.02;
-    const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.06), goggleMat);
-    goggles.position.set(0, 0.03, -0.1); head.add(goggles);
-    this.root.traverse((o) => { o.frustumCulled = false; });
+    this.body.add(this.human.root, this.headGear, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
+    this.root.traverse(o => { o.frustumCulled = false; });
+    this.update({ speed: 0, edge: 0, plow: 0, tuck: 0, skid: 0, fallen: 0, sitting: 0, time: 0, pushing: false });
   }
 
-  setJacket(c: THREE.ColorRepresentation) { this.jacketMat.color = new THREE.Color(c); }
-
-  private place(m: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, radius: number) {
-    const d = b.clone().sub(a);
-    const len = d.length();
-    if (m.userData.lathe) {
-      // lathe meshes are unit height from their base: position at a, stretch to b
-      m.position.copy(a);
-      m.quaternion.setFromUnitVectors(UP, d.normalize());
-      m.scale.set(1, len, 1);
-      return;
-    }
-    m.position.copy(a).add(b).multiplyScalar(0.5);
-    m.quaternion.setFromUnitVectors(UP, d.normalize());
-    // capsule geometry has length 1 + 2r: scale the cylinder part only approximately
-    m.scale.set(1, Math.max(0.01, (len) / (1 + 2 * radius)), 1);
-  }
+  setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
 
   /** Update joint positions. Local frame: feet at origin, skier faces -z, +x right. */
   update(p: SkierPose) {
@@ -135,7 +71,8 @@ export class SkierModel {
     const es = Math.abs(p.edge) > 0.12 ? Math.sign(p.edge) : 0;
     if (es !== 0 && es !== this.lastEdgeSign && p.speed > 3 && p.tuck < 0.3 && sit === 0) { this.plant = 1; this.plantSide = es; }
     if (es !== 0) this.lastEdgeSign = es;
-    this.plant = Math.max(0, this.plant - 0.035);
+    const dt = Math.max(0, Math.min(0.1, t - this.lastTime)); this.lastTime = t;
+    this.plant = Math.max(0, this.plant - dt * 2.1);
     // ---- stance parameters ----
     const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow;
     const incline = THREE.MathUtils.clamp(p.edge * 0.75, -0.75, 0.75) * Math.min(1, p.speed / 4) * (1 - sit);
@@ -156,13 +93,13 @@ export class SkierModel {
 
     if (sit > 0) {
       // sitting on the chair: hips back on the seat, thighs horizontal, legs hanging
-      const sp = V(0, 0.45, 0.25), sc = V(0, 0.98, 0.33);
+      const sp = V(0, 0.54, 0.25), sc = V(0, 1.07, 0.33);
       pelvis = pelvis.lerp(sp, sit); chest = chest.lerp(sc, sit);
       ankleL.lerp(V(-0.14, -0.05, -0.2), sit); ankleR.lerp(V(0.14, -0.05, -0.2), sit);
       pelvisH = pelvis.y;
     }
     const neck = chest.clone().add(V(0, 0.12, -0.03));
-    const head = neck.clone().add(V(0, 0.14, -0.02 - 0.06 * p.tuck));
+    const head = neck.clone().add(V(0, 0.10, -0.01 - 0.04 * p.tuck));
 
     // hips and legs (2-bone IK with knees pointing forward)
     const hipL = pelvis.clone().add(V(-0.1, -0.02, 0));
@@ -188,27 +125,15 @@ export class SkierModel {
     solveIK(shL, handL, 0.3, 0.28, shL.clone().add(V(-0.4, -0.4, 0.4)), elL);
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.4, -0.4, 0.4)), elR);
 
-    // ---- place meshes ----
-    this.place(this.parts.pelvis, hipL.clone().add(V(0, 0.04, 0)), hipR.clone().add(V(0, 0.04, 0)), 0.14);
-    this.parts.pelvis.position.y += 0.02;
-    this.place(this.parts.torso, pelvis.clone().add(V(0, -0.02, 0)), neck.clone().add(V(0, 0.0, 0)), 0.16);
-    this.place(this.parts.shoulders, shL, shR, 0.1);
-    this.parts.collar.position.copy(neck).add(V(0, -0.02, 0));
-    this.parts.collar.rotation.x = -lean * 0.5;
-    this.parts.head.position.copy(head);
-    this.parts.head.rotation.set(-0.15 + 0.5 * p.tuck, 0, -incline * 0.3);
-    this.place(this.parts.thighL, hipL, kneeL, 0.075);
-    this.place(this.parts.thighR, hipR, kneeR, 0.075);
-    this.place(this.parts.shinL, kneeL, ankleL, 0.065);
-    this.place(this.parts.shinR, kneeR, ankleR, 0.065);
-    this.place(this.parts.upperL, shL, elL, 0.055);
-    this.place(this.parts.upperR, shR, elR, 0.055);
-    this.place(this.parts.foreL, elL, handL, 0.05);
-    this.place(this.parts.foreR, elR, handR, 0.05);
-    this.parts.handL.position.copy(handL);
-    this.parts.handR.position.copy(handR);
-    this.parts.bootL.position.copy(ankleL).add(V(0, -0.02, -0.03));
-    this.parts.bootR.position.copy(ankleR).add(V(0, -0.02, -0.03));
+    this.human.pose({ pelvis, chest, neck, head, hipL, hipR, kneeL, kneeR, ankleL, ankleR,
+      shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR },
+      new THREE.Euler(-0.10 + 0.3 * p.tuck, 0, -incline * 0.2));
+    this.headGear.position.copy(head);
+    this.headGear.rotation.set(-0.10 + 0.3 * p.tuck, 0, -incline * 0.2);
+    this.collar.group.position.copy(neck);
+    this.collar.group.rotation.x = -lean * 0.35;
+    this.boots[0].position.copy(ankleL);
+    this.boots[1].position.copy(ankleR);
 
     // skis: edged with inclination, toes in for the wedge
     const toe = 0.32 * wedge;
@@ -218,12 +143,12 @@ export class SkierModel {
     sk[1].position.set(ankleR.x, ankleR.y - 0.13, ankleR.z - 0.05);
     sk[0].rotation.set(0, -toe, edgeTilt + wedge * 0.18, 'YXZ');
     sk[1].rotation.set(0, toe, edgeTilt - wedge * 0.18, 'YXZ');
-    this.parts.bootL.rotation.copy(sk[0].rotation);
-    this.parts.bootR.rotation.copy(sk[1].rotation);
     if (sit > 0) { for (const s of sk) s.rotation.x = 0.35 * sit; }
+    this.boots[0].rotation.copy(sk[0].rotation);
+    this.boots[1].rotation.copy(sk[1].rotation);
 
     // poles from hands angled back
-    const placePole = (pole: THREE.Mesh, hand: THREE.Vector3, side: number) => {
+    const placePole = (pole: THREE.Group, hand: THREE.Vector3, side: number) => {
       const tipPos = hand.clone().add(V(side * 0.12, -1.05, 0.55 + 0.3 * p.tuck));
       if (this.plant > 0 && side === this.plantSide) {
         // swing the tip forward and down beside the ski tip, then let it trail

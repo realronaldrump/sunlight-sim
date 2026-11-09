@@ -3,6 +3,7 @@ import * as THREE from 'three/webgpu';
 import { SkierState, createSkier, stepSkier, getUp, SkiInput, TerrainProbe, headingFromDir } from '../../../shared/skiPhysics';
 import { ColliderGrid } from '../../../shared/collision';
 import { SkierModel } from './skierModel';
+import { orientSkier } from './orientation';
 import type { LiftSystem } from '../lifts/liftSystem';
 import { GAUGE, MAX_BOARD_SPEED, SEAT_SPACING } from '../../../shared/lifts';
 
@@ -40,6 +41,8 @@ export class Player {
   }
 
   getUp() { return getUp(this.st); }
+
+  terrainNormal(x: number, z: number) { return this.probe.normal(x, z, { x: 0, y: 1, z: 0 }); }
 
   board(lift: number, chair: number, seat: number) {
     const path = this.lifts.paths[lift], t = this.lifts.now();
@@ -132,7 +135,7 @@ export class Player {
       this.model.root.position.lerpVectors(this.pickupFrom, this.tmp.set(st.pos.x, st.pos.y, st.pos.z), blend);
       if (blend === 1) this.pickupFrom = null;
     } else if (!this.ride) this.model.root.position.y += this.sitBlend * 0.18;
-    this.model.root.rotation.set(0, st.heading, 0);
+    orientSkier(this.model.root, st.heading, this.ride ? undefined : st.normal);
     this.model.update({
       speed: st.speed, edge: st.edge, plow: st.plow, tuck: st.tuck, skid: st.skid, fallen: this.fallenBlend,
       sitting: this.sitBlend, time: this.time, pushing: input.push && st.speed < 4 && st.mode !== 'fallen' && !this.ride,

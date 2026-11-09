@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu';
 import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
 import { SkierModel } from '../skier/skierModel';
+import { orientSkier } from '../skier/orientation';
 import type { Player } from '../skier/player';
 import type { LiftSystem } from '../lifts/liftSystem';
 
@@ -15,6 +16,7 @@ export class RemoteSkier {
   ride: PlayerInfo['ride'] = null;
   label: THREE.Sprite;
   fallen = 0; sit = 0; time = 0;
+  heading = 0;
   constructor(public id: string, public name: string, public color: string) {
     this.model = new SkierModel(new THREE.Color(color));
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
@@ -226,7 +228,8 @@ export class NetClient {
         heading = a.s.heading + dh * k;
         s = k < 0.5 ? a.s : b.s;
       }
-      r.model.root.rotation.set(0, heading, 0);
+      r.heading = heading;
+      orientSkier(r.model.root, heading, r.ride ? undefined : this.player.terrainNormal(r.model.root.position.x, r.model.root.position.z));
       if (!s) continue;
       const speed = Math.hypot(s.vx, s.vy, s.vz);
       r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 4);
@@ -258,7 +261,7 @@ export class NetClient {
 
   mapPlayers() {
     return [...this.remotes.values()].map((r) => ({
-      name: r.name, color: r.color, x: r.model.root.position.x, z: r.model.root.position.z, heading: r.model.root.rotation.y,
+      name: r.name, color: r.color, x: r.model.root.position.x, z: r.model.root.position.z, heading: r.heading,
     }));
   }
 }

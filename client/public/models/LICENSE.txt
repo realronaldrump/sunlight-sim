@@ -1,0 +1,12 @@
+Anatomical skier body: CC0 1.0 Universal (CC0-1.0).
+
+Based on the MakeHuman/MPFB anatomical base and 53-bone game skeleton,
+repackaged and dedicated to CC0 by Innerscene as "Human base mesh with editable 53-bone rig".
+Source: https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Retrieved November 8, 2026.
+Source GLB SHA-256: f3cd655e44af0a79786b1b4349c4acf1ae342fe6bd0d5fc714e68470dea1b429
+
+Clothing modifications and ski equipment are original work in this repository.
+The derived anatomical body file is also dedicated to CC0.
+Rebuild with npm run data:skier. Raw source is cached in data/raw/characters/.

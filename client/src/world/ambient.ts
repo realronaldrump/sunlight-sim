@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu';
 import { createSkier, stepSkier, SkierState, TerrainProbe, headingFromDir } from '../../../shared/skiPhysics';
 import { SkiBot, PERSONAS, Persona } from '../../../shared/skiBot';
 import { SkierModel } from '../skier/skierModel';
+import { orientSkier } from '../skier/orientation';
 import type { RunInfo } from '../game';
 
 const COLORS = ['#1f6fd1', '#f2b705', '#2e9e44', '#7b3fbf', '#ff6f91', '#111111', '#1aa3a3', '#e86a1a', '#f5f5f5', '#8b1e3f'];
@@ -67,7 +68,7 @@ export class AmbientSkiers {
       a.model.root.visible = dCam < 350;
       if (!a.model.root.visible) continue;
       a.model.root.position.set(a.st.pos.x, a.st.pos.y, a.st.pos.z);
-      a.model.root.rotation.set(0, a.st.heading, 0);
+      orientSkier(a.model.root, a.st.heading, a.st.normal);
       a.model.update({ speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid, fallen: a.st.mode === 'fallen' ? 1 : 0, sitting: 0, time: a.time, pushing: inp.push && a.st.speed < 3 });
     }
   }

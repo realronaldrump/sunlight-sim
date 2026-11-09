@@ -25,4 +25,5 @@ echo "== 13. Distant forest cover (WorldCover)"; $PY build_landcover.py
 echo "== 14. Accuracy report";                   $PY accuracy.py
 echo "== Snow surface materials (CC0)";           $PY build_snow.py
 echo "== 15. Self-tests";                        $PY test_pipeline.py
+(cd .. && npm run data:skier)
 echo "Done. Assets are in client/public/world/"
