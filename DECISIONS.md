@@ -86,6 +86,11 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Correct three nearby support buildings to low, single-story modular structures. Other distant houses still have generic footprint-based treatment; do not claim every resort building is a measured replica.
 - Suppress lidar vegetation candidates whose centers fall inside building footprints, including the newly recovered lodge. Keep measured terrain and genuine trees outside those polygons unchanged.
 
+## Bounded renderer startup (November 8, 2026)
+- A reproduced Chromium second-client stall happened before world loading: `navigator.gpu.requestAdapter()` in quality detection stayed pending. Three.js normally falls back when GPU requests reject, but an unresolved request never reaches that path.
+- Limit automatic capability detection to 4 seconds and renderer initialization to 5 seconds. On a stalled WebGPU request, use the existing WebGL2 backend; respect explicit quality selections and skip GPU probing entirely for `?webgl=1`. Dispose any abandoned GPU renderer if its request eventually resolves.
+- Regression coverage includes a deliberately non-settling capability request and two actual room clients. Use matching immutable client/server/data snapshots during concurrent development; otherwise the server can correctly reject boarding against obsolete lift geometry.
+
 ## Snow surface realism (November 8, 2026)
 
 - Use the CC0 Poly Haven Snow 02 scan as linear height/grain/roughness/occlusion data. Two world-anchored projections at 2 m and about 7.3 m prevent a single obvious repeat; macro variation is procedural. The enlarged layer is an artistic wind-deposition approximation, not a surveyed snow depth.

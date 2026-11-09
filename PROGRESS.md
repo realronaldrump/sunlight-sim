@@ -83,14 +83,22 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Slope overlay partly self-lit so colours stay legible; rock exposure on steep distant peaks; WebKit + WebGL2 verified.
 
 ## Next steps (realism improvements, in priority order)
-0. Replace primitive skiers with detailed human models and ski gear; review close-up skiing, wedge, tuck, fall, recovery, seated and multiplayer poses. Current work is in this step.
-1. Research and model Sunlight's recognizable base lodge and lift buildings using exact footprints and photo evidence. Distinguish measured dimensions from visual estimates in DECISIONS.md.
+0. Human replacement and detailed ski gear are implemented and reviewed. Further character polish: varied appearances, cloth detail, fall/recovery motion and ambient skier behavior.
+1. Main lodge and Brettelberg have distinct models from aerial/OSM footprints and photos. Continue the same treatment for outlying lodgings and service buildings; exact facade dimensions remain estimates.
 2. Review lift seats, restraint bars, terminal machinery, load lines and unload paths at human scale. Prevent ambient riders from overlapping player seats.
 3. Improve tree shapes, tree wells, wind-scoured ridge shading, and canopy occlusion without altering measured terrain elevations.
-4. Repeat required viewpoints and relevant gameplay tests, update CREDITS.md/ACCURACY.md, then deploy with the existing Vercel project credentials. The live site includes committed ambient skiers/riders and the U.S. units update; uncommitted character-model work has not been deployed.
+4. Character/building, gameplay, both browser engines and all viewpoints passed on a frozen production build. Multiplayer passed against a matching server after the GPU startup fix. Validate a committed-source release and deploy with existing Vercel credentials; the latest building/character work has not yet been deployed by this chat.
 5. Host the multiplayer server only if deployment credentials are available (Fly.io config in hosting/); otherwise retain exact deploy instructions.
 
 "Join friend" map travel is already implemented and passed the multiplayer browser scenario again in session 2.
+
+## Character and building verification checkpoint (November 8, 2026)
+- Character commit `adbb728`: anatomical human bodies and detailed ski gear for the player, friends, ambient skiers and seated chair passengers. The source hash, license and reproducible pipeline are committed. Building and startup work was included by the concurrent repository checkpoint `2d2d062`.
+- Added the missing main lodge footprint from NAIP. Its roof is anchored at 2493.065 m NAVD88 from 78 lidar-plus-DEM cells. Added its cream facade, window wall, deck, access stairs and roof service block. Added Brettelberg's timber framing, gable and exterior galleries, and corrected three base support buildings to one story. Exclude false vegetation candidates inside building polygons.
+- Production build and four pipeline checks pass. A frozen production snapshot passed character/building visual checks, full skiing/fall/recovery/lift gameplay, Chromium smoke, Safari smoke and all required viewpoints. Inspected character poses, lodge/condos, base area, all lift tops, Ute, Midway, Beaujolais, Sun King, The Heathen, Grizzly Road and Mount Sopris.
+- Traced the second-client startup stall to `detectQuality()`: the browser's WebGPU `requestAdapter()` never returned. Capability checks now time out after 4 s, renderer initialization after 5 s, then use the existing WebGL2 renderer. The synthetic never-resolving GPU browser regression passes.
+- Two clients passed startup, movement, exact same-chair boarding in different seats, unload, map travel and chat against the frozen matching server on port 8796. A later boarding failure with the shared dev server was caused by using older cached lift data with a newer frozen client; it disappeared with matching snapshots.
+- Fidelity is improved, not survey-perfect. Non-roof building dimensions, outlying generic structures, exact post-2025 lift tower locations and a clean High-preset performance measurement remain open. FPS tuning is deferred by owner instruction.
 
 ## Known bugs / limitations
 - Tree species are a k-means split of fall NAIP colours (74% deciduous); no ground truth. Aspen share may be overestimated.
