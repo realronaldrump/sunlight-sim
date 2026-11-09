@@ -34,6 +34,7 @@ All game-ready world data is committed under `client/public/world`, so no data d
 | Space | Hockey stop |
 | R | Get up after a fall |
 | C | Camera: chase, first person, side profile (best for judging steepness) |
+| G | Launch a camera drone / return to skiing |
 | M | Trail map; click a run to go to its top |
 | O | Slope angle overlay (green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 degrees) |
 | F | Skip the rest of a lift ride |
@@ -150,6 +151,6 @@ Click **Fly a drone** or press **G** (gamepad L3) to launch a small camera quadc
 
 Gamepad: left stick moves, right stick looks, RT climbs, LT descends, A brakes, Y changes camera, B recalls, LB selects precision speed and RB selects fast speed. Menus, chat and loss of focus suspend flight input. Opening the full map still allows normal travel to a run; choosing a destination exits drone mode.
 
-Flight stays inside the resort boundary plus a 197 ft viewing apron, with a 394 ft ceiling above local terrain. An amber grid and HUD message warn when you approach the flight limit. Snow clearance and tree, tower and building collision volumes prevent flying through the modeled terrain and solid obstacles. Distant mountain scenery remains visible from the ski area. These limits are game exploration settings, not real-world permission to fly at Sunlight.
+Flight stays inside the resort boundary plus a 197 ft viewing apron, with a 394 ft ceiling above local terrain. An amber grid and HUD message warn when you approach the flight limit. Snow clearance and tree, tower and building collision volumes prevent flying through the modeled terrain and solid obstacles. Distant mountain scenery remains visible from the ski area.
 
 The original quadcopter includes counter-rotating rotors, a stabilized camera gimbal and navigation lights. Four synthesized motor/propeller voices follow rotor RPM; the existing N mute and Options volume apply to drone sound too. Speeds and clearances use the same U.S. display units as skiing. No batteries, scores or time limits interrupt exploration.
