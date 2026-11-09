@@ -69,6 +69,7 @@ export class Hud {
       <kbd>R</kbd>: get up after a fall<br>
       <kbd>C</kbd>: camera (chase, first person, side profile)<br>
       <kbd>M</kbd>: trail map (click a run to go there)<br>
+      <kbd>V</kbd>: show/hide minimap<br>
       <kbd>O</kbd>: slope angle overlay<br>
       <kbd>F</kbd>: skip the lift ride<br>
       <kbd>B</kbd>: back to the base area<br>

@@ -8,6 +8,7 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 - Primo, Segundo and Tercero chairlifts on their real lines with OSM tower positions, moving chairs, real-time rides.
 - Physically based ski model (edging and sidecut carving, skidding, snowplow, tuck, drag, falls).
 - Multiplayer rooms by link, shared chairs, chat, trail map with other players.
+- A live minimap follows your position and heading while skiing or riding a lift, with nearby trails, difficulty colors, lift names, and friends.
 
 **Play now (solo):** https://sunlight-sim.vercel.app  (the multiplayer server is not hosted yet; see Deploy below. Multiplayer works locally and on a LAN.)
 
@@ -34,6 +35,7 @@ All game-ready world data is committed under `client/public/world`, so no data d
 | R | Get up after a fall |
 | C | Camera: chase, first person, side profile (best for judging steepness) |
 | M | Trail map; click a run to go to its top |
+| V | Show/hide the minimap (also available from its compact button) |
 | O | Slope angle overlay (green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 degrees) |
 | F | Skip the rest of a lift ride |
 | B | Back to the base area |
@@ -44,6 +46,8 @@ All game-ready world data is committed under `client/public/world`, so no data d
 Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, RB skip lift, Start back to base.
 
 To ride a lift, ski into the red load line under the chair and wait; the chair scoops you up and you ride in real time.
+
+The minimap stays north-up in the upper left. Your cyan arrow shows where your skis point; nearby friends use their jacket colors. Use **+** and **−** for 400 m, 800 m, or 1.6 km map widths, and **Full map (M)** for the full trail map. Zoom and visibility are remembered in this browser. The small scale bar shows ground distance; the header keeps your current run or lift name visible. Clicking the minimap itself does not teleport you.
 
 ## Ski with a friend (share a link)
 
@@ -96,6 +100,7 @@ The server listens on `$PORT` and serves WebSocket connections on `/`. Health ch
 npm test                 # unit tests: terrain data, physics, lifts, multiplayer rooms, resort data
 npm run test:pipeline    # Python pipeline self-tests
 npx playwright test      # browser tests: viewpoint screenshots (screenshots/), two-client multiplayer
+E2E_BASE_URL=http://localhost:5174 npx playwright test # use an already-running isolated preview
 npx tsx tests/harness/runBots.ts Midway "Sun King"   # physics harness: scripted skiers, speeds and paths
 ```
 

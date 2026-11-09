@@ -1,5 +1,15 @@
 # Progress
 
+## Minimap session (Codex, November 8, 2026)
+- Owner requested a minimap usable while skiing, implementation plus deployment, and explicit documentation following this repo's conventions.
+- Work is isolated on `codex/skiing-minimap` in a managed worktree based on `1efa79e`. The original checkout has active, unfinished character work and two failing draft skier-model tests. Those changes are preserved and are not part of this feature or its deployment.
+- Implemented a north-up minimap in the upper left using the existing hillshade and run data. It follows the player during skiing and chairlift rides, highlights the current run, labels nearby runs/lifts, shows friends, and keeps a cyan heading marker centered.
+- Added three zoom levels, a scale bar, north arrow, persistent run/lift heading, saved zoom/visibility, V to collapse/restore, and a Full map button. The full map retains its independent controls. Static map data is cached and dynamic painting runs at 12 Hz; hidden/collapsed maps do not repaint.
+- Added geometry tests and browser coverage for movement, heading convention, lift riding, zoom limits, persistence, full-map access, short windows, missing hillshade, corrupt settings and multiplayer map presence. `E2E_BASE_URL` supports testing an isolated server or a deployed build.
+- Verification so far: clean baseline build, 30 baseline unit tests and all 3 pipeline checks passed. Feature build and all 35 unit tests passed. Both Chromium minimap browser scenarios passed, as did the gameplay scenario in the full browser run now underway.
+- Visual review: inspected `screenshots/minimap_skiing_chromium.png` and `screenshots/minimap_compact_chromium.png`. Player/terrain positions and nearby Midway labels are readable, north stays up, and the map clears the skier and speed HUD. Compact footer labels need one spacing polish before release.
+- Next: finish the Chromium/WebKit and multiplayer suite, polish compact controls, build and verify the production deployment on the existing Vercel project, and record the URL and revision here. Resume the separate realism priorities below after this bounded task.
+
 ## Status (session 2, Codex, in progress)
 Core systems are implemented and the session-start build, 30 unit tests, 3 pipeline checks, and 6 browser scenarios pass. Visual fidelity is still in progress. The owner explicitly prioritized realism and detail over FPS on November 8, 2026. Do not treat the earlier completed checklist as proof of polished or accurate art.
 Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not hosted: no Fly/Render credentials; see README).

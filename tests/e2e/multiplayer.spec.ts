@@ -14,6 +14,11 @@ test('two players in one room', async ({ browser }) => {
   await boot(b, 'Bob', '2e9e44', room);
   await expect.poll(() => a.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
   await expect.poll(() => b.evaluate(() => (window as any).game.net?.remotes.size), { timeout: 15_000 }).toBe(1);
+  await expect(a.locator('#minimap canvas')).toHaveAttribute('aria-label', /1 other skier in the room/);
+  await expect(b.locator('#minimap canvas')).toHaveAttribute('aria-label', /1 other skier in the room/);
+  // Room controls leave enough space above the minimap.
+  const roomBox = (await b.locator('#roombox').boundingBox())!, mapBox = (await b.locator('#minimap').boundingBox())!;
+  expect(mapBox.y).toBeGreaterThan(roomBox.y + roomBox.height);
 
   // Alice moves; Bob sees her there
   await a.evaluate(() => (window as any).game.teleportToRun('Midway'));
