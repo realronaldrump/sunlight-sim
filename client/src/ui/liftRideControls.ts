@@ -5,9 +5,11 @@ export class LiftRideControls {
   private label: HTMLElement;
   private buttons: HTMLButtonElement[];
   onSpeed?: (speed: LiftSpeed) => void;
+  onStandUp?: () => void;
+  private stand = document.createElement('button');
   constructor() {
     const style = document.createElement('style');
-    style.textContent = `#lift-ride-controls { position:fixed; bottom:156px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:10px 16px; padding:11px 14px; border:1px solid #97c5cf70; border-radius:10px; background:rgba(8,23,36,.93); font-size:13px; white-space:nowrap; max-width:calc(100vw - 50px); } #lift-ride-controls[hidden] { display:none; } #lift-speed-options { display:flex; align-items:center; gap:4px; } #lift-speed-options .speed-caption { font-size:11px; color:#b9d2dc; margin-right:4px; } #lift-speed-options button { color:#fff; background:#1b3545; border:1px solid #97c5cf70; border-radius:6px; min-width:38px; padding:8px 9px; cursor:pointer; font:600 12px -apple-system,sans-serif; } #lift-speed-options button:hover { background:#365969; } #lift-speed-options button:focus-visible { outline:2px solid #80e9ff; outline-offset:2px; } #lift-speed-options button[aria-pressed=true] { background:#286960; border-color:#80e9da; } #lift-speed-options kbd { color:#b9d2dc; margin-left:5px; font:11px -apple-system,sans-serif; } @media(max-width:600px) { #lift-ride-controls { bottom:152px; width:max-content; } }`;
+    style.textContent = `#lift-ride-controls { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:10px 16px; padding:11px 14px; border:1px solid #97c5cf70; border-radius:10px; background:rgba(8,23,36,.93); font-size:13px; white-space:nowrap; max-width:calc(100vw - 50px); } #lift-ride-controls[hidden] { display:none; } #lift-speed-options { display:flex; align-items:center; gap:4px; } #lift-speed-options .speed-caption { font-size:11px; color:#b9d2dc; margin-right:4px; } #lift-speed-options button { color:#fff; background:#1b3545; border:1px solid #97c5cf70; border-radius:6px; min-width:38px; padding:8px 9px; cursor:pointer; font:600 12px -apple-system,sans-serif; } #lift-speed-options button:hover { background:#365969; } #lift-speed-options button:focus-visible { outline:2px solid #80e9ff; outline-offset:2px; } #lift-speed-options button[aria-pressed=true] { background:#286960; border-color:#80e9da; } #lift-speed-options kbd { color:#b9d2dc; margin-left:5px; font:11px -apple-system,sans-serif; } #lift-stand { color:#fff; background:#1b3545; border:1px solid #97c5cf70; border-radius:6px; padding:8px 11px; cursor:pointer; font:600 12px -apple-system,sans-serif; } #lift-stand[hidden] { display:none; } #lift-stand:disabled { opacity:.55; cursor:default; } #lift-stand.soon { background:#7a4a10; border-color:#ffd43b; } #lift-stand.go { background:#d9480f; border-color:#ffd43b; font-size:15px; animation: liftstand .45s ease-in-out infinite alternate; } @keyframes liftstand { from { transform:scale(1); } to { transform:scale(1.12); } } body:has(#drone-toggle:not([hidden])) #lift-ride-controls { bottom:74px; } @media(max-width:1100px) { #lift-ride-controls { bottom:124px; } } @media(max-width:600px) { #lift-ride-controls { bottom:124px; width:max-content; } }`;
     document.head.append(style);
     this.root.id = 'lift-ride-controls'; this.root.hidden = true;
     this.root.setAttribute('aria-label', 'Lift ride controls');
@@ -24,11 +26,21 @@ export class LiftRideControls {
       group.append(button); return button;
     });
     const shortcut = document.createElement('kbd'); shortcut.textContent = 'F'; shortcut.title = 'Cycle lift speed'; group.append(shortcut);
-    this.root.append(this.label, group); document.body.append(this.root);
+    this.stand.type = 'button'; this.stand.id = 'lift-stand'; this.stand.hidden = true;
+    this.stand.onclick = (event) => { this.onStandUp?.(); if (event.detail > 0) this.stand.blur(); };
+    this.root.append(this.label, group, this.stand); document.body.append(this.root);
   }
-  update(name: string | null, seconds: number, rate: number, visible: boolean, available: boolean, room: boolean) {
+  update(name: string | null, seconds: number, rate: number, visible: boolean, available: boolean, room: boolean, unload?: { manual: boolean; phase: 'riding' | 'ready' | 'missed' | null; soon?: number }) {
     this.root.hidden = !name || !visible;
     if (!name) return;
+    const manual = !!unload?.manual, ready = unload?.phase === 'ready';
+    this.stand.hidden = !manual;
+    this.stand.disabled = unload?.phase === 'missed';
+    this.stand.classList.toggle('go', ready);
+    const soon = (unload?.soon ?? Infinity) < 8;
+    this.stand.classList.toggle('soon', soon && !ready);
+    const text = ready ? 'STAND UP! · Space' : unload?.phase === 'missed' ? 'Missed the ramp!' : soon ? 'Ramp ahead · get ready · Space' : 'Stand up at the top · Space';
+    if (this.stand.textContent !== text) this.stand.textContent = text;
     const remaining = Math.ceil(Math.max(0, seconds) / rate);
     const label = `${name} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} to top`;
     if (this.label.textContent !== label) this.label.textContent = label;

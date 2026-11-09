@@ -3,7 +3,7 @@ import { test, expect, Page } from '@playwright/test';
 
 async function boot(page: Page, name: string, color: string, room: string) {
   const server = encodeURIComponent(process.env.TEST_SERVER_URL ?? 'ws://localhost:8787');
-  await page.goto(`/?autostart=1&name=${name}&color=${color}&room=${room}&server=${server}`);
+  await page.goto(`/?autostart=1&name=${name}&color=${color}&room=${room}&server=${server}&autounload=1`);
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
 }
 
@@ -60,7 +60,9 @@ test('two players in one room', async ({ browser }) => {
   const li=ra.lift;
   await expect.poll(()=>b.evaluate(li=>(window as any).game.lifts.clocks[li].rate,li)).toBe(8);
   expect(await b.evaluate(li=>(window as any).game.lifts.clocks.filter((_:any,i:number)=>i!==li).map((c:any)=>c.rate),li)).toEqual([1,1]);
-  const aligned=await b.evaluate(()=>{const g=(window as any).game,r=[...g.net.remotes.values()][0] as any;const p=g.lifts.paths[r.ride.lift].riderPoint(r.ride.chair,r.ride.seat,g.lifts.now(r.ride.lift)).p;return Math.hypot(r.model.root.position.x-p.x,r.model.root.position.y-p.y,r.model.root.position.z-p.z);});
+  // On the shared chair clock, allowing up to 120 ms since the last rendered frame (about 2 m of cable at 8x).
+  const aligned=await b.evaluate(()=>{const g=(window as any).game,r=[...g.net.remotes.values()][0] as any,path=g.lifts.paths[r.ride.lift],now=g.lifts.now(r.ride.lift),rate=g.lifts.clocks[r.ride.lift].rate,m=r.model.root.position;
+    let best=Infinity;for(let i=0;i<=12;i++){const p=path.riderPoint(r.ride.chair,r.ride.seat,now-i*.01*rate).p;best=Math.min(best,Math.hypot(m.x-p.x,m.y-p.y,m.z-p.z));}return best;});
   expect(aligned).toBeLessThan(.8);
   await a.keyboard.press('Escape');
   await expect.poll(()=>b.evaluate(li=>(window as any).game.lifts.clocks[li].rate,li)).toBe(1);

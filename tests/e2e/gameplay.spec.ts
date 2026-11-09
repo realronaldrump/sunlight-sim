@@ -6,7 +6,7 @@ test('spawn, ski, fall and get up, ride a lift, audio', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?autostart=1&name=Tester');
+  await page.goto('/?autostart=1&name=Tester&autounload=1');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
   // spawned at the base near the main lift, standing
   const spawn = await page.evaluate(() => { const g = (window as any).game; return { mode: g.player.st.mode, y: g.player.st.pos.y, slope: g.player.st.slopeDeg }; });

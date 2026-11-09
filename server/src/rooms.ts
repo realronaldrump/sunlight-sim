@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
+import { LiftPath, LiftDef, BOARD_FACING_COS, UNLOAD_GRACE, UNLOAD_SLOWDOWN } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import { LiftClock, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { CHAIR_SWING, carriedSwing, createChairSwing, swingEnergy, chairReleaseVelocity, swingingRiderPoint, validChairSwing, type ChairSwing } from '../../shared/chairSwing';
@@ -60,7 +60,7 @@ export class Room {
       s: { x: 0, y: 0, z: 0, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0 },
     };
     this.players.set(id, p);
-    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
+    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
     return p;
   }
@@ -88,8 +88,9 @@ export class Room {
 
   private updateLiftSpeed(lift: number) {
     const clock = this.liftClocks[lift];
-    const owner = [...this.players.values()].find(p => p.ride?.lift === lift && (p.liftSpeed ?? 1) > 1 && p.unloadAt! > clock.now());
-    clock.setRate(owner?.liftSpeed ?? 1, owner?.unloadAt);
+    const owner = [...this.players.values()].find(p => p.ride?.lift === lift && (p.liftSpeed ?? 1) > 1 && p.unloadAt! - UNLOAD_SLOWDOWN > clock.now());
+    // back to normal speed a little before the ramp, so riders can get ready to stand up
+    clock.setRate(owner?.liftSpeed ?? 1, owner?.unloadAt === undefined ? undefined : owner.unloadAt - UNLOAD_SLOWDOWN);
   }
 
   private unload(p: Player) {
@@ -195,9 +196,10 @@ export class Room {
         return;
       case 'liftFall': {
         const swing = msg.swing, previous = p.s.swing;
-        if (!p.ride || p.controlMode === 'drone' || !validChairSwing(swing) || !previous ||
-            swing.slip < CHAIR_SWING.releaseSlip || previous.slip < .4 ||
-            Math.abs(swing.roll - previous.roll) > .5 || Math.abs(swing.pitch - previous.pitch) > .5) return;
+        // A rocked-off fall must have built up through reported slip; jumping off by choice needs no rocking.
+        if (!p.ride || p.controlMode === 'drone' || !validChairSwing(swing)) return;
+        if (msg.jump !== true && (!previous || swing.slip < CHAIR_SWING.releaseSlip || previous.slip < .4 ||
+            Math.abs(swing.roll - previous.roll) > .5 || Math.abs(swing.pitch - previous.pitch) > .5)) return;
         const r = p.ride, path = this.lifts[r.lift], time = this.liftClocks[r.lift].now();
         let carrier = swing;
         for (const other of this.players.values()) if (other.ride?.lift === r.lift && other.ride.chair === r.chair &&
@@ -269,8 +271,9 @@ export class Room {
           const lp = swingingRiderPoint(lift, p.ride.chair, p.ride.seat, liftTime, swing);
           p.s = { ...p.s, x: lp.p.x, y: lp.p.y, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
           p.t = t;
-          // Deadline also catches a suspended client which missed an entire loop.
-          if (liftTime >= (p.unloadAt ?? Infinity) || !lp.uphill) this.unload(p);
+          // Riders get off themselves (by hand on the ramp, automatically, or flung off the bull wheel) and
+          // report it. The deadline frees the seat of a client that never did, e.g. a suspended tab.
+          if (liftTime >= (p.unloadAt ?? Infinity) + UNLOAD_GRACE) this.unload(p);
         }
       }
     }

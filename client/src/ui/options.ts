@@ -6,6 +6,7 @@ export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
   weather?: { mode: 'changing' | 'clear' | 'snow'; setMode(mode: 'changing' | 'clear' | 'snow'): void };
   clock?: { mode: 'explore' | 'day'; setMode(mode: 'explore' | 'day'): void };
+  autoUnload?: { on: boolean; set(on: boolean): void };
   hour: number; snow: boolean; volume: number;
   resume(): void; base(): void; travel(): void; recall(): void; log?(): void;
   phone?: { map(): void; view(): void; chat(): void; share(): void };
@@ -61,6 +62,8 @@ export class OptionsPanel {
       ${h.clock ? `<label>Clock</label><select id="o-clock"><option value="explore">Free explore: you set the time, lifts run any hour</option><option value="day">Resort day: time passes, lifts 9 AM to 4 PM, shared in a room</option></select>` : ''}
       ${h.weather ? `<label>Weather</label><select id="o-weather"><option value="changing">Changing: snow squalls drift through, shared in a room</option><option value="clear">Clear</option><option value="snow">Light snow all day</option></select>`
         : `<label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>`}
+      ${h.autoUnload ? `<label class="row" title="Off: press Space on the unload ramp at the top to stand up and ski off. Miss it and the lift has opinions."><span>Auto disembark at the top of the lift</span><input type="checkbox" id="o-unload" ${h.autoUnload.on ? 'checked' : ''}></label>
+      <p id="o-unload-note" style="opacity:.7;margin:2px 0 0;font-size:12px">${h.autoUnload.on ? 'The chair sets you down on the ramp.' : 'Press Space on the ramp to stand up.'}</p>` : ''}
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
@@ -87,10 +90,16 @@ export class OptionsPanel {
     hour.oninput = () => { (this.el.querySelector('#o-hl') as HTMLElement).textContent = fmtHour(Number(hour.value)); };
     hour.onchange = () => h.setHour(Number(hour.value));
     const snowBox = this.el.querySelector('#o-snow') as HTMLInputElement | null;
-    if (snowBox) snowBox.onchange = (e) => h.setSnow((e.target as HTMLInputElement).checked);
+    if (snowBox) snowBox.onchange = (e) => { h.setSnow((e.target as HTMLInputElement).checked); snowBox.blur(); };
     const weather = this.el.querySelector('#o-weather') as HTMLSelectElement | null;
     if (weather && h.weather) { weather.value = h.weather.mode; weather.onchange = () => h.weather!.setMode(weather.value as 'changing' | 'clear' | 'snow'); }
     (this.el.querySelector('#o-vol') as HTMLInputElement).oninput = (e) => h.setVolume(Number((e.target as HTMLInputElement).value));
+    const unload = this.el.querySelector('#o-unload') as HTMLInputElement | null;
+    if (unload && h.autoUnload) unload.onchange = () => {
+      h.autoUnload!.set(unload.checked);
+      unload.blur(); // so Esc closes the menu again
+      (this.el.querySelector('#o-unload-note') as HTMLElement).textContent = unload.checked ? 'The chair sets you down on the ramp.' : 'Press Space on the ramp to stand up.';
+    };
     const clock = this.el.querySelector('#o-clock') as HTMLSelectElement | null;
     if (clock && h.clock) { clock.value = h.clock.mode; clock.onchange = () => h.clock!.setMode(clock.value as 'explore' | 'day'); }
     const q = this.el.querySelector('#o-q') as HTMLSelectElement;

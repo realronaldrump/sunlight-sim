@@ -170,3 +170,89 @@ describe('Sunlight boarding and riding', () => {
     }
   });
 });
+
+describe('manual disembark at the top', () => {
+  function nearTop(index: number) {
+    const f = fixture(index);
+    f.player.autoUnload = false;
+    for (let i = 0; i < 600 && !f.player.ride; i++) f.at(f.now() + 1 / 30);
+    expect(f.player.ride).not.toBeNull();
+    f.at(f.player.ride!.unloadAt - 6, 1 / 30);
+    return f;
+  }
+
+  for (let index = 0; index < 3; index++) it(`stands up by hand on the ramp of lift ${index} and skis off`, () => {
+    const f = nearTop(index), { player, path } = f;
+    expect(player.standUp()).toBe('early');
+    expect(player.ride).not.toBeNull();
+    for (let i = 0; i < 400 && player.unloadPhase() !== 'ready'; i++) f.at(f.now() + 1 / 30);
+    expect(player.unloadPhase()).toBe('ready');
+    // without a press the chair keeps going: no automatic unload at the old line
+    f.at(player.ride!.unloadAt + 0.05);
+    expect(player.ride).not.toBeNull();
+    expect(player.standUp()).toBe('ok');
+    expect(player.ride).toBeNull();
+    expect(player.st.mode).toBe('skiing');
+    expect(player.st.pos.y).toBeCloseTo(stations.height(player.st.pos.x, player.st.pos.z), 5);
+    const start = { ...player.st.pos };
+    for (let i = 0; i < 90; i++) f.at(f.now() + 1 / 30);
+    expect(player.st.mode).not.toBe('fallen');
+    expect(Math.hypot(player.st.pos.x - start.x, player.st.pos.z - start.z)).toBeGreaterThan(2);
+    void path;
+  });
+
+  for (let index = 0; index < 3; index++) it(`misses the ramp of lift ${index}: loops round the bull wheel, gets flung, yard sale`, () => {
+    const f = nearTop(index), { player, path } = f;
+    const events: string[] = [];
+    player.onMissed = (e) => events.push(e);
+    let maxPitch = 0, landedAt: { x: number; y: number; z: number } | null = null;
+    for (let i = 0; i < 30 * 30 && !landedAt; i++) {
+      f.at(f.now() + 1 / 30);
+      if (player.ride) maxPitch = Math.max(maxPitch, player.chairSwing.pitch);
+      if (events.includes('landed')) landedAt = { ...player.st.pos };
+    }
+    expect(events).toEqual(['gate', 'loops', 'flung', 'landed']);
+    expect(maxPitch).toBeGreaterThan(4 * Math.PI);            // two whole loops about the grip
+    expect(landedAt).not.toBeNull();
+    const top = path.def.top, d = Math.hypot(landedAt!.x - top[0], landedAt!.z - top[2]);
+    expect(d).toBeGreaterThan(5); expect(d).toBeLessThan(40);    // beside the station, not across the mountain
+    expect(Number.isFinite(landedAt!.y)).toBe(true);
+    expect(player.yardSale).toBe(true);
+    expect(player.st.mode).toBe('fallen');
+    for (let i = 0; i < 300 && player.st.speed > 0.5; i++) f.at(f.now() + 1 / 30);
+    expect(player.getUp()).toBe(true);
+    for (let i = 0; i < 120; i++) f.at(f.now() + 1 / 30);
+    expect(player.yardSale).toBe(false);
+  });
+
+  it('warns once about standing up too soon, then the rider jumps off and falls', () => {
+    const f = nearTop(0), { player } = f;
+    f.at(player.ride!.unloadAt - 60, 1 / 30);                   // mid-ride, high above the snow
+    const events: string[] = []; player.onMissed = (e) => events.push(e);
+    let jumped = 0; player.onJump = () => { jumped++; };
+    expect(player.standUp(false)).toBe('early');
+    expect(player.standUp(false)).toBe('early');                 // an older server cannot take a jump
+    expect(player.ride).not.toBeNull();
+    expect(player.standUp()).toBe('jumped');
+    expect(player.ride).toBeNull(); expect(jumped).toBe(1); expect(player.gag).toBe('jump');
+    for (let i = 0; i < 30 * 15 && !events.includes('landed'); i++) f.at(f.now() + 1 / 30);
+    expect(events).toEqual(['flung', 'landed']);
+    expect(player.st.mode).toBe('fallen');
+    expect(player.st.pos.y).toBeCloseTo(stations.height(player.st.pos.x, player.st.pos.z), 0);
+    // the warning resets for the next ride
+    const g = nearTop(0);
+    expect(g.player.earlyWarned).toBe(false);
+  });
+
+  it('sets a rider down automatically when the option is on or the player is away', () => {
+    for (const parked of [false, true]) {
+      const f = nearTop(1);
+      f.player.autoUnload = !parked;
+      const ride = f.player.ride!;
+      for (let i = 0; i < 400 && f.player.ride; i++) { const t = f.now() + 1 / 30; f.at(t); if (parked) f.player.update(0, idle, true); }
+      expect(f.player.ride).toBeNull();
+      expect(f.player.missed).toBeNull();
+      expect(f.now()).toBeGreaterThanOrEqual(ride.unloadAt);
+    }
+  });
+});

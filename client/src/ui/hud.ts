@@ -67,7 +67,7 @@ export class Hud {
       <kbd>A</kbd>/<kbd>D</kbd> or arrows: edge and turn<br>
       <kbd>S</kbd>: snowplow (pizza) to slow down<br>
       <kbd>W</kbd>: push off on flats, tuck when fast<br>
-      <kbd>Space</kbd>: hockey stop<br>
+      <kbd>Space</kbd>: hockey stop; on a chair, stand up on the top ramp<br>
       <kbd>R</kbd>: get up after a fall<br>
       <kbd>C</kbd>: camera (chase, first person, side profile)<br>
       <kbd>G</kbd>: fly a drone / return to skiing<br>

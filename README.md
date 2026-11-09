@@ -47,7 +47,7 @@ Start on skis just west of the main lodge deck, beside a ski rack. Press W to pu
 | A / D or arrow keys | Edge and turn (weight shift, so turns build up) |
 | S | Snowplow (pizza) to slow down |
 | W | Push off on flats; tuck when fast |
-| Space | Hockey stop |
+| Space | Hockey stop. On a chairlift: stand up on the unload ramp at the top (too early warns once, then you jump off and fall) |
 | R | Get up after a fall |
 | C | Camera: chase, first person, side profile (best for judging steepness) |
 | G | Launch a camera drone / return to skiing |
@@ -80,6 +80,7 @@ To ride a lift, enter the loading approach facing uphill. The arriving chair pic
 - **Resort Day or Free Explore** (pause menu, Clock). Free Explore keeps the time you choose and runs the lifts at any hour. Resort Day runs a shared day (an hour every six minutes): lifts load 9 AM to 4 PM, the crowd follows the hour, ski patrol sweeps at closing and ropes off the runs, and the cats come out at dusk under a moonlit, starry sky.
 - **Weather** (pause menu): Changing sends snow squalls drifting through on the shared clock; one can hide Mount Sopris from the summit and later reveal it, and when one passes over you the sky greys and it snows. Clear and Light snow are also available.
 - **With friends.** Rack your skis, sit together on the deck, wave and point downhill. Friends see you walking in ski boots or seated at the table.
+- **Get off the lift yourself.** Press Space (or the Stand up button) on the unload ramp at the top. Stay seated and the skis clip the missed-unload gate, the chair whirls you twice round the bull wheel and flings you into a yard sale. Press too early and, after one warning, you jump off and fall. Auto disembark is an option in the pause menu.
 - **Sound of a place.** The lodge has room tone, conversation, cups and the espresso machine; aspen groves hush the wind; exposed ridges gust.
 - **Ski log** (pause menu): session, today and all-time distance, vertical, time skiing and on lifts, speeds and ski days; every descent with its line and an elevation and speed profile; and a mountain map of trails not yet skied, partly skied and completed, with laps.
 

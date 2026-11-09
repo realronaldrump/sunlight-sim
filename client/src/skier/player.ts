@@ -7,6 +7,7 @@ import { orientSkier } from './orientation';
 import type { LiftSystem } from '../lifts/liftSystem';
 import { BOARD_FACING_COS } from '../../../shared/lifts';
 import { carriedSwing, createChairSwing, stepChairSwing, swingingRiderPoint, chairReleaseVelocity, type ChairSwing } from '../../../shared/chairSwing';
+import { MISSED, missedSwing, flingVelocity } from '../../../shared/missedUnload';
 
 export interface RideState { lift: number; chair: number; seat: number; boardedAt: number; unloadAt: number }
 
@@ -36,6 +37,22 @@ export class Player {
   private pickupStartedAt = 0;
   private pickupSitStart = 0;
   liftPreparation = 0;
+  /** Unload automatically at the top (the pause-menu option). Off: stand up on the ramp with Space. */
+  autoUnload = true;
+  /** The comic missed-unload sequence, seconds since the chair passed the end of the ramp. */
+  missed: { tau: number; looping: boolean } | null = null;
+  /** Flung off the bull wheel and not yet back on the snow; then sitting in a yard sale until up. */
+  flung = false;
+  yardSale = false;
+  onMissed?: (event: 'gate' | 'loops' | 'flung' | 'landed', lift: number) => void;
+  /** Jumped off before the ramp (after one warning); reported like a fall from the chair. */
+  onJump?: (ride: RideState, swing: ChairSwing) => void;
+  /** Already warned this ride that standing up now means falling. */
+  earlyWarned = false;
+  /** What sent the skier flying: the missed ramp, or jumping off too soon. */
+  gag: 'missed' | 'jump' | null = null;
+  private emptyChair: { lift: number; chair: number; swing: ChairSwing; left: number } | null = null;
+  private lastLift = 0;
 
   constructor(pos: THREE.Vector3, heading: number, private probe: TerrainProbe, private colliders: ColliderGrid, private lifts: LiftSystem) {
     this.st = createSkier({ x: pos.x, y: pos.y, z: pos.z }, heading);
@@ -50,7 +67,49 @@ export class Player {
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, heading);
     this.sitBlend = 0; this.fallenBlend = 0; this.pickupOffset = null; this.inLoadZone = -1;
     this.chairSwing = createChairSwing(); this.tumble = null; this.boardCooldown = 0;
+    this.missed = null; this.flung = false; this.yardSale = false; this.settleEmptyChair();
     this.previousLiftTimes = this.lifts.paths.map((_, i) => this.lifts.now(i));
+  }
+
+  /** Where the rider is relative to the top ramp, or null when not riding. */
+  unloadPhase() {
+    const r = this.ride;
+    if (!r) return null;
+    if (this.missed) return 'missed' as const;
+    const path = this.lifts.paths[r.lift], lp = path.loopPoint(path.chairU(r.chair, this.lifts.now(r.lift)));
+    return path.unloadPhase(lp.h, lp.uphill);
+  }
+
+  /** Space on the chair: stand up and ski off if the chair is over the ramp. Too soon, the first press is a
+   * warning; the second jumps off the chair, wherever it is. */
+  standUp(allowJump = true): 'ok' | 'early' | 'jumped' | 'missed' | 'none' {
+    const phase = this.unloadPhase();
+    if (!phase) return 'none';
+    if (phase === 'missed') return 'missed';
+    if (phase === 'ready') { this.unload(false, true); return 'ok'; }
+    if (!this.earlyWarned || !allowJump || this.pickupOffset) { this.earlyWarned = true; return 'early'; }
+    this.jumpOff();
+    return 'jumped';
+  }
+
+  /** Off the chair too soon: a little hop forward, then gravity does the rest. */
+  private jumpOff() {
+    const r = this.ride;
+    if (!r) return;
+    const path = this.lifts.paths[r.lift], t = this.lifts.now(r.lift), swing = this.rideSwing;
+    const point = swingingRiderPoint(path, r.chair, r.seat, t, swing), v = chairReleaseVelocity(path, r.chair, r.seat, t, swing);
+    this.st.pos = { ...point.p };
+    this.st.heading = point.heading;
+    this.st.vel = { x: v.x - Math.sin(point.heading) * 1.6, y: v.y + 1.4, z: v.z - Math.cos(point.heading) * 1.6 };
+    this.st.speed = Math.hypot(this.st.vel.x, this.st.vel.y, this.st.vel.z);
+    this.st.grounded = false;
+    fall(this.st, 0);
+    this.tumble = { pitch: swing.pitch, roll: swing.roll, pitchV: 4.5, rollV: 1.2 };
+    this.emptyChair = { lift: r.lift, chair: r.chair, swing: { ...createChairSwing(), pitch: -0.35 }, left: 8 };
+    this.ride = null; this.missed = null; this.pickupOffset = null; this.inLoadZone = -1; this.liftPreparation = 0;
+    this.boardCooldown = 3; this.flung = true; this.yardSale = true; this.lastLift = r.lift; this.gag = 'jump';
+    this.onJump?.(r, { ...swing });
+    this.onMissed?.('flung', r.lift);
   }
 
   getUp() { return getUp(this.st); }
@@ -69,6 +128,7 @@ export class Player {
     this.liftPreparation = 1;
     this.chairSwing = createChairSwing(); this.tumble = null;
     this.ride = { lift, chair, seat, boardedAt: t, unloadAt: t + path.remainingRideTime(chair, t) };
+    this.earlyWarned = false;
     this.st.mode = 'riding';
     this.st.vel = { x: 0, y: 0, z: 0 };
     this.st.edge = 0; this.st.plow = 0; this.st.tuck = 0; this.st.skid = 0; this.st.grounded = false;
@@ -76,14 +136,16 @@ export class Player {
     this.onBoard?.(this.ride);
   }
 
-  unload(skipped = false) {
+  unload(skipped = false, here = false) {
     if (!this.ride) return;
     this.justUnloaded = true;
     const path = this.lifts.paths[this.ride.lift];
     const lift = this.ride.lift;
     const seat = this.ride.seat;
     const up = path.unloadPoint(seat);
-    const x = up.x, z = up.z;
+    // standing up by hand: off the seat right where the chair is over the ramp
+    const x = here ? this.st.pos.x : up.x, z = here ? this.st.pos.z : up.z;
+    this.missed = null;
     this.ride = null;
     this.pickupOffset = null;
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, up.heading);
@@ -130,8 +192,47 @@ export class Player {
     this.onLiftFall?.(r, { ...this.chairSwing });
   }
 
+  /** Missed the ramp: the gate clips the skis and the whirl around the bull wheel begins. */
+  private startMissed() {
+    this.missed = { tau: 0, looping: false };
+    this.onMissed?.('gate', this.ride!.lift);
+  }
+
+  /** The end of the whirl: launch off the chair in a high, tumbling arc onto the snow beside the station. */
+  private fling() {
+    const r = this.ride;
+    if (!r) return;
+    const path = this.lifts.paths[r.lift], t = this.lifts.now(r.lift), swing = this.rideSwing;
+    const point = swingingRiderPoint(path, r.chair, r.seat, t, swing);
+    const v = flingVelocity(path);
+    this.st.pos = { ...point.p };
+    this.st.heading = Math.atan2(-v.x, -v.z);
+    this.st.vel = v;
+    this.st.speed = Math.hypot(v.x, v.y, v.z);
+    this.st.grounded = false;
+    fall(this.st, 0);
+    const wrapped = Math.atan2(Math.sin(swing.pitch), Math.cos(swing.pitch));
+    this.tumble = { pitch: wrapped, roll: swing.roll, pitchV: MISSED.spin, rollV: 3.2 };
+    // the empty chair keeps swinging after its passenger leaves
+    this.emptyChair = { lift: r.lift, chair: r.chair, swing: { ...createChairSwing(), pitch: Math.max(-1, Math.min(1, wrapped)), roll: swing.roll }, left: 10 };
+    this.ride = null; this.missed = null; this.pickupOffset = null; this.inLoadZone = -1; this.liftPreparation = 0;
+    this.boardCooldown = 3; this.flung = true; this.yardSale = true; this.lastLift = r.lift; this.gag = 'missed';
+    this.onUnload?.(r.lift, true);
+    this.onMissed?.('flung', r.lift);
+  }
+
+  private settleEmptyChair(dt = Infinity) {
+    const c = this.emptyChair;
+    if (!c) return;
+    c.left -= dt;
+    if (c.left > 0) stepChairSwing(c.swing, { right: 0, forward: 0 }, dt, false);
+    else { c.swing = createChairSwing(); this.emptyChair = null; }
+    this.lifts.setChairSwing?.(c.lift, c.chair, c.swing);
+  }
+
   update(dt: number, input: SkiInput, parked = false) {
     this.time += dt;
+    this.settleEmptyChair(dt);
     this.lastInput = input;
     this.boardCooldown = Math.max(0, this.boardCooldown - dt);
     let st = this.st;
@@ -144,9 +245,14 @@ export class Player {
       const path = this.lifts.paths[r.lift];
       const settled = t - this.pickupStartedAt > 1.2;
       // Snow ramps and terminal approaches are not a place to excite the pendulum.
-      const h = path.loopPoint(path.chairU(r.chair, t)).h;
+      const lp = path.loopPoint(path.chairU(r.chair, t)), h = lp.h;
       const onLine = settled && h > 24 && h < path.horiz - 24;
-      const released = stepChairSwing(this.chairSwing, onLine && !parked
+      let released = false;
+      if (this.missed) {
+        this.missed.tau += dt;
+        missedSwing(this.missed.tau, this.chairSwing);
+        if (!this.missed.looping && this.missed.tau >= MISSED.loopsStart) { this.missed.looping = true; this.onMissed?.('loops', r.lift); }
+      } else released = stepChairSwing(this.chairSwing, onLine && !parked
         ? { right: input.steer, forward: Number(input.push || input.tuck) - input.plow }
         : { right: 0, forward: 0 }, dt, onLine);
       this.lifts.setChairSwing?.(r.lift, r.chair, this.chairSwing);
@@ -155,7 +261,11 @@ export class Player {
       st.heading = info.heading;
       st.speed = path.def.speed;
       st.vel = chairReleaseVelocity(path, r.chair, r.seat, t, this.rideSwing);
-      if (t >= r.unloadAt || !info.uphill) { this.unload(); st = this.st; }
+      if (this.missed) { if (this.missed.tau >= MISSED.loopsEnd) { this.fling(); st = this.st; } }
+      // A rider who is away (flying the drone, in the menus) is set down like with auto disembark.
+      else if (this.autoUnload || parked ? t >= r.unloadAt || !info.uphill : path.unloadPhase(lp.h, lp.uphill) === 'missed') {
+        if (this.autoUnload || parked) { this.unload(); st = this.st; } else this.startMissed();
+      }
       else if (released) this.fallFromLift();
     } else if (!parked || this.tumble) {
       const from = { ...st.pos };
@@ -193,6 +303,8 @@ export class Player {
         }
       }
     }
+    if (this.flung && st.grounded) { this.flung = false; this.onMissed?.('landed', this.lastLift); }
+    if (this.yardSale && st.mode !== 'fallen' && st.mode !== 'gettingUp' && !this.flung) this.yardSale = false;
     if (this.tumble) {
       if (!st.grounded) {
         this.tumble.pitch += this.tumble.pitchV * dt; this.tumble.roll += this.tumble.rollV * dt;
@@ -228,6 +340,8 @@ export class Player {
       speed: st.speed, edge: st.edge, plow: st.plow, tuck: st.tuck, skid: st.skid, fallen: this.fallenBlend,
       sitting: this.sitBlend, liftPreparation: this.liftPreparation, footGroundY, footGroundPitch, time: this.time, pushing: input.push && st.speed < 4 && st.mode !== 'fallen' && !this.ride,
       airborne: !!this.tumble, rockX: this.ride ? this.chairSwing.leanX : 0, rockZ: this.ride ? this.chairSwing.leanZ : 0,
+      flail: this.missed ? Math.min(1, this.missed.tau / 0.5) : this.flung ? 1 : 0,
+      gear: !this.yardSale,
       slipping: this.ride ? this.chairSwing.slip : 0,
       gesture: this.gesture && !this.ride ? this.gesture : undefined,
     });

@@ -33,13 +33,13 @@ export type ClientMsg =
   | { type: 'state'; s: NetSkier; teleport?: boolean; drone?: NetDrone | null }
   | { type: 'board'; lift: number; chair: number; seat: number }
   | { type: 'unload' }
-  | { type: 'liftFall'; swing: ChairSwing }
+  | { type: 'liftFall'; swing: ChairSwing; /** jumped off by choice, before the ramp */ jump?: boolean }
   | { type: 'liftSpeed'; rate?: LiftSpeed; cancel?: boolean; fast?: boolean }
   | { type: 'chat'; text: string }
   | { type: 'ping'; t: number };
 
 export type ServerMsg =
-  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[] }
+  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean }
   | { type: 'error'; reason: string }
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }

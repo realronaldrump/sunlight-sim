@@ -6,7 +6,7 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   page.on('requestfailed', r => failedRequests.push(`${r.url()}: ${r.failure()?.errorText}`));
   page.on('pageerror', e => errors.push(`pageerror: ${e.stack ?? e.message}`));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?autostart=1&name=Navigator&mute=1&ambient=0');
+  await page.goto('/?autostart=1&name=Navigator&mute=1&ambient=0&autounload=1');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
   await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
   const minimap = page.getByRole('region', { name: 'Skiing minimap' });

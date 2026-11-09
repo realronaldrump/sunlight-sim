@@ -4,7 +4,7 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?autostart=1&ambient=0');
+  await page.goto('/?autostart=1&ambient=0&autounload=1');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
   await page.evaluate(liftName => {
     const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === liftName), path = g.lifts.paths[li];

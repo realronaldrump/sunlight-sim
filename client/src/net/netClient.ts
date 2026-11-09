@@ -58,6 +58,8 @@ export class NetClient {
   room: string | null = null;
   connected = false;
   supportsLiftSpeed = false;
+  /** The server lets riders get off by themselves (older servers unload everyone at the ramp). */
+  supportsManualUnload = false;
   localDrone: (() => NetDrone | null) | null = null;
   remotes = new Map<string, RemoteSkier>();
   readonly group = new THREE.Group();
@@ -123,6 +125,7 @@ export class NetClient {
         this.pendingBoard = null;
         this.player.onUnload = undefined;
         this.player.onLiftFall = undefined;
+        this.player.onJump = undefined;
         done(false);
         this.scheduleReconnect();
       };
@@ -155,7 +158,7 @@ export class NetClient {
     this.stopped=true; clearTimeout(this.reconnectTimer); clearInterval(this.pingTimer);
     this.ws?.close(); this.connected=false; this.clearRemotes();
     window.removeEventListener('online',this.resume); document.removeEventListener('visibilitychange',this.resume);
-    this.player.requestBoard=undefined; this.player.onUnload=undefined; this.player.onLiftFall=undefined;
+    this.player.requestBoard=undefined; this.player.onUnload=undefined; this.player.onLiftFall=undefined; this.player.onJump=undefined;
   }
 
   private send(m: ClientMsg) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }
@@ -164,6 +167,7 @@ export class NetClient {
     this.id = m.id; this.room = m.room; this.connected = true;
     this.clockOffset = m.serverTime - Date.now() / 1000; resortClock.offset = this.clockOffset;
     this.supportsLiftSpeed = !!m.liftPlayback;
+    this.supportsManualUnload = !!m.manualUnload;
     this.lifts.clockOffset = 0;
     this.lifts.clocks.forEach((clock, i) => clock.sync(m.liftPlayback?.[i] ?? {time:m.serverTime,at:m.serverTime,rate:1}, m.serverTime));
     this.rttBest=Infinity;
@@ -195,6 +199,12 @@ export class NetClient {
       this.pendingBoard = null;
       this.sendState(swing);
       this.send({ type: 'liftFall', swing });
+      this.sendState();
+    };
+    this.player.onJump = (_ride, swing) => {
+      this.pendingBoard = null;
+      this.send({ type: 'liftFall', swing, jump: true });
+      this.markTeleport();
       this.sendState();
     };
     this.onStatus?.(`Joined room ${m.room}`);
@@ -263,7 +273,7 @@ export class NetClient {
         this.onStatus?.(`Could not board: ${m.reason}`);
         break;
       case 'unloaded': {
-        if (m.id === this.id && this.player.ride) this.player.unload();
+        if (m.id === this.id && this.player.ride && !this.player.missed) this.player.unload();
         const r = this.remotes.get(m.id);
         if (r) { r.ride = null; r.pickupOffset = null; }
         break;

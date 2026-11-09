@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 async function ready(page: Page, extra = '') {
-  await page.goto(`/?autostart=1&ambient=0&mute=1${extra}`);
+  await page.goto(`/?autostart=1&ambient=0&mute=1&autounload=1${extra}`);
   await page.waitForFunction(() => (window as any).game?.ready, null, {timeout:120000});
 }
 async function board(page: Page, li = 1) {
@@ -110,7 +110,8 @@ for (const backend of ['default','webgl']) test(`lift speed affects only its cab
   // Near the top, accelerate the actual cable through its unload line.
   await page.evaluate(()=>{const g=(window as any).game,r=g.player.ride;g.lifts.clockOffset+=r.unloadAt-g.lifts.now(r.lift)-12;});
   await page.locator('#lift-speed-16').click();
-  await expect.poll(()=>page.evaluate(()=>(window as any).game.player.ride),{timeout:10000}).toBeNull();
+  // a sped-up lift slows back to normal nine lift seconds before the ramp
+  await expect.poll(()=>page.evaluate(()=>(window as any).game.player.ride),{timeout:16000}).toBeNull();
   await expect(page.locator('#lift-ride-controls')).toBeHidden();
   expect(await page.evaluate(()=>(window as any).game.lifts.clocks[1].rate)).toBe(1);
   await page.keyboard.press('KeyG');await expect(page.locator('#player-marker')).toBeHidden();

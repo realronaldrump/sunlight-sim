@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { Lobby, Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
+import { UNLOAD_GRACE } from '../../shared/lifts';
 import { createChairSwing, stepChairSwing, swingingRiderPoint } from '../../shared/chairSwing';
 
 function fakeConn() {
@@ -175,16 +176,27 @@ describe('multiplayer rooms', () => {
     expect(riders.at(-1)!.p.ride?.seat).toBe(original.seat);
   });
 
-  it('unloads at the actual unload line, restores skiing, and releases all seat occupancy', () => {
+  it('lets the rider get off by themselves, then restores skiing at the unload line and releases the seat', () => {
     const f = boardFixture(), { p } = f.join();
     f.room.handle(p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 0 });
-    f.at(f.chair.arrive + f.lift.rideTime() - 0.1); f.room.snapshot();
+    // manual disembark: past the unload line the rider stays seated until the client reports getting off
+    f.at(f.chair.arrive + f.lift.rideTime() + 1.5); f.room.snapshot();
     expect(p.ride).not.toBeNull();
-    f.at(f.chair.arrive + f.lift.rideTime() + 0.1); f.room.snapshot();
+    f.room.handle(p.id, { type: 'unload' });
     expect(p.ride).toBeNull();
     expect(p.s.mode).toBe('skiing');
     expect(p.s.x).toBeCloseTo(f.lift.unloadPoint(0).x, 8);
     expect(p.s.y).toBeCloseTo(f.lift.stationHeight(true), 8);
+    expect(f.room.seats.size).toBe(0);
+  });
+
+  it('frees the seat of a rider whose client never reported getting off, after a grace period', () => {
+    const f = boardFixture(), { p } = f.join();
+    f.room.handle(p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 0 });
+    f.at(f.chair.arrive + f.lift.rideTime() + UNLOAD_GRACE - 0.5); f.room.snapshot();
+    expect(p.ride).not.toBeNull();
+    f.at(f.chair.arrive + f.lift.rideTime() + UNLOAD_GRACE + 0.5); f.room.snapshot();
+    expect(p.ride).toBeNull();
     expect(f.room.seats.size).toBe(0);
   });
 

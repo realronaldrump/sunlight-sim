@@ -18,6 +18,13 @@ export const SAG_FRAC = 0.018;   // must match pipeline/build_osm.py
 export const LOAD_OFFSET = 7.0;  // m from bottom bull wheel center to the load line
 export const UNLOAD_OFFSET = 6.5; // m before the top bull wheel center where riders stand up
 export const SEAT_SPACING = 0.6;
+/** Manual unloading: metres of ramp before and after the unload line where a seated rider can stand up.
+ * Past it the chair heads for the bull wheel (the missed-unload gate stands at the far end). */
+export const UNLOAD_WINDOW = { before: 3.5, after: 3.5 };
+/** A sped-up lift returns to normal speed this many lift seconds before the unload line, so riders can get ready. */
+export const UNLOAD_SLOWDOWN = 9;
+/** The server frees a seat this long after the unload line if a client never reported getting off. */
+export const UNLOAD_GRACE = 12;
 export const SEAT_TOP = 0.035;
 export const LOAD_SEAT_HEIGHT = 0.52; // estimated maintained snow-to-seat clearance, not a surveyed Sunlight dimension
 export const RIDER_ROOT_BELOW_SEAT = 0.44; // seated hip joint is 0.54 m above origin; pelvis rests 0.10 m above cushion
@@ -294,4 +301,16 @@ export class LiftPath {
   }
 
   rideTime() { return (this.unloadU - this.loadU) / this.def.speed; }
+
+  /** Where a seated rider is relative to the top ramp: still riding, able to stand up, or past it. */
+  unloadPhase(h: number, uphill: boolean): 'riding' | 'ready' | 'missed' {
+    if (!uphill) return 'missed';
+    const line = this.horiz - UNLOAD_OFFSET;
+    return h < line - UNLOAD_WINDOW.before ? 'riding' : h <= line + UNLOAD_WINDOW.after ? 'ready' : 'missed';
+  }
+
+  /** Lift-clock seconds until chair reaches the start of the stand-up window (negative once inside it). */
+  readyIn(chair: number, t: number) {
+    return (this.sAtH(this.horiz - UNLOAD_OFFSET - UNLOAD_WINDOW.before) - this.chairU(chair, t)) / this.def.speed;
+  }
 }

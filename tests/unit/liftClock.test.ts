@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LiftClock, LIFT_SPEEDS } from '../../shared/liftClock';
 import { Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
+import { UNLOAD_SLOWDOWN } from '../../shared/lifts';
 
 afterEach(() => vi.restoreAllMocks());
 describe('lift speed control', () => {
@@ -96,8 +97,13 @@ describe('lift speed control', () => {
       expect([p.s.x,p.s.y,p.s.z]).toEqual([expected.x,expected.y,expected.z]);
       expect(p.t).toBe(wall);
     }
-    wall = next.arrive + path.rideTime() / 8 + .01;
+    // back to normal speed a little before the ramp, so riders can get ready to stand up
+    wall = next.arrive + (path.rideTime() - UNLOAD_SLOWDOWN) / 8 + .5;
     room.snapshot();
+    expect(room.liftClocks[li].rate).toBe(1);
+    expect(a.ride).not.toBeNull();
+    wall += UNLOAD_SLOWDOWN;
+    for (const p of [a, b]) room.handle(p.id, {type:'unload'});
     expect(a.ride).toBeNull(); expect(b.ride).toBeNull();
     expect(room.seats.size).toBe(0); expect(room.liftClocks[li].rate).toBe(1);
   });

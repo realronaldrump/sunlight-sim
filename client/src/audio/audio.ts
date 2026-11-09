@@ -1,6 +1,7 @@
 // Field-recorded snow, winter air and machinery, with contact-driven Foley.
 // Provenance: public/audio/sources.json. Rebuild: pipeline/build_audio.py.
 import { clamp, snowWindMix, terminalMix, nearbySkierMix, chairStrainMix, environmentMix, type AudioState } from './audioModel';
+import { COMIC, type ComicSound } from './comicSynth';
 import { babble, bootOnWood, branchKnock, clink, grinder, registerBeep, roomTone, steam } from './ambienceSynth';
 export type { AudioState } from './audioModel';
 
@@ -184,6 +185,15 @@ export class SkiAudio {
     if (cutoff !== undefined) this.set(layer.filter.frequency, cutoff, at, .12);
     if (rate !== undefined) for (const source of layer.sources) this.set(source.playbackRate, rate, at, .16);
     if (pan !== undefined) this.set(layer.pan.pan, clamp(pan, -1, 1), at, .1);
+  }
+
+  private comic = new Map<ComicSound, AudioBuffer>();
+  /** A one-shot from the missed-unload gag (synthesized on first use). */
+  effect(kind: ComicSound, gain = 0.5, pan = 0) {
+    if (!this.ctx) return;
+    let buf = this.comic.get(kind);
+    if (!buf) { buf = COMIC[kind](this.ctx); this.comic.set(kind, buf); }
+    this.oneShot(buf, gain, 1, pan, this.ctx.currentTime + 0.01, 'place', buf.duration);
   }
 
   private oneShot(sample: Sample | AudioBuffer, gain: number, rate: number, pan: number, at: number, group: Voice['group'], length?: number) {

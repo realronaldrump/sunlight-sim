@@ -19,6 +19,10 @@ export interface SkierPose {
   footGroundPitch?: number;
   airborne?: boolean;
   rockX?: number; rockZ?: number; slipping?: number;
+  /** 0..1 windmilling arms and kicking legs (whirled around the bull wheel, flung through the air). */
+  flail?: number;
+  /** False while skis and poles lie scattered in a yard sale. */
+  gear?: boolean;
   /** A wave (pole hand up beside the helmet) or a point (arm out toward `yaw`, local, 0 = straight ahead). */
   gesture?: { kind: 'wave' | 'point'; amount: number; yaw?: number };
 }
@@ -86,6 +90,8 @@ export class SkierModel {
   /** Update joint positions. Local frame: feet at origin, skier faces -z, +x right. */
   update(p: SkierPose) {
     const t = p.time;
+    const gear = p.gear !== false;
+    for (const o of [...this.skis, ...this.poles]) o.visible = gear;
     const sit = p.sitting;
     // fall side chosen when a fall starts
     if (p.fallen > 0.01 && this.lastFallen <= 0.01) this.fallSide = p.edge >= 0 ? 1 : -1;
@@ -127,6 +133,8 @@ export class SkierModel {
     if (p.airborne) {
       ankleL.add(V(-.1, .12, -.12)); ankleR.add(V(.13, .2, .1));
     }
+    const flail = p.flail ?? 0;
+    if (flail > 0) { ankleL.add(V(-.08, .22 * Math.sin(t * 15) * flail, .1 * flail)); ankleR.add(V(.08, .22 * Math.sin(t * 15 + 2.4) * flail, -.1 * flail)); }
     const neck = chest.clone().add(V(0, 0.12, -0.03));
     const head = neck.clone().add(V(0, 0.10, -0.01 - 0.04 * p.tuck));
 
@@ -151,6 +159,11 @@ export class SkierModel {
       handL.lerp(V(-0.25, 0.65, -0.1), sit); handR.lerp(V(0.25, 0.65, -0.1), sit);
     }
     if (p.airborne) { handL = chest.clone().add(V(-.5, -.08, -.15)); handR = chest.clone().add(V(.48, .12, -.24)); }
+    if (flail > 0) {
+      // windmilling: each hand circles beside the shoulders, out of phase
+      handL.lerp(chest.clone().add(V(-.42, .22 + .38 * Math.sin(t * 13), -.1 + .38 * Math.cos(t * 13))), flail);
+      handR.lerp(chest.clone().add(V(.42, .22 + .38 * Math.sin(t * 13 + 2.2), -.1 + .38 * Math.cos(t * 13 + 2.2))), flail);
+    }
     if (p.gesture && p.gesture.amount > 0 && !p.airborne && p.fallen < 0.5) {
       const k = Math.min(1, p.gesture.amount);
       if (p.gesture.kind === 'wave') handR.lerp(head.clone().add(V(0.3 + Math.sin(t * 9) * 0.13, 0.2, -0.04)), k);

@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url?.startsWith('/health')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, release:process.env.RELEASE_SHA ?? 'development', droneOnly:true, liftSpeed:true, chairFalls:true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
+    res.end(JSON.stringify({ ok: true, release:process.env.RELEASE_SHA ?? 'development', droneOnly:true, liftSpeed:true, chairFalls:true, manualUnload:true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
     return;
   }
   res.writeHead(200, { 'Content-Type': 'text/plain' });

@@ -7,6 +7,8 @@ export interface Actions {
   chat: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
   skis: boolean; lesson: boolean;
   wave: boolean; point: boolean; sit: boolean;
+  /** Space or the A button: stand up off the chair on the top ramp. */
+  standUp: boolean;
 }
 
 export class InputManager {
@@ -126,6 +128,7 @@ export class InputManager {
       wave: pr.has('Digit1') || pr.has('Numpad1'),
       point: pr.has('Digit2') || pr.has('Numpad2'),
       sit: pr.has('KeyE'),
+      standUp: pr.has('Space') || btn(0),
     };
     pr.clear();
     return a;

@@ -1,5 +1,16 @@
 # Progress
 
+## Manual disembark and the missed-unload gag (November 9, 2026)
+
+- You get off the lift yourself: Space, the A button or the Stand up button in the lift bar while the chair is over the top unload ramp. The bar warns "Ramp ahead" and pulses "STAND UP!" on the ramp; sped-up lifts drop to normal speed nine seconds before the ramp.
+- Too early: one warning (with your height above the snow), then a second press jumps off and you fall, with a yard sale.
+- Miss the ramp: BONK on the new missed-unload gate (orange wand and "UNLOAD HERE!" sign at every top station), the lift operator shouts, the chair whirls two loops round the bull wheel watched from the side of the station, and you are flung, cartwheeling, into a yard sale with skis and poles strewn up the slide until R. Comic text pops and synthesized sounds go with it.
+- Pause menu option "Auto disembark at the top of the lift" (off by default, saved). Riders flying the drone or in the menus are set down automatically. `?autounload=1` keeps the old behaviour for tests that need it.
+- Multiplayer: the server lets riders get off by themselves (frees a seat 12 lift seconds past the line otherwise) and accepts a deliberate jump. Older servers keep automatic unloading. Two local clients agreed on standing up, the missed ramp and the jump.
+- The lift time and speed bar now sits at the bottom of the screen (above the drone button while it shows, above the speed panel on narrow windows).
+- Menu checkboxes give focus back after a change, so Esc closes the pause menu again.
+- Tests: new `tests/e2e/manualUnload.spec.ts` (Chromium and WebKit), unit tests for stand-up, the missed sequence on all three lifts, the jump, auto and away riders, and the server's new unload rules. The two-player test now allows one rendered frame of lag when checking a friend's seat at 8x (it failed the same way on the previous code).
+
 ## Lodge exterior from the owner's photos (November 9, 2026, released)
 
 - Rebuilt the main lodge's south side and the deck to match the owner's 2020 photos (and the 2010 photo where 2020 does not show it): blue-roofed annex with the red door, ticket window and "sunlight" sun sign; the gable canopy over the west deck with the Grizz Grill booth; storefront arcade with cream piers, projecting dark red beams and olive-framed glass, main doors at the east end; wood-framed sunroom (enterable, open to the east dining room); tan lap-sided upper storey with red trim, a western false front, wagon wheels and satellite dishes; red-brown deck with green picnic tables and metal patio sets; a dark red shack and a long porch building east of the deck; galvanized ski racks with banners. Details in DECISIONS.md D29.

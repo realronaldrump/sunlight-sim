@@ -23,7 +23,7 @@ import { AudioScene } from './audio/audioScene';
 import { buildBuildings } from './world/buildings';
 import { LODGE_SKI_START, lodgeSiteFootprints } from './world/mainLodge';
 import { walkable } from './world/walkable';
-import { GAUGE } from '../../shared/lifts';
+import { GAUGE, UNLOAD_SLOWDOWN } from '../../shared/lifts';
 import { OnFoot } from './skier/onFoot';
 import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
@@ -52,6 +52,10 @@ import { LiftRideControls } from './ui/liftRideControls';
 import { PlayerMarker } from './drone/playerMarker';
 import { LessonGroup, INSTRUCTOR_NAME, LESSON_NAME } from './world/lesson';
 import { LessonHud } from './ui/lessonHud';
+import { MissedUnloadGates } from './lifts/missedUnloadGate';
+import { ComicPops } from './ui/comicPops';
+import { YardSale } from './world/yardSale';
+import { flingVelocity } from '../../shared/missedUnload';
 import { resortClock } from './world/resortClock';
 import { ConditionsBoard } from './world/conditionsBoard';
 import { conditionsFor } from './world/conditions';
@@ -68,6 +72,11 @@ export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
 export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][]; outline?: number[][][] }
 export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[]; boundary?: number[][]; map?: { x0: number; x1: number; z0: number; z1: number } }
+
+
+const AUTO_UNLOAD_KEY = 'sunlight.autoUnload';
+function savedAutoUnload() { try { return localStorage.getItem(AUTO_UNLOAD_KEY) === '1'; } catch { return false; } }
+function saveAutoUnload(on: boolean) { try { localStorage.setItem(AUTO_UNLOAD_KEY, on ? '1' : '0'); } catch { /* private mode */ } }
 
 export class Game {
   readonly droneOnly = IPHONE;
@@ -130,6 +139,14 @@ export class Game {
   baseLife: BaseLife | null = null;
   lesson: LessonGroup | null = null;
   private lessonHud: LessonHud | null = null;
+  /** Pause-menu option: let the chair set you down at the top. Off (default): stand up on the ramp with Space. */
+  autoUnloadSetting = false;
+  private gates: MissedUnloadGates | null = null;
+  private pops = new ComicPops();
+  private yardSale = new YardSale();
+  private flingDir = { x: 0, z: 1 };
+  private yardFrom: { x: number; z: number } | null = null;
+  private operatorLines = 0;
   /** Following the Snowriders' Club lesson to learn the route. */
   tagging = false;
   private lessonNear = Infinity;
@@ -152,6 +169,7 @@ export class Game {
   private fly = { yaw: 0, pitch: -0.2, keys: new Set<string>() };
   private tmpV = new THREE.Vector3();
   private tmpV2 = new THREE.Vector3();
+  private tmpV3 = new THREE.Vector3();
   probe!: TerrainProbe;
   onFrame: ((dt: number) => void)[] = [];
   ready = false;
@@ -237,12 +255,16 @@ export class Game {
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     this.probe = this.lifts.buildStationSurfaces(this.probe);
     this.dressStationSnow();
+    this.gates = new MissedUnloadGates(this.lifts.paths, (x, z) => this.probe.height(x, z));
+    this.scene.add(this.gates.group, this.yardSale.group);
     this.setLoading(0.35, 'Loading trees');
     this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, [...this.resort.buildings, ...lodgeSiteFootprints()], Q.antialias);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.probe.height(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
     this.scene.add(this.player.model.root);
+    { const p = this.params.get('autounload'); this.autoUnloadSetting = p === '1' ? true : p === '0' ? false : savedAutoUnload(); }
+    this.player.onMissed = (event, lift) => this.missedUnload(event, lift);
     this.onFoot = new OnFoot(this.scene, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, this.camera, this.renderer.domElement, new THREE.Color('#d33a2c'));
     this.runs.buildSigns((x, z) => this.hf.heightAt(x, z), this.colliders);
     this.runs.buildBoundary((x, z) => this.hf.heightAt(x, z));
@@ -284,6 +306,7 @@ export class Game {
     this.drone.hud.onMarker = () => { this.playerMarker.toggle(); this.drone.hud.marker(this.playerMarker.enabled); };
     this.drone.hud.marker(this.playerMarker.enabled);
     this.liftControls = new LiftRideControls(); this.liftControls.onSpeed = speed => this.setLiftSpeed(speed);
+    this.liftControls.onStandUp = () => { if (this.input.enabled) this.standUp(); };
     const stopFast = () => this.stopLiftSpeed();
     window.addEventListener('blur', stopFast);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopFast(); });
@@ -364,6 +387,10 @@ export class Game {
       setHour: (h) => { if (this.clockMode === 'explore') this.env.setHour(h); }, setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
       weather: this.droneOnly ? undefined : { mode: this.weatherMode, setMode: (m) => { this.weatherMode = m; saveWeather(m); this.weatherTimer = 0; this.hud.toast(m === 'changing' ? 'Changing weather: watch for squalls drifting in from the west' : m === 'snow' ? 'Light snow' : 'Clear skies'); } },
       clock: this.droneOnly ? undefined : { mode: this.clockMode, setMode: (m) => this.setClockMode(m) },
+      autoUnload: this.droneOnly ? undefined : { on: this.autoUnloadSetting, set: (on) => {
+        this.autoUnloadSetting = on; saveAutoUnload(on);
+        this.hud.toast(on ? 'Auto disembark on: the chair sets you down at the top' : 'Manual disembark: press Space on the unload ramp to stand up', 4);
+      } },
       resume: () => this.options.toggle(false),
       base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
       travel: () => { if (this.options.visible) this.trailMap.toggle(true, true); },
@@ -648,7 +675,7 @@ export class Game {
     if (this.net && (!this.net.connected || !this.net.supportsLiftSpeed)) return;
     this.fastLift = rate > 1 ? ride.lift : null;
     if (this.net) this.net.setLiftSpeed(rate);
-    else this.lifts.clocks[ride.lift].setRate(rate, ride.unloadAt - this.lifts.clockOffset);
+    else this.lifts.clocks[ride.lift].setRate(rate, ride.unloadAt - UNLOAD_SLOWDOWN - this.lifts.clockOffset);
   }
 
   private stopLiftSpeed() {
@@ -745,11 +772,78 @@ export class Game {
     if (this.flyMode) { this.updateFlyCamera(dt); return; }
     if (this.onFoot?.active) return;
     const st = this.player.st;
+    if (this.player.missed && this.player.ride) { this.missedCamera(dt); return; }
+    if (this.missedCam) { this.missedCam = false; this.camRig.reset(); }
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
-    this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
+    this.camRig.update(dt, this.cameraTarget(), st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
       { pitch: this.player.ride ? this.player.rideSwing.pitch : this.player.tumble?.pitch ?? 0,
         roll: this.player.ride ? this.player.rideSwing.roll : this.player.tumble?.roll ?? 0,
         airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact });
+  }
+
+  /** Space on the chair: stand up on the ramp, or a friendly nudge if the ramp is not here yet. */
+  standUp() {
+    const ride = this.player.ride;
+    if (!ride) return;
+    // Jumping off needs a server that accepts it; older servers keep the rider seated.
+    const result = this.player.standUp(!this.net || this.net.supportsManualUnload);
+    if (result === 'early') {
+      const st = this.player.st, ft = Math.max(1, Math.round((st.pos.y - this.probe.height(st.pos.x, st.pos.z) + 0.9) * 3.28084));
+      const s = Math.ceil(this.lifts.paths[ride.lift].readyIn(ride.chair, this.lifts.now(ride.lift)) / this.lifts.clocks[ride.lift].rate);
+      this.hud.toast(`Too early! You are ${ft} ft up and the ramp is ${s < 90 ? `${s} s` : 'a long way'} off. Press Space again and you will jump.`, 4.5);
+    } else if (result === 'jumped') {
+      this.pops.pop('WHOOPS!', this.player.position, { life: 1.4, color: '#ffffff', follow: () => this.player.position });
+      this.audio.effect('whoosh', 0.35);
+    }
+  }
+
+  private cameraTarget() { return this.player.position; }
+
+  /** While the chair whirls round the bull wheel, watch from the open side of the top station. */
+  private missedCam = false;
+  private missedCamera(dt: number) {
+    const ride = this.player.ride!, path = this.lifts.paths[ride.lift];
+    const grip = path.loopPoint(path.chairU(ride.chair, this.lifts.now(ride.lift))).p, top = path.def.top;
+    const look = this.tmpV3.set(grip.x, grip.y - 2.0, grip.z);
+    const want = this.tmpV2.set(top[0] - path.ax * 7 + path.rx * 10, top[1] + 1.5, top[2] - path.az * 7 + path.rz * 10);
+    want.y = Math.max(want.y, this.probe.height(want.x, want.z) + 1.6);
+    if (!this.missedCam) { this.missedCam = true; this.camera.position.lerp(want, 0.6); }
+    else this.camera.position.lerp(want, Math.min(1, dt * 3));
+    this.camera.lookAt(look);
+  }
+
+  private operator(text: string) {
+    if (this.lessonHud) this.lessonHud.say(`operator/${++this.operatorLines}`, 'Lift operator', text);
+    else this.hud.toast(`Lift operator: ${text}`, 3.5);
+  }
+
+  /** The comic missed-unload gag: BONK, a whirl around the bull wheel, a launch and a yard sale. */
+  private missedUnload(event: 'gate' | 'loops' | 'flung' | 'landed', lift: number) {
+    const path = this.lifts.paths[lift], me = () => this.player.position;
+    if (event === 'gate') {
+      this.stopLiftSpeed();
+      this.gates?.trigger(lift);
+      this.audio.effect('boing', 0.65);
+      const at = this.gates?.position(lift); if (at) this.pops.pop('BONK!', at);
+      setTimeout(() => this.audio.effect('whistle', 0.3, 0.4), 250);
+      this.operator('Hey! HEY! The ramp was back there!');
+    } else if (event === 'loops') {
+      this.audio.effect('whoosh', 0.6);
+      this.pops.pop('WHEEEE!', me(), { life: 2.4, follow: () => this.player.ride ? me() : null });
+      this.operator('Oh no. Hold on, you are going around the bull wheel!');
+    } else if (event === 'flung') {
+      const v = this.player.st.vel; this.flingDir = Math.hypot(v.x, v.z) > 0.3 ? { x: v.x, z: v.z } : (() => { const f = flingVelocity(path); return { x: f.x, z: f.z }; })();
+      if (this.player.gag === 'missed') this.pops.pop('WHOOOA!', me(), { life: 1.3, color: '#ffffff', follow: me });
+    } else {
+      const st = this.player.st;
+      this.audio.effect('thud', 0.75);
+      this.yardFrom = { x: st.pos.x, z: st.pos.z };
+      this.pops.pop('YARD SALE!', me(), { life: 2.8 });
+      if (this.player.gag === 'missed') {
+        this.operator('Yard sale! You okay out there? Go grab your skis.');
+        if (!this.autoUnloadSetting) setTimeout(() => this.hud.toast('Tip: press Space on the unload ramp to stand up. Auto disembark is in the pause menu.', 6), 2600);
+      } else setTimeout(() => this.hud.toast('Ouch. Next time wait for the unload ramp at the top, then press Space.', 5), 2200);
+    }
   }
 
   runAt(x: number, z: number): RunInfo | null {
@@ -794,6 +888,8 @@ export class Game {
       if (actions.skis && this.input.enabled) this.toggleSkis();
       const inp = this.input.ski(dt);
       if (actions.getUp && this.input.enabled) this.player.getUp();
+      if (actions.standUp && this.input.enabled && this.player.ride) this.standUp();
+      this.player.autoUnload = this.autoUnloadSetting || (!!this.net && !this.net.supportsManualUnload);
       if (actions.camera && this.input.enabled) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
       this.player.update(dt, inp, !this.ready || this.options.visible || this.trailMap.visible);
       if (this.baseLife && !this.player.ride) this.baseLife.collidePlayer(this.player.st);
@@ -892,9 +988,19 @@ export class Game {
     this.options.update(this.ready, this.drone.active, this.trailMap.visible || (this.droneOnly && !!this.chat?.open), phoneRoom);
     this.liftControls.update(lift?.def.name ?? null, ride ? ride.unloadAt - this.lifts.now(ride.lift) : 0,
       ride ? this.lifts.clocks[ride.lift].rate : 1, overlaysClear,
-      !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net);
+      !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net,
+      { manual: !!ride && !this.player.autoUnload, phase: this.player.unloadPhase(),
+        soon: ride ? this.lifts.paths[ride.lift].readyIn(ride.chair, this.lifts.now(ride.lift)) / this.lifts.clocks[ride.lift].rate : Infinity });
     this.playerMarker.update(this.camera, st.pos, this.drone.active && !this.droneOnly && overlaysClear, lift?.def.name);
     this.updateHints();
+    this.gates?.update(dt);
+    this.pops.update(dt, this.camera);
+    if (this.yardSale.active && !this.player.yardSale) this.yardSale.clear();
+    // once the slide stops, the gear lies strewn up the slope behind the skier
+    if (this.yardFrom && (!this.player.yardSale || (this.player.st.grounded && this.player.st.speed < 0.7))) {
+      if (this.player.yardSale) this.yardSale.strew(this.yardFrom, this.player.st.pos, this.flingDir, (x, z) => this.probe.height(x, z));
+      this.yardFrom = null;
+    }
     this.updateLiftArrow();
     this.updateAudio(dt);
     this.updateTracks(dt);
@@ -1363,8 +1469,10 @@ export class Game {
     }
     const pl = this.player;
     if (pl.ride) {
-      const path = this.lifts.paths[pl.ride.lift];
+      // the stand-up button in the lift bar carries the ramp prompts
       this.hud.hint(null);
+    } else if (pl.yardSale && pl.st.mode === 'fallen' && pl.st.grounded) {
+      this.hud.hint('Yard sale! Press <b>R</b> to get up and gather your gear.');
     } else if (pl.inLoadZone >= 0 && this.lifts.closed) {
       this.hud.hint(`${this.lifts.paths[pl.inLoadZone].def.name} is closed. In Resort Day the lifts run 9 AM to 4 PM; choose Free explore in the pause menu to ride at any hour.`);
     } else if (pl.inLoadZone >= 0) {
