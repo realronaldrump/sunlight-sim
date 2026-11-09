@@ -22,6 +22,7 @@ import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
 import { walkable } from './world/walkable';
+import { GAUGE } from '../../shared/lifts';
 import { OnFoot } from './skier/onFoot';
 import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
@@ -162,6 +163,7 @@ export class Game {
     await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     this.probe = this.lifts.buildStationSurfaces(this.probe);
+    this.dressStationSnow();
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
     this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings, Q.antialias);
@@ -360,6 +362,28 @@ export class Game {
 
   /** Test hook: registered points of interest (doors, seats, counters). */
   walkablePois() { return walkable.pois; }
+
+  /** Station snow pads use the terrain's snow (scanned texture, crystal glints, corduroy along the lift line)
+   * so maintained ramps blend into the surrounding snow instead of reading as flat white slabs. */
+  private dressStationSnow() {
+    const group = this.lifts.group.getObjectByName('station-snow');
+    group?.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const path = this.lifts.paths.find((p) => mesh.name.startsWith(`${p.def.name}-`));
+      if (!path) return;
+      const pos = mesh.geometry.getAttribute('position'), groom = new Float32Array(pos.count * 2);
+      const b = path.def.bottom;
+      for (let i = 0; i < pos.count; i++) {
+        const dx = pos.getX(i) - b[0], dz = pos.getZ(i) - b[2];
+        groom[i * 2] = dx * path.rx + dz * path.rz - GAUGE / 2;
+        groom[i * 2 + 1] = dx * path.ax + dz * path.az;
+      }
+      mesh.geometry.setAttribute('grooming', new THREE.BufferAttribute(groom, 2));
+      mesh.material = this.terrainMat.material;
+      mesh.receiveShadow = true;
+    });
+  }
 
   /** Start of the day: on foot outside the lodge's rental-level door, facing the lifts. */
   startOnFoot() {
