@@ -20,9 +20,9 @@ body:has(#roombox) #minimap { top: 66px; }
 #minimap button:disabled { opacity: .3; cursor: default; }
 #minimap canvas { display: block; width: 100%; aspect-ratio: 1; pointer-events: none; background: #d5e0da; }
 #minimap footer { padding: 8px; }
-#minimap .mm-tools { display: flex; align-items: center; gap: 5px; }
-#minimap .mm-zoom { margin: 0 3px; font-size: 11px; color: #c8d8e2; min-width: 38px; text-align: center; }
-#minimap .mm-full { margin-left: auto; padding: 0 8px; }
+#minimap .mm-tools { display: flex; align-items: center; gap: 4px; }
+#minimap .mm-zoom { font-size: 11px; color: #c8d8e2; min-width: 38px; text-align: center; white-space: nowrap; }
+#minimap .mm-full { margin-left: auto; padding: 0 6px; white-space: nowrap; }
 #minimap kbd { font: inherit; color: #a9c7d4; margin-left: 4px; }
 #minimap .mm-legend { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 10px; color: #c8d8e2; }
 #minimap .mm-legend b { display: inline-block; margin-right: 3px; }
@@ -30,8 +30,8 @@ body:has(#roombox) #minimap { top: 66px; }
 #minimap.collapsed { width: auto; border-radius: 8px; }
 #minimap.collapsed header, #minimap.collapsed .mm-body { display: none; }
 #minimap.collapsed .mm-collapsed { display: block; }
-@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } }
-@media (max-height: 580px) { #minimap { width: 194px; top: 10px; left: 10px; } #minimap canvas { aspect-ratio: 1.55; } #minimap .mm-legend { display: none; } }
+@media (max-height: 760px), (max-width: 700px) { #minimap { width: 224px; } #minimap canvas { aspect-ratio: 1.2; } #minimap .mm-legend { display: none; } }
+@media (max-height: 580px) { #minimap { width: 194px; top: 10px; left: 10px; } #minimap canvas { aspect-ratio: 1.55; } #minimap .mm-full kbd { display: none; } #minimap button { min-width: 30px; } }
 `;
 
 interface MinimapState {
@@ -137,7 +137,8 @@ export class Minimap {
     // Deterministic 12 Hz updates keep the marker current without repainting at the game's frame rate.
     if (!this.dirty && this.elapsed < 1 / 12) return;
     this.elapsed = 0; this.dirty = false;
-    const label = state.lift ? `${state.lift} lift` : state.run?.name ?? 'Off piste / base area';
+    const atBase = this.resort.lifts.some(lift => Math.hypot(lift.bottom[0] - state.self.x, lift.bottom[2] - state.self.z) < 120);
+    const label = state.lift ? `${state.lift} lift` : state.run?.name ?? (atBase ? 'Base area' : 'Off piste');
     this.location.textContent = label;
     this.location.title = state.run && !state.lift ? `${label} · ${DIFF_LABEL[state.run.difficulty] ?? ''}` : label;
     this.canvas.setAttribute('aria-label', `North-up map. You are ${state.lift ? 'riding ' : 'at '}${label}. ${state.others.length} other skier${state.others.length === 1 ? '' : 's'} in the room.`);

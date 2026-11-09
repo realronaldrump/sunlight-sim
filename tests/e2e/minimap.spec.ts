@@ -6,6 +6,7 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/?autostart=1&name=Navigator&mute=1&ambient=0');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
   const minimap = page.getByRole('region', { name: 'Skiing minimap' });
   const canvas = minimap.locator('canvas');
   await expect(minimap).toBeVisible();
@@ -42,6 +43,7 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   // Choices survive reload, and clicking the compact control restores the map.
   await page.reload();
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  await expect(page.locator('#loading')).toHaveCSS('opacity', '0');
   await expect(canvas).toBeHidden();
   await minimap.getByRole('button', { name: 'Show minimap (V)' }).click();
   await expect(canvas).toBeVisible();
@@ -51,7 +53,11 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   // The map and speed readout occupy separate regions on a small desktop window.
   const mapBox = (await minimap.boundingBox())!, hudBox = (await page.locator('#hud').boundingBox())!;
   expect(mapBox.y + mapBox.height).toBeLessThan(hudBox.y);
+  expect(await minimap.locator('.mm-tools').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.screenshot({ path: `screenshots/minimap_compact_${browserName}.png` });
+  await page.setViewportSize({ width: 800, height: 480 });
+  expect(await minimap.locator('.mm-tools').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 1024, height: 640 });
 
   await page.evaluate(() => {
     const g = (window as any).game, path = g.lifts.paths.find((p: any) => p.def.name === 'Tercero');
