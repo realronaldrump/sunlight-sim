@@ -5,11 +5,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET, UNLOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
+import { LiftClock } from '../../../shared/liftClock';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
 import { attribute, mix, vec3 } from 'three/tsl';
 import { seatedSkierGeometry } from '../skier/seatedGeometry';
 import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion } from './chairModel';
-import { buildHut, buildTerminal, buildTower, liftStyle } from './liftStructures';
+import { buildHut, buildTerminal, buildTower, liftStyle, type LiftCollider } from './liftStructures';
+import { cableLoopGeometry } from './cableGeometry';
+import { createChairSwing, stepChairSwing, type ChairSwing } from '../../../shared/chairSwing';
 
 
 const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
@@ -24,16 +27,27 @@ export class LiftSystem {
   private chairMeshes: { near: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; far: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; labels: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
   private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
-  clockOffset = 0; // seconds added to Date.now()/1000 to get the shared lift clock
+  readonly clocks: LiftClock[] = [];
+  clockOffset = 0; // test-time offset; network synchronization uses clock
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
+  private spinners: { object: THREE.Object3D; speed: number; radius: number; direction: number }[] = [];
+  private swings = new Map<string, { state: ChairSwing; at: number; updated: number }>();
+
+  setChairSwing(lift: number, chair: number, state: ChairSwing) {
+    const now = performance.now() / 1000;
+    this.swings.set(`${lift}/${chair}`, { state: { ...state }, at: now, updated: now });
+  }
+
+  chairSwing(lift: number, chair: number) { return this.swings.get(`${lift}/${chair}`)?.state; }
 
   constructor(defs: LiftDef[]) {
     this.group.name = 'lifts';
     for (const def of defs) {
       const path = new LiftPath(def);
       this.paths.push(path);
+      this.clocks.push(new LiftClock());
       this.buildStatic(path);
       const materials = chairMaterials(def.name);
       const makeInstances = (detailed: boolean) => buildChairModel(def.name, def.seats, detailed).map(part => {
@@ -67,7 +81,7 @@ export class LiftSystem {
     }
   }
 
-  now() { return Date.now() / 1000 + this.clockOffset; }
+  now(lift?: number) { return (lift === undefined ? Date.now() / 1000 : this.clocks[lift].now()) + this.clockOffset; }
 
   /** Seats taken by ambient riders on a chair (the crowd queue boards exactly these). */
   riderSeats(li: number, chair: number) {
@@ -128,19 +142,30 @@ export class LiftSystem {
     // towers and terminals: per-lift reconstructions from photo surveys (liftStructures.ts)
     const style = liftStyle(def.name);
     let towerIndex = 0;
-    const place = (obj: THREE.Object3D, x: number, y: number, z: number, dx: number, dz: number, local: { x: number; z: number; r: number }[], top: number) => {
+    const place = (obj: THREE.Object3D, x: number, y: number, z: number, dx: number, dz: number, local: LiftCollider[], top: number) => {
       const th = Math.atan2(dx, dz), c = Math.cos(th), sn = Math.sin(th);
       obj.position.set(x, y, z); obj.rotation.y = th; g.add(obj);
-      for (const l of local) this.colliders.push({ type: 'cyl', x: x + l.x * c + l.z * sn, z: z - l.x * sn + l.z * c, r: l.r, top });
+      for (const l of local) {
+        const px = x + l.x * c + l.z * sn, pz = z - l.x * sn + l.z * c, ceiling = l.top === undefined ? top : y + l.top;
+        this.colliders.push(l.hx === undefined ? { type: 'cyl', x: px, z: pz, r: l.r!, top: ceiling }
+          : { type: 'box', x: px, z: pz, hx: l.hx, hz: l.hz!, yaw: th, top: ceiling });
+      }
     };
     for (const s of def.supports) {
       const p = path.ropePoint(s.s, 0);
       if (s.kind === 'tower') {
-        const t = buildTower(style, s.cable - s.ground, towerIndex++, 1.5);
+        const incoming = (path.cableY(s.s) - path.cableY(s.s - 1)) / 1;
+        const outgoing = (path.cableY(s.s + 1) - path.cableY(s.s)) / 1;
+        const pitch = Math.atan((incoming + outgoing) / 2);
+        const t = buildTower(style, s.cable - s.ground, towerIndex++, 1.5, pitch, outgoing > incoming);
         place(t.object, p.x, s.ground, p.z, path.ax, path.az, t.colliders, s.cable);
       } else {
         const top = s.kind === 'top';
-        const t = buildTerminal(style, top, s.cable - s.ground, 2.5);
+        const cableAt = (z: number) => {
+          const h = top ? path.horiz - z : z, dir = top ? -1 : 1;
+          return { height: path.cableY(h) - s.ground, pitch: Math.atan2(path.cableY(h + dir) - path.cableY(h - dir), 2) };
+        };
+        const t = buildTerminal(style, top, s.cable - s.ground, 2.5, cableAt);
         t.object.name = `${def.name}-${top ? 'top' : 'bottom'}-${t.kind}-terminal`;
         place(t.object, p.x, s.ground, p.z, top ? -path.ax : path.ax, top ? -path.az : path.az, t.colliders, s.cable + 2);
         // operator hut beside the terminal (left side, away from the loading side), door facing the line
@@ -155,18 +180,8 @@ export class LiftSystem {
         this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: e, hz: e, yaw, top: s.ground + hut.height });
       }
     }
-    // haul rope: two lines + bull wheel arcs, as thin tubes
-    for (const side of [-1, 1]) {
-      const pts: THREE.Vector3[] = [];
-      const n = Math.ceil(path.horiz / 3);
-      for (let i = 0; i <= n; i++) {
-        const p = path.ropePoint((path.horiz * i) / n, side);
-        pts.push(new THREE.Vector3(p.x, p.y, p.z));
-      }
-      const curve = new THREE.CatmullRomCurve3(pts);
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, n, 0.03, 4, false), rope);
-      g.add(tube);
-    }
+    const cable = new THREE.Mesh(cableLoopGeometry(path), rope);
+    cable.name = `${def.name}-complete-haul-rope`; g.add(cable);
     // load line marker (painted stripe on the snow)
     const lp = path.ropePoint(LOAD_OFFSET, 1);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.02, 0.18), new THREE.MeshStandardNodeMaterial({ color: 0xd42020, roughness: 0.6 }));
@@ -174,6 +189,9 @@ export class LiftSystem {
     stripe.userData.loadStripe = true;
     g.add(stripe);
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
+    g.traverse(o => {
+      if (o.userData.spin) this.spinners.push({ object: o, speed: def.speed, radius: o.userData.spin.radius, direction: o.userData.spin.direction });
+    });
     this.group.add(g);
   }
 
@@ -187,7 +205,15 @@ export class LiftSystem {
 
   update(occupied: { lift: number; chair: number }[] = [], viewer?: THREE.Vector3) {
     const t = this.now();
+    const realTime = performance.now() / 1000;
+    for (const [key, motion] of this.swings) {
+      if (realTime - motion.at > .1) stepChairSwing(motion.state, { right: 0, forward: 0 }, realTime - motion.updated, false);
+      motion.updated = realTime;
+      if (realTime - motion.at > 60) this.swings.delete(key);
+    }
+    for (const wheel of this.spinners) wheel.object.rotation.y = ((t * wheel.speed / wheel.radius) % (Math.PI * 2)) * wheel.direction;
     for (let li = 0; li < this.paths.length; li++) {
+      const t = this.now(li);
       const path = this.paths[li];
       const models = this.chairMeshes[li];
       const bar = new THREE.Matrix4(), grip = new THREE.Matrix4(), local = new THREE.Matrix4();
@@ -197,13 +223,16 @@ export class LiftSystem {
       for (let i = 0; i < path.chairCount; i++) {
         const u = path.chairU(i, t), lp = path.loopPoint(u);
         const bank = path.chairBank(u);
-        this.e.set(0, lp.heading, bank, 'YXZ'); this.q.setFromEuler(this.e);
+        const swing = this.chairSwing(li, i) ?? createChairSwing();
+        this.e.set(swing.pitch, lp.heading, bank + swing.roll, 'YXZ'); this.q.setFromEuler(this.e);
         this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
         bar.copy(this.m4).multiply(local.makeTranslation(BAR_PIVOT.x, BAR_PIVOT.y, BAR_PIVOT.z));
         bar.multiply(local.makeRotationX(path.restraintAngle(lp.h, lp.uphill)));
         const next = path.loopPoint(u + .1).p;
         const pitch = Math.atan2(next.y - lp.p.y, Math.hypot(next.x - lp.p.x, next.z - lp.p.z));
-        grip.copy(this.m4).multiply(local.makeRotationZ(-bank)).multiply(local.makeRotationX(pitch));
+        // The carrier swings below the grip. The grip stays aligned to the cable.
+        this.e.set(pitch, lp.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
+        grip.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
         const near = !viewer || Math.hypot(viewer.x - lp.p.x, viewer.y - lp.p.y, viewer.z - lp.p.z) < 90 || occupied.some(o => o.lift === li && o.chair === i);
         const instance = near ? nearCount++ : farCount++;
         for (const part of near ? models.near : models.far) {

@@ -13,8 +13,11 @@ import * as THREE from 'three/webgpu';
 import { mx_noise_float, positionWorld, vec3, float } from 'three/tsl';
 import { GAUGE } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
+import { mergeStatic } from '../world/mergeStatic';
+import { CABLE_RADIUS } from './cableGeometry';
 
 export type LiftStyle = 'primo' | 'segundo' | 'tercero';
+export interface LiftCollider { x: number; z: number; r?: number; hx?: number; hz?: number; top?: number }
 export function liftStyle(name: string): LiftStyle {
   const n = name.toLowerCase();
   return n.includes('primo') ? 'primo' : n.includes('segundo') ? 'segundo' : 'tercero';
@@ -76,6 +79,8 @@ function createMaterials() {
     yellow: new THREE.MeshStandardNodeMaterial({ color: 0xe2b21c, roughness: 0.78 }),
     glass: new THREE.MeshStandardNodeMaterial({ color: 0x0c1014, roughness: 0.08, metalness: 0.4 }),
     concrete: mottled(0x8a8780, 0.25, 0.9, { roughness: 0.95, metalness: 0 }),
+    weight: mottled(0x303431, .20, 1.4, { roughness: .95, metalness: 0 }),
+    stucco: mottled(0xd9d5c6, .10, 2.2, { roughness: .94, metalness: 0 }),
     louvre: new THREE.MeshStandardNodeMaterial({ map: louvre, roughness: 0.5, metalness: 0.3 }),
     cap: new THREE.MeshStandardNodeMaterial({ map: capTex, roughness: 0.4 }),
     greenRoof: mottled(0x24402f, 0.12, 1.1, { roughness: 0.5, metalness: 0.45 }),
@@ -112,6 +117,17 @@ function beam(g: THREE.Object3D, mat: THREE.Material, a: THREE.Vector3, b: THREE
 }
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
+/** Riblet guard hoops sit inside the normal hanger paths, not across the carriers. */
+function guardRing(g: THREE.Object3D, mat: THREE.Material, y: number, z = 0) {
+  const points = Array.from({ length: 48 }, (_, i) => {
+    const a = i / 48 * Math.PI * 2;
+    return v((HALF - .45) * Math.cos(a), y, z + 1.2 * Math.sin(a));
+  });
+  const ring = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, true), 64, .025, 6, true), mat);
+  ring.name = 'chair-guard-ring'; g.add(ring);
+  for (const side of [-1, 1]) rod(g, mat, v(0, y, z), v(side * (HALF - .48), y, z), .025, .025, 6);
+}
+
 /** A sheave: a pair of side plates with a dark rubber-lined groove, axle along x. */
 function sheave(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame: THREE.Material, x: number, y: number, z: number, r: number) {
   const tyre = new THREE.Mesh(new THREE.TorusGeometry(r * 0.86, r * 0.16, 6, 18), M.rubber);
@@ -123,9 +139,11 @@ function sheave(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame:
 }
 
 /** Sheave train (rocker beam with n wheels) whose wheel tops carry the rope at `ropeY`, centred on z. */
-function sheaveTrain(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame: THREE.Material, x: number, ropeY: number, n: number, r = 0.2, below = true) {
+function sheaveTrain(parent: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame: THREE.Material, x: number, ropeY: number, n: number, r = 0.2, below = true, pitchAngle = 0) {
+  const g = new THREE.Group(); g.position.y = ropeY; g.rotation.x = -pitchAngle;
+  g.name = 'aligned-sheave-train'; parent.add(g);
   const pitch = r * 2.15;
-  const cy = below ? ropeY - r * 0.95 : ropeY + r * 0.95;
+  const cy = (below ? -1 : 1) * (r * 1.02 + CABLE_RADIUS);
   const len = pitch * (n - 1);
   for (let i = 0; i < n; i++) sheave(g, M, frame, x, cy, -len / 2 + i * pitch, r);
   // side plates of the rocker on the tower side
@@ -135,17 +153,20 @@ function sheaveTrain(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, f
 }
 
 /** Horizontal open bullwheel: channel rim with liner, I-section spokes and hub. Centre at origin. */
-function bullwheel(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame: THREE.Material, y: number, spokes = 8, capped = false) {
+function bullwheel(parent: THREE.Object3D, M: ReturnType<typeof createMaterials>, frame: THREE.Material, height: number, spokes = 8, capped = false) {
+  const g = new THREE.Group(); g.position.y = height; g.name = 'rotating-bullwheel'; parent.add(g);
+  g.userData.spin = { axis: 'y', radius: HALF, direction: 1 };
+  const y = 0;
   const R = HALF;
-  const rim = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.1, R + 0.1, 0.36, 64, 1, true), frame);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(R - .08, R - .08, .24, 64, 1, true), frame);
   rim.position.y = y; g.add(rim);
-  const inner = new THREE.Mesh(new THREE.CylinderGeometry(R - 0.12, R - 0.12, 0.36, 64, 1, true), frame);
+  const inner = new THREE.Mesh(new THREE.CylinderGeometry(R - .18, R - .18, .24, 64, 1, true), frame);
   inner.position.y = y; g.add(inner);
-  for (const dy of [-0.18, 0.18]) {
-    const flange = new THREE.Mesh(new THREE.RingGeometry(R - 0.12, R + 0.16, 64), frame);
+  for (const dy of [-.12, .12]) {
+    const flange = new THREE.Mesh(new THREE.RingGeometry(R - .18, R + .08, 64), frame);
     flange.rotation.x = dy < 0 ? Math.PI / 2 : -Math.PI / 2; flange.position.y = y + dy; g.add(flange);
   }
-  const liner = new THREE.Mesh(new THREE.TorusGeometry(R + 0.04, 0.06, 6, 72), M.rubber);
+  const liner = new THREE.Mesh(new THREE.TorusGeometry(R - .08, .05, 6, 72), M.rubber);
   liner.rotation.x = Math.PI / 2; liner.position.y = y; g.add(liner);
   for (let i = 0; i < spokes; i++) {
     const a = (i / spokes) * Math.PI * 2;
@@ -159,8 +180,11 @@ function bullwheel(g: THREE.Object3D, M: ReturnType<typeof createMaterials>, fra
   if (capped) {
     // Riblet terminals: a shallow conical cap over the wheel
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.6, R + 0.25, 0.55, 40, 1, false), frame);
-    cap.position.y = y + 0.48; g.add(cap);
+    cap.position.y = height + .48; parent.add(cap);
   }
+  // Only two draw calls per moving wheel; global static merging must retain its pivot.
+  mergeStatic(g);
+  g.traverse(o => { if ((o as THREE.Mesh).isMesh) o.userData.keep = true; });
 }
 
 /** Ladder with side rails and rungs from y0 to y1 at (x, z), facing along `along`. */
@@ -186,10 +210,10 @@ function ladder(g: THREE.Object3D, mat: THREE.Material, x: number, z: number, y0
  * Tower in local coordinates: origin at ground on the lift centreline, +z uphill along the line, ropes at
  * x = +/-HALF and height `h` above the base. `pitch` is the local line slope (rad) for the crossarm trim.
  */
-export function buildTower(style: LiftStyle, h: number, index: number, depthBelow: number) {
+export function buildTower(style: LiftStyle, h: number, index: number, depthBelow: number, pitch = 0, compression = false) {
   const M = structureMaterials();
   const g = new THREE.Group();
-  const colliders: { x: number; z: number; r: number }[] = [];
+  const colliders: LiftCollider[] = [];
   if (style === 'tercero') {
     // black Riblet pipe, T crossarm with 4-wheel trains, chair guard ring on alternate towers
     rod(g, M.black, v(0, -depthBelow, 0), v(0, h + 0.85, 0), 0.24, 0.2, 14);
@@ -199,14 +223,13 @@ export function buildTower(style: LiftStyle, h: number, index: number, depthBelo
       // knee braces
       beam(g, M.black, v(0, capY - 1.4, 0), v(s * (HALF - 0.8), capY - 0.05, 0), 0.1);
       // hanger post down to the sheave train
-      beam(g, M.black, v(s * (HALF - 0.3), capY, 0), v(s * (HALF - 0.3), h - 0.2, 0), 0.1);
-      beam(g, M.black, v(s * (HALF - 0.3), h - 0.25, 0), v(s * (HALF - 0.05), h - 0.25, 0), 0.08);
-      sheaveTrain(g, M, M.black, s * HALF, h, 4, 0.21);
+      const attach = h + (compression ? .25 : -.25);
+      beam(g, M.black, v(s * (HALF - 0.3), capY, 0), v(s * (HALF - 0.3), attach, 0), 0.1);
+      beam(g, M.black, v(s * (HALF - 0.3), attach, 0), v(s * (HALF - 0.05), attach, 0), 0.08);
+      sheaveTrain(g, M, M.black, s * HALF, h, 4, .21, !compression, pitch);
     }
     if (index % 2 === 0) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 6, 48), M.black);
-      ring.scale.set(HALF + 1.5, 1.6, 1); ring.rotation.x = Math.PI / 2; ring.position.y = h - 1.25; g.add(ring);
-      for (const s of [-1, 1]) beam(g, M.black, v(0, h - 1.25, 0), v(s * (HALF + 1.45), h - 1.25, 0), 0.07);
+      guardRing(g, M.black, h - 1.25);
     }
     ladder(g, M.black, 0, -0.3, 0.6, h + 0.6, 'z');
     colliders.push({ x: 0, z: 0, r: 0.3 });
@@ -230,9 +253,10 @@ export function buildTower(style: LiftStyle, h: number, index: number, depthBelo
   }
   for (const s of [-1, 1]) {
     // trains hang from the arm ends on the tower side of the rope so carrier hangers pass outside
-    beam(g, frame, v(s * (HALF - 0.42), topY - 0.4, 0), v(s * (HALF - 0.42), h - 0.15, 0), 0.14, 0.24);
-    beam(g, frame, v(s * (HALF - 0.42), h - 0.22, 0), v(s * (HALF - 0.12), h - 0.22, 0), 0.1, 0.24);
-    sheaveTrain(g, M, frame, s * HALF, h, 6, 0.2);
+    const attach = h + (compression ? .23 : -.22);
+    beam(g, frame, v(s * (HALF - 0.42), topY - 0.4, 0), v(s * (HALF - 0.42), attach, 0), 0.14, 0.24);
+    beam(g, frame, v(s * (HALF - 0.42), attach, 0), v(s * (HALF - 0.12), attach, 0), 0.1, 0.24);
+    sheaveTrain(g, M, frame, s * HALF, h, 6, .2, !compression, pitch);
   }
   // tower number plate
   box(g, M.yellow, 0.36, 0.42, 0.03, 0, topY - 0.75, -0.3);
@@ -246,24 +270,26 @@ export function buildTower(style: LiftStyle, h: number, index: number, depthBelo
  * Terminal in local coordinates: origin on the ground below the bullwheel centre, +z toward the line,
  * ropes leave at x = +/-HALF, rope height `h` above the origin. Returns world-free colliders in local x/z.
  */
-export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBelow: number) {
+export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBelow: number,
+  cableAt: (z: number) => { height: number; pitch: number } = () => ({ height: h, pitch: 0 })) {
   const M = structureMaterials();
   const g = new THREE.Group();
-  const colliders: { x: number; z: number; r: number }[] = [];
+  const colliders: LiftCollider[] = [];
   const kind = style === 'tercero' ? 'riblet' : (style === 'primo') === top ? 'drive' : 'return';
   if (kind === 'return') {
     // open spoked bullwheel on one leaning box column (Primo bottom galvanized, Segundo top green)
     const frame = style === 'primo' ? M.galv : M.green;
     bullwheel(g, M, frame, h, 8);
     // carriage: box girder from the hub to a line-guide sheave beam ahead of the wheel
-    beam(g, frame, v(0, h + 0.5, -0.6), v(0, h + 0.5, HALF + 3.4), 0.7, 0.55);
-    beam(g, frame, v(-HALF - 0.1, h + 0.62, HALF + 2.6), v(HALF + 0.1, h + 0.62, HALF + 2.6), 0.32, 0.36);
+    const guide = cableAt(HALF + 2.6), guideY = guide.height;
+    beam(g, frame, v(0, h + 0.5, -0.6), v(0, guideY + 0.5, HALF + 3.4), 0.7, 0.55);
+    beam(g, frame, v(-HALF - 0.1, guideY + 0.62, HALF + 2.6), v(HALF + 0.1, guideY + 0.62, HALF + 2.6), 0.32, 0.36);
     for (const s of [-1, 1]) {
-      beam(g, frame, v(s * (HALF - 0.3), h + 0.62, HALF + 2.6), v(s * (HALF - 0.3), h + 0.25, HALF + 2.6), 0.12, 0.2);
+      beam(g, frame, v(s * (HALF - 0.3), guideY + 0.62, HALF + 2.6), v(s * (HALF - 0.3), guideY - .15, HALF + 2.6), 0.12, 0.2);
       const t = new THREE.Group(); t.position.set(0, 0, HALF + 2.6); g.add(t);
-      sheaveTrain(t, M, frame, s * HALF, h, 4, 0.18);
+      sheaveTrain(t, M, frame, s * HALF, guideY, 4, .18, true, guide.pitch);
       // rope catcher horn
-      beam(g, frame, v(s * (HALF + 0.25), h + 0.3, HALF + 1.8), v(s * (HALF + 0.25), h - 0.5, HALF + 3.4), 0.06);
+      beam(g, frame, v(s * (HALF + 0.25), guideY + 0.3, HALF + 1.8), v(s * (HALF + 0.25), guideY - 0.5, HALF + 3.4), 0.06);
     }
     // cross frame on top of the wheel (Segundo) / hub housing (Primo)
     for (let i = 0; i < 4; i++) {
@@ -281,7 +307,7 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
   if (kind === 'drive') {
     // curved drive housing on two long tubes with an A-frame of legs
     const tubeMat = style === 'primo' ? M.galv : M.green;
-    const ty = h + 1.15;
+    const ty = Math.max(h, cableAt(HALF + 4.3).height) + 1.15;
     for (const s of [-1, 1]) {
       const x = s * (HALF - 0.25);
       rod(g, tubeMat, v(x, ty, -4.6), v(x, ty, HALF + 4.3), 0.33, 0.33, 18);
@@ -292,8 +318,9 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
       // line-side sheave assemblies hang under the tubes ahead of the wheel
       for (const zc of [HALF + 1.2, HALF + 3.2]) {
         const t = new THREE.Group(); t.position.set(0, 0, zc); g.add(t);
-        beam(t, tubeMat, v(x, ty - 0.3, 0), v(x, h + 0.35, 0), 0.12, 0.3);
-        sheaveTrain(t, M, tubeMat, s * HALF, h, 4, 0.18, false);
+        const guide = cableAt(zc);
+        beam(t, tubeMat, v(x, ty - 0.3, 0), v(x, guide.height + .25, 0), 0.12, 0.3);
+        sheaveTrain(t, M, tubeMat, s * HALF, guide.height, 4, .18, false, guide.pitch);
       }
     }
     // cross tubes
@@ -342,22 +369,73 @@ export function buildTerminal(style: LiftStyle, top: boolean, h: number, depthBe
     colliders.push({ x: 0, z: 4.0, r: 0.5 }, { x: 0, z: -4.4, r: 0.5 });
     return { object: g, colliders, kind };
   }
-  // Riblet: black column with a capped bullwheel and a portal frame of line sheaves ahead of it
+  if (top) {
+    // Tercero's return is a counterweighted carriage on long pipe rails, not a
+    // duplicate of the lower vault-drive terminal. September 2016 photo reference.
+    g.userData.configuration = 'counterweight-tension';
+    bullwheel(g, M, M.black, h, 6, false);
+    const railY = Math.max(h, cableAt(6.5).height) + 1.05;
+    for (const side of [-1, 1]) {
+      const x = side * 1.1;
+      rod(g, M.black, v(x, railY, -8), v(x, railY, 6.5), .18, .18, 16);
+      rod(g, M.black, v(x, -depthBelow, -8), v(x, railY, -8), .2, .2, 14);
+      rod(g, M.black, v(x, .1, -11), v(x, railY - .6, -8), .14, .14, 12);
+      for (const z of [-1.1, 1.1]) {
+        beam(g, M.black, v(x, railY + .08, z), v(x, h + .18, z), .15, .18);
+        rod(g, M.galvDark, v(x - .16, railY, z), v(x + .16, railY, z), .22, .22, 12);
+      }
+      colliders.push({ x, z: -8, r: .24 });
+    }
+    for (const z of [-1.1, 1.1]) beam(g, M.black, v(-1.3, h + .18, z), v(1.3, h + .18, z), .16, .2);
+    beam(g, M.black, v(-1.4, railY, 6.5), v(1.4, railY, 6.5), .28, .3);
+    rod(g, M.black, v(0, -depthBelow, 6.5), v(0, railY, 6.5), .28, .24, 16);
+    const guide = cableAt(6.5), train = new THREE.Group(); train.position.z = 6.5; g.add(train);
+    for (const side of [-1, 1]) {
+      beam(g, M.black, v(0, railY - .15, 6.5), v(side * HALF, guide.height + .65, 6.5), .12);
+      sheaveTrain(train, M, M.black, side * HALF, guide.height, 4, .21, true, guide.pitch);
+    }
+    guardRing(g, M.black, guide.height - 1.25, 6.5);
+    colliders.push({ x: 0, z: 6.5, r: .34 });
+    // Counterweight block, suspended by two tension ropes over the rear pulleys.
+    const weight = new THREE.Group(); weight.name = 'tercero-counterweight'; g.add(weight);
+    box(weight, M.weight, 3.0, .9, 2.1, 0, .70, -9.1);
+    for (const x of [-.18, .18]) {
+      rod(weight, M.rubber, v(x, 1.25, -9.1), v(x, railY - .1, -8.25), .008, .008, 6);
+      rod(weight, M.rubber, v(x, railY - .1, -8.25), v(x, railY - .1, -.8), .008, .008, 6);
+    }
+    sheave(weight, M, M.black, 0, railY - .1, -8.1, .22);
+    sheave(weight, M, M.black, 0, 1.3, -9.1, .18);
+    box(weight, M.galvDark, .12, .5, .25, 0, 1.2, -9.1);
+    colliders.push({ x: 0, z: -9.1, hx: 1.5, hz: 1.05, top: 1.15 });
+    return { object: g, colliders, kind };
+  }
+  // Riblet lower vault drive with a capped wheel and line-guide portal.
+  g.userData.configuration = 'vault-drive';
   bullwheel(g, M, M.black, h, 6, true);
   rod(g, M.black, v(0, -depthBelow, -0.4), v(0, h - 0.25, 0), 0.42, 0.36, 16);
   beam(g, M.black, v(0, h + 0.2, -0.3), v(0, h + 0.2, HALF + 1.8), 0.4, 0.4);
   // portal beyond the load/unload line; posts stay outside the swinging carriers
   const pz = HALF + 9.5, px = HALF + 1.9;
+  const guide = cableAt(pz), guideY = guide.height;
   for (const s of [-1, 1]) {
-    beam(g, M.black, v(s * px, -depthBelow, pz), v(s * px, h + 1.4, pz), 0.3, 0.3);
-    beam(g, M.black, v(s * (HALF - 0.35), h + 1.25, pz), v(s * (HALF - 0.35), h - 0.15, pz), 0.12, 0.22);
+    beam(g, M.black, v(s * px, -depthBelow, pz), v(s * px, guideY + 1.4, pz), 0.3, 0.3);
+    beam(g, M.black, v(s * (HALF - 0.35), guideY + 1.25, pz), v(s * (HALF - 0.35), guideY - 0.15, pz), 0.12, 0.22);
     const t = new THREE.Group(); t.position.set(0, 0, pz); g.add(t);
-    sheaveTrain(t, M, M.black, s * HALF, h, 4, 0.2);
+    sheaveTrain(t, M, M.black, s * HALF, guideY, 4, .2, true, guide.pitch);
     colliders.push({ x: s * px, z: pz, r: 0.3 });
   }
-  beam(g, M.black, v(-px - 0.15, h + 1.4, pz), v(px + 0.15, h + 1.4, pz), 0.34, 0.4);
+  beam(g, M.black, v(-px - 0.15, guideY + 1.4, pz), v(px + 0.15, guideY + 1.4, pz), 0.34, 0.4);
   box(g, M.concrete, 1.4, depthBelow, 1.4, 0, -depthBelow / 2 + 0.02, -0.4);
   colliders.push({ x: 0, z: -0.4, r: 0.5 });
+  // The drive room is partly buried in the bank below/behind the loading platform.
+  const vault = new THREE.Group(); vault.name = 'tercero-drive-vault'; g.add(vault);
+  box(vault, M.stucco, 4.8, 2.5, 6, 0, -1.2, -4.5);
+  box(vault, M.stucco, 5.1, .16, 6.3, 0, .12, -4.5);
+  box(vault, M.rustRoof, 1.05, 1.95, .06, -.9, -1.38, -7.53);
+  box(vault, M.galvDark, .06, .09, .07, -.5, -1.35, -7.58);
+  box(vault, M.rustRoof, 1.5, .06, .7, -.9, -.22, -7.65, -.2);
+  box(vault, M.galvDark, .5, .65, .28, 1, -1.85, -7.6);
+  colliders.push({ x: 0, z: -4.5, hx: 2.4, hz: 3, top: .2 });
   return { object: g, colliders, kind };
 }
 
