@@ -28,5 +28,5 @@ echo "== 14. Accuracy report";                   $PY accuracy.py
 echo "== Snow surface materials (CC0)";           $PY build_snow.py
 echo "== Audio textures and Foley (CC0)";         $PY build_audio.py
 echo "== 15. Self-tests";                        $PY test_pipeline.py
-(cd .. && npm run data:skier)
+(cd .. && npm run data:skier && npm run data:crowd)
 echo "Done. Assets are in client/public/world/"

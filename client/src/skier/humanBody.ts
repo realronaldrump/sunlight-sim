@@ -10,10 +10,9 @@ export interface HumanAsset {
 }
 let asset: HumanAsset | null = null;
 let geometry: THREE.BufferGeometry;
-export function prepareHumanAsset(data: HumanAsset) {
-  if (data.version !== 1 || data.bones.length < 20) throw new Error('Invalid human character asset');
-  asset = data;
-  geometry = new THREE.BufferGeometry();
+let crowdGeometry: THREE.BufferGeometry | null = null;
+function buildGeometry(data: HumanAsset) {
+  const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.position, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(data.normal, 3));
   geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(data.skinIndex, 4));
@@ -23,6 +22,28 @@ export function prepareHumanAsset(data: HumanAsset) {
   geometry.setAttribute('skinTone', new THREE.Float32BufferAttribute(data.skin, 1));
   geometry.setAttribute('roughness', new THREE.Float32BufferAttribute(data.roughness, 1));
   geometry.setIndex(data.index);
+  return geometry;
+}
+export function prepareHumanAsset(data: HumanAsset) {
+  if (data.version !== 1 || data.bones.length < 20) throw new Error('Invalid human character asset');
+  asset = data;
+  geometry = buildGeometry(data);
+}
+async function fetchAsset(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Human character asset: ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const text = bytes[0] === 0x1f
+    ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+    : new TextDecoder().decode(bytes);
+  return JSON.parse(text) as HumanAsset;
+}
+/** Simplified crowd mesh with the identical rig (pipeline/build_crowd_human.ts). Falls back to the full mesh. */
+export async function loadCrowdHumanAsset(base: string) {
+  if (crowdGeometry) return;
+  const data = await fetchAsset(`${base}/models/skier-human-crowd.json.gz`);
+  if (asset && data.bones.length !== asset.bones.length) throw new Error('Crowd human rig mismatch');
+  crowdGeometry = buildGeometry(data);
 }
 export async function loadHumanAsset(base: string) {
   if (asset) return;
@@ -47,7 +68,7 @@ export class HumanBody {
   private direction = new THREE.Vector3();
   private restDirection = new THREE.Vector3();
 
-  constructor(jacket: THREE.Color, skinTint = new THREE.Color(1, 1, 1)) {
+  constructor(jacket: THREE.Color, skinTint = new THREE.Color(1, 1, 1), lod: 'full' | 'crowd' = 'full') {
     if (!asset) throw new Error('Load human character assets before constructing skiers');
     this.jacket = uniform(jacket.clone()); this.skinTint = uniform(skinTint.clone());
     const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.85 });
@@ -61,7 +82,7 @@ export class HumanBody {
       this.rest.set(b.name, { p: bone.position.clone(), q: bone.quaternion.clone(), parent: b.parent });
     }
     const skeleton = new THREE.Skeleton(bones, asset.bones.map(b => new THREE.Matrix4().fromArray(b.inverse)));
-    this.mesh = new THREE.SkinnedMesh(geometry, mat);
+    this.mesh = new THREE.SkinnedMesh(lod === 'crowd' && crowdGeometry ? crowdGeometry : geometry, mat);
     this.mesh.normalizeSkinWeights();
     this.mesh.name = 'anatomical-skier';
     this.mesh.bind(skeleton, new THREE.Matrix4());

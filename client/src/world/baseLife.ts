@@ -1,0 +1,419 @@
+// Life around the base area: people eating in the lodge and on the sun deck, walking in ski boots
+// between the lodge doors, ski racks, lift lines and the parking lot, standing and chatting with their
+// skis planted, and queuing in roped lift mazes. Queues board exactly the chairs that carry ambient
+// riders, so every departing chair you watch was loaded by someone you saw waiting.
+import * as THREE from 'three/webgpu';
+import { createWalker, stepWalker, supportHeight, type WalkState } from '../../../shared/walk';
+import { collideCylinder, type SkierState } from '../../../shared/skiPhysics';
+import type { ColliderGrid, Collider } from '../../../shared/collision';
+import type { LiftSystem } from '../lifts/liftSystem';
+import type { LiftPath } from '../../../shared/lifts';
+import { walkable, type Poi } from './walkable';
+import { PedestrianModel, type Appearance } from './pedestrian';
+import { CrowdGear } from './crowdGear';
+
+const JACKETS = [0x1d2a44, 0x111317, 0xb3262e, 0x1f6f78, 0x6d1f2f, 0x4b5a2a, 0xe8e6e0, 0xd8642a, 0x55306f, 0x5f8fc4, 0xc9a227, 0x2e5a3c, 0x8c8f94, 0x23324f];
+const SKINS = [[1, 1, 1], [0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [0.64, 0.49, 0.39], [0.47, 0.35, 0.28]];
+const HELMETS = [0xf2f2f0, 0x1a1a1c, 0x5b6068, 0x1c2f55, 0xa8242b, 0x2d5f3c, 0xd8d0c0];
+const BEANIES = [0xb3262e, 0x1c2f55, 0xd9b44a, 0x2e2e2e, 0x7a8a99, 0xe07b39, 0x3d6b4f, 0xe9e4da];
+
+function rng(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length) % a.length];
+
+function appearance(r: () => number, indoor = false): Appearance {
+  const beanie = r() < (indoor ? 0.55 : 0.28);
+  const sk = pick(SKINS, r);
+  return {
+    jacket: new THREE.Color(pick(JACKETS, r)), skin: new THREE.Color(sk[0], sk[1], sk[2]),
+    hat: beanie ? 'beanie' : 'helmet', hatColor: new THREE.Color(beanie ? pick(BEANIES, r) : pick(HELMETS, r)),
+    instancedGear: true, lod: 'crowd',
+  };
+}
+
+// ---------------------------------------------------------------- navigation graph
+interface NavNode { id: number; x: number; y: number; z: number; links: number[]; tag?: string }
+type Terrain = (x: number, z: number) => number;
+
+class NavGraph {
+  nodes: NavNode[] = [];
+  private grid = new Map<number, number[]>();
+  private hits: Collider[] = [];
+  constructor(private terrain: Terrain, private colliders: ColliderGrid) {}
+  private key(x: number, z: number) { return Math.floor(x / 8) * 100003 + Math.floor(z / 8); }
+
+  blockedAt(x: number, y: number, z: number, r = 0.3) {
+    for (const c of this.colliders.query(x, z, this.hits)) {
+      if (!(y < c.top - 0.35 && (c.bottom === undefined || y + 1.75 > c.bottom))) continue;
+      if (c.type === 'cyl') { if (Math.hypot(x - c.x, z - c.z) < c.r! + r) return true; continue; }
+      const cs = Math.cos(c.yaw ?? 0), sn = Math.sin(c.yaw ?? 0), dx = x - c.x, dz = z - c.z;
+      const lx = cs * dx - sn * dz, lz = sn * dx + cs * dz;
+      const qx = Math.max(-c.hx!, Math.min(c.hx!, lx)), qz = Math.max(-c.hz!, Math.min(c.hz!, lz));
+      if (Math.hypot(lx - qx, lz - qz) < r) return true;
+    }
+    return false;
+  }
+
+  add(x: number, z: number, yHint: number, tag?: string) {
+    const s = supportHeight(x, z, yHint + 0.2, this.terrain, walkable.surfaces);
+    if (!s || Math.abs(s.h - yHint) > 1.0 || this.blockedAt(x, s.h, z)) return null;
+    const n: NavNode = { id: this.nodes.length, x, y: s.h, z, links: [], tag };
+    this.nodes.push(n);
+    const k = this.key(x, z); let a = this.grid.get(k); if (!a) this.grid.set(k, a = []); a.push(n.id);
+    return n;
+  }
+
+  clear(a: NavNode, b: NavNode) {
+    const d = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(d / 0.4));
+    let y = a.y;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+      const s = supportHeight(x, z, y, this.terrain, walkable.surfaces);
+      if (!s) return false;
+      const rise = Math.abs(s.h - y), step = d / n;
+      if (rise > 0.45 || (s.onSnow && rise > step * 0.45)) return false; // ledges and snow steeper than ~24 degrees
+      y = s.h;
+      if (this.blockedAt(x, y, z)) return false;
+    }
+    return Math.abs(y - b.y) < 0.5;
+  }
+
+  near(x: number, z: number, r: number) {
+    const out: NavNode[] = [];
+    for (let i = Math.floor((x - r) / 8); i <= Math.floor((x + r) / 8); i++)
+      for (let j = Math.floor((z - r) / 8); j <= Math.floor((z + r) / 8); j++)
+        for (const id of this.grid.get(i * 100003 + j) ?? []) { const n = this.nodes[id]; if (Math.hypot(n.x - x, n.z - z) <= r) out.push(n); }
+    return out;
+  }
+
+  linkAll() {
+    for (const a of this.nodes) {
+      const r = a.tag === 'grid' ? 10.5 : 4.2;
+      for (const b of this.near(a.x, a.z, r)) {
+        if (b.id <= a.id || Math.abs(b.y - a.y) > 4.5) continue;
+        if (a.tag === 'grid' && b.tag === 'grid' && Math.hypot(b.x - a.x, b.z - a.z) > 10.5) continue;
+        if (this.clear(a, b)) { a.links.push(b.id); b.links.push(a.id); }
+      }
+    }
+  }
+
+  nearest(x: number, y: number, z: number) {
+    let best: NavNode | null = null, bd = Infinity;
+    for (const n of this.near(x, z, 12)) { const d = Math.hypot(n.x - x, n.z - z) + Math.abs(n.y - y) * 3; if (d < bd && n.links.length) { bd = d; best = n; } }
+    return best;
+  }
+
+  path(from: NavNode, to: NavNode) {
+    const g = new Map<number, number>([[from.id, 0]]), came = new Map<number, number>();
+    const open = new Set([from.id]);
+    const h = (n: NavNode) => Math.hypot(n.x - to.x, n.z - to.z);
+    for (let guard = 0; open.size && guard < 4000; guard++) {
+      let cur = -1, best = Infinity;
+      for (const id of open) { const f = g.get(id)! + h(this.nodes[id]); if (f < best) { best = f; cur = id; } }
+      if (cur === to.id) break;
+      open.delete(cur);
+      const c = this.nodes[cur];
+      for (const nid of c.links) {
+        const n = this.nodes[nid], cost = g.get(cur)! + Math.hypot(n.x - c.x, n.z - c.z) + Math.abs(n.y - c.y) * 2;
+        if (cost < (g.get(nid) ?? Infinity)) { g.set(nid, cost); came.set(nid, cur); open.add(nid); }
+      }
+    }
+    if (!came.has(to.id) && from.id !== to.id) return null;
+    const out: NavNode[] = [to];
+    let cur = to.id;
+    while (came.has(cur)) { cur = came.get(cur)!; out.unshift(this.nodes[cur]); }
+    return out;
+  }
+}
+
+// ---------------------------------------------------------------- people
+type Kind = 'seated' | 'walker' | 'group' | 'queue';
+interface Person {
+  kind: Kind; model: PedestrianModel; st: WalkState; time: number;
+  seatH?: number; tableH?: number; lookYaw: number; lookTimer: number;
+  path?: NavNode[]; dest?: NavNode; wait: number; stuck: number; lastD: number;
+  queue?: { q: LiftQueue; row: number; seat: number; boarding: number };
+  skis: 'shoulder' | 'feet' | 'planted' | 'none'; outdoorSkis: 'shoulder' | 'feet' | 'planted' | 'none'; visible: boolean; frame: number;
+}
+
+interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number }
+
+export class BaseLife {
+  readonly group = new THREE.Group();
+  private gear: CrowdGear;
+  private people: Person[] = [];
+  private nav: NavGraph;
+  private queues: LiftQueue[] = [];
+  private destinations: NavNode[] = [];
+  private built = false;
+  private clock = 0;
+  private frameNo = 0;
+  private r = rng(4217);
+
+  constructor(private lifts: LiftSystem, private terrain: Terrain, private colliders: ColliderGrid,
+    private budget: { seated: number; walkers: number; groups: number; queueRows: number }) {
+    this.group.name = 'base-life';
+    this.gear = new CrowdGear(budget.seated + budget.walkers + budget.groups * 4 + 90);
+    this.group.add(this.gear.group);
+    this.nav = new NavGraph(terrain, colliders);
+    this.buildMazes();
+  }
+
+  private person(kind: Kind, look: Appearance, x: number, y: number, z: number, heading: number, skis: Person['skis']): Person {
+    const model = new PedestrianModel(look);
+    model.root.visible = false;
+    this.group.add(model.root);
+    const p: Person = { kind, model, st: createWalker(x, y, z, heading), time: this.r() * 100, lookYaw: 0, lookTimer: this.r() * 5,
+      wait: this.r() * 8, stuck: 0, lastD: Infinity, skis, outdoorSkis: skis, visible: false, frame: Math.floor(this.r() * 3) };
+    this.people.push(p);
+    return p;
+  }
+
+  // ---------- lift mazes: posts and ropes behind each load line, where the queue stands
+  private mazeGeo(path: LiftPath, rows: number) {
+    const lp = path.loadPoint(), half = (path.def.seats * 0.6 + 1.3) / 2;
+    const post = new THREE.MeshStandardNodeMaterial({ color: 0x2c8a3c, roughness: 0.6 });
+    const rope = new THREE.MeshStandardNodeMaterial({ color: 0xc8202a, roughness: 0.7 });
+    const len = 3 + rows * 1.75 + 2;
+    const g = new THREE.Group();
+    for (const side of [-1, 1]) {
+      let prev: THREE.Vector3 | null = null;
+      for (let d = 1.5; d <= len + 0.01; d += len / Math.ceil(len / 3)) {
+        const x = lp.x - path.ax * d + path.rx * side * half, z = lp.z - path.az * d + path.rz * side * half;
+        const y = this.terrain(x, z);
+        if (!Number.isFinite(y)) continue;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 1.15, 8), post); m.position.set(x, y + 0.5, z); g.add(m);
+        const top = new THREE.Vector3(x, y + 0.98, z);
+        if (prev) {
+          const mid = prev.clone().add(top).multiplyScalar(0.5); mid.y -= 0.06;
+          const curve = new THREE.QuadraticBezierCurve3(prev, mid, top);
+          g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 6, 0.008, 4), rope));
+          this.colliders.add({ type: 'box', x: mid.x, z: mid.z, hx: prev.distanceTo(top) / 2, hz: 0.05, yaw: Math.atan2(-(top.z - prev.z), top.x - prev.x), top: y + 1.0 });
+        }
+        prev = top;
+      }
+    }
+    g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    return g;
+  }
+
+  private buildMazes() {
+    this.lifts.paths.forEach((path, li) => {
+      const rows = Math.max(1, Math.round(this.budget.queueRows * (path.def.name === 'Segundo' ? 1.3 : path.def.name === 'Tercero' ? 1 : 0.8)));
+      const lp = path.loadPoint();
+      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(), heading: lp.heading };
+      this.group.add(this.mazeGeo(path, rows));
+      this.queues.push(q);
+    });
+  }
+
+  private queueSpot(q: LiftQueue, row: number, seat: number) {
+    const lp = q.path.loadPoint(), off = q.path.seatOffset(seat), d = 3.0 + row * 1.75;
+    const x = lp.x - q.path.ax * d + q.path.rx * off, z = lp.z - q.path.az * d + q.path.rz * off;
+    return { x, z, y: this.terrain(x, z) };
+  }
+
+  /** Build the navigation graph and populate the base once terrain, buildings and nearby trees exist. */
+  private build() {
+    this.built = true;
+    const lodgeDoor = walkable.pois.find((p) => p.tag === 'south-door');
+    const centers = [
+      ...this.lifts.paths.filter((p) => p.def.name !== 'Primo').map((p) => p.loadPoint()),
+      ...(lodgeDoor ? [lodgeDoor] : []),
+    ];
+    // outdoor grid over the base area (snow, roads, decks), excluding steep or obstructed spots
+    const xs = centers.map((c) => c.x), zs = centers.map((c) => c.z);
+    const x0 = Math.min(...xs) - 70, x1 = Math.max(...xs) + 150, z0 = Math.min(...zs) - 70, z1 = Math.max(...zs) + 70;
+    for (let x = x0; x <= x1; x += 7) for (let z = z0; z <= z1; z += 7) {
+      const y = this.terrain(x, z); if (!Number.isFinite(y)) continue;
+      this.nav.add(x, z, y, 'grid');
+    }
+    // interiors and decks at finer spacing
+    for (const v of walkable.surfaces.volumes) {
+      const c = Math.cos(v.yaw), s = Math.sin(v.yaw);
+      for (let lx = -v.hx + 1; lx <= v.hx - 1; lx += 2.2) for (let lz = -v.hz + 1; lz <= v.hz - 1; lz += 2.2) {
+        this.nav.add(v.cx + c * lx + s * lz, v.cz - s * lx + c * lz, v.y0, 'room');
+      }
+    }
+    for (const f of walkable.surfaces.surfaces) {
+      if (!/deck|entrance/i.test(f.name ?? '')) continue;
+      const c = Math.cos(f.yaw), s = Math.sin(f.yaw);
+      for (let lx = -f.hx + 0.8; lx <= f.hx - 0.8; lx += 2) for (let lz = -f.hz + 0.8; lz <= f.hz - 0.8; lz += 2) this.nav.add(f.cx + c * lx + s * lz, f.cz - s * lx + c * lz, f.y0, 'deck');
+    }
+    for (const p of walkable.pois) if (p.kind !== 'seat') { const n = this.nav.add(p.x, p.z, p.y, p.tag); if (n) this.destinations.push(n); }
+    for (const q of this.queues) { const s = this.queueSpot(q, q.rows + 1.5, (q.seats - 1) / 2); if (Number.isFinite(s.y)) { const n = this.nav.add(s.x, s.z, s.y, 'lift-line'); if (n) this.destinations.push(n); } }
+    this.nav.linkAll();
+    this.destinations = this.destinations.filter((n) => n.links.length);
+    this.populate();
+  }
+
+  private populate() {
+    const r = this.r, B = this.budget;
+    // diners and drinkers: whole tables, not evenly scattered singles
+    const seats = walkable.pois.filter((p) => p.kind === 'seat');
+    const indoorSeats = seats.filter((p) => p.indoor), deckSeats = seats.filter((p) => !p.indoor);
+    const take = (list: Poi[], n: number) => {
+      const chosen: Poi[] = [];
+      while (chosen.length < n && list.length) {
+        const a = list[Math.floor(r() * list.length)];
+        const table = list.filter((q) => Math.hypot(q.x - a.x, q.z - a.z) < 1.6).slice(0, 2 + Math.floor(r() * 3));
+        for (const q of table) { if (chosen.length < n && !chosen.includes(q)) chosen.push(q); list.splice(list.indexOf(q), 1); }
+      }
+      return chosen;
+    };
+    for (const s of [...take(indoorSeats, Math.round(B.seated * 0.78)), ...take(deckSeats, Math.round(B.seated * 0.22))]) {
+      const floor = Math.max(-Infinity, ...walkable.surfaces.heightsAt(s.x, s.z).filter((h) => h <= s.y));
+      const fy = Number.isFinite(floor) ? floor : s.y - 0.45;
+      const p = this.person('seated', appearance(r, !!s.indoor), s.x, fy, s.z, s.heading, 'none');
+      p.seatH = s.y - fy;
+      p.tableH = s.tag === 'stool' ? 1.06 : s.tag === 'bench' ? undefined : 0.76;
+      if (s.tag === 'deck') p.tableH = 0.79;
+    }
+    // walkers carrying their skis between the lodge, racks, lift lines and the parking lot
+    const outside = this.destinations.filter((n) => n.tag && !/-in$|servery|register|rentals/.test(n.tag));
+    for (let i = 0; i < B.walkers && this.destinations.length; i++) {
+      const start = pick(outside.length ? outside : this.destinations, r);
+      const p = this.person('walker', appearance(r), start.x + (r() - 0.5), start.y, start.z + (r() - 0.5), r() * 6.28, r() < 0.8 ? 'shoulder' : 'none');
+      p.wait = r() * 4;
+    }
+    // small groups standing and talking, skis planted beside them
+    const spots = this.destinations.filter((n) => /rack|deck-steps|lower-door|lift-line/.test(n.tag ?? ''));
+    for (let gI = 0; gI < B.groups && spots.length; gI++) {
+      const c = pick(spots, r), n = 2 + Math.floor(r() * 3), base = r() * 6.28;
+      const cx = c.x + (r() - 0.5) * 6, cz = c.z + (r() - 0.5) * 6, cy = this.terrain(cx, cz);
+      if (!Number.isFinite(cy) || this.nav.blockedAt(cx, cy, cz, 1.2)) continue;
+      for (let k = 0; k < n; k++) {
+        const a = base + k * Math.PI * 2 / n, x = cx + Math.cos(a) * 0.85, z = cz + Math.sin(a) * 0.85;
+        const heading = Math.atan2(-(cx - x), -(cz - z));
+        this.person('group', appearance(r), x, this.terrain(x, z), z, heading, r() < 0.75 ? 'planted' : 'shoulder');
+      }
+    }
+    // lift lines: rows of skiers standing on their skis, facing uphill
+    for (const q of this.queues) {
+      for (let row = 0; row < q.rows; row++) {
+        q.members.push([]);
+        for (let seat = 0; seat < q.seats; seat++) {
+          if (row === q.rows - 1 && r() < 0.4) { q.members[row].push(null); continue; }
+          const s = this.queueSpot(q, row, seat);
+          if (!Number.isFinite(s.y)) { q.members[row].push(null); continue; }
+          const p = this.person('queue', appearance(r), s.x, s.y, s.z, q.heading, 'feet');
+          p.queue = { q, row, seat, boarding: 0 };
+          q.members[row].push(p);
+        }
+      }
+    }
+  }
+
+  private newDestination(p: Person) {
+    const start = this.nav.nearest(p.st.pos.x, p.st.pos.y, p.st.pos.z);
+    if (!start) { p.wait = 5; return; }
+    for (let tries = 0; tries < 6; tries++) {
+      const dest = pick(this.destinations, this.r);
+      if (dest.id === start.id || Math.hypot(dest.x - start.x, dest.z - start.z) > 260) continue;
+      const path = this.nav.path(start, dest);
+      if (path && path.length > 1) { p.path = path; p.dest = dest; p.lastD = Infinity; p.stuck = 0; return; }
+    }
+    p.wait = 4;
+  }
+
+  /** Skiers bump into people: a gentle push, a fall if they hit someone fast. */
+  collidePlayer(st: SkierState) {
+    let n = 0;
+    for (const p of this.people) {
+      if (p.kind === 'seated' || Math.abs(p.st.pos.y - st.pos.y) > 1.5) continue;
+      if (Math.abs(p.st.pos.x - st.pos.x) > 1 || Math.abs(p.st.pos.z - st.pos.z) > 1) continue;
+      if (collideCylinder(st, p.st.pos.x, p.st.pos.z, 0.28)) n++;
+    }
+    return n;
+  }
+
+  update(dt: number, camera: THREE.Vector3, playerLoadLift: number) {
+    this.clock += dt; this.frameNo++;
+    if (!this.built) { if (this.clock > 2.5) this.build(); return; }
+    const t = this.lifts.now();
+    // lift queues advance whenever a chair carrying riders passes the load line
+    for (const q of this.queues) {
+      const passing = this.lifts.chairsPassing(q.li, q.path.loadU, q.lastT, t);
+      q.lastT = t;
+      if (playerLoadLift === q.li) continue; // let the player have this chair
+      for (const chair of passing) {
+        const seats = this.lifts.riderSeats(q.li, chair);
+        if (!seats.length) continue;
+        const front = q.members[0];
+        for (const seat of seats) { const m = front[seat]; if (m) { m.model.root.visible = false; m.visible = false; this.people.splice(this.people.indexOf(m), 1); this.group.remove(m.model.root); front[seat] = null; } }
+        if (front.every((m) => !m)) {
+          q.members.shift();
+          q.members.push(Array.from({ length: q.seats }, () => null));
+          q.members.forEach((row, ri) => row.forEach((m) => { if (m?.queue) m.queue.row = ri; }));
+          // new arrivals glide into the back row
+          const back = q.members[q.rows - 1];
+          for (let seat = 0; seat < q.seats; seat++) {
+            if (this.r() < 0.35) continue;
+            const s = this.queueSpot(q, q.rows + 1.5, seat);
+            if (!Number.isFinite(s.y)) continue;
+            const p = this.person('queue', appearance(this.r), s.x, s.y, s.z, q.heading, 'feet');
+            p.queue = { q, row: q.rows - 1, seat, boarding: 0 };
+            back[seat] = p;
+          }
+        }
+      }
+    }
+    this.gear.begin();
+    for (const p of this.people) {
+      p.time += dt;
+      const dx = p.st.pos.x - camera.x, dz = p.st.pos.z - camera.z, dist = Math.hypot(dx, dz);
+      const indoorPerson = p.kind === 'seated' && !!walkable.surfaces.indoor(p.st.pos.x, p.st.pos.y + 0.9, p.st.pos.z);
+      const camIn = walkable.surfaces.indoor(camera.x, camera.y, camera.z);
+      const visible = dist < (indoorPerson ? (camIn ? 45 : 30) : 160);
+      // movement continues off screen so the base stays consistent
+      let inputX = 0, inputZ = 0, moving = false;
+      if (p.kind === 'walker') {
+        if (p.wait > 0) p.wait -= dt;
+        else if (!p.path) this.newDestination(p);
+        else {
+          const next = p.path[0];
+          const ddx = next.x - p.st.pos.x, ddz = next.z - p.st.pos.z, d = Math.hypot(ddx, ddz);
+          if (d < (p.path.length > 1 ? 0.9 : 0.4)) {
+            p.path.shift(); p.lastD = Infinity; p.stuck = 0;
+            if (!p.path.length) { p.path = undefined; p.wait = 4 + this.r() * 25; }
+          } else {
+            inputX = ddx / d; inputZ = ddz / d; moving = true;
+            if (d < p.lastD - 0.05) { p.lastD = d; p.stuck = 0; } else if ((p.stuck += dt) > 3) { p.path = undefined; p.wait = 0.5; }
+          }
+        }
+        if (dist < 220 || moving) stepWalker(p.st, { x: inputX, z: inputZ, run: false }, this.terrain, walkable.surfaces, this.colliders, dt);
+        // skis stay in the racks outside; nobody carries them through the lodge
+        p.skis = p.st.indoor ? 'none' : p.outdoorSkis;
+      } else if (p.kind === 'queue' && p.queue) {
+        const s = this.queueSpot(p.queue.q, p.queue.row, p.queue.seat);
+        const ddx = s.x - p.st.pos.x, ddz = s.z - p.st.pos.z, d = Math.hypot(ddx, ddz);
+        if (d > 0.12) { // shuffle forward on skis toward the next row
+          const v = Math.min(0.9, d * 1.5);
+          p.st.pos.x += ddx / d * v * dt; p.st.pos.z += ddz / d * v * dt; p.st.pos.y = this.terrain(p.st.pos.x, p.st.pos.z);
+          p.st.speed = v; p.st.stride += v * dt / 0.4; moving = true;
+        } else p.st.speed = 0;
+        p.st.heading = p.queue.q.heading;
+      }
+      p.visible = visible; p.model.root.visible = visible;
+      if (!visible) continue;
+      // head turns: talk to neighbours, glance around
+      if ((p.lookTimer -= dt) < 0) { p.lookTimer = 1.5 + this.r() * 5; p.lookYaw = (this.r() - 0.5) * (p.kind === 'group' || p.kind === 'seated' ? 1.4 : 0.8); }
+      const throttle = dist > 60 ? 3 : dist > 25 ? 2 : 1;
+      if ((this.frameNo + p.frame) % throttle === 0) {
+        p.model.root.position.set(p.st.pos.x, p.st.pos.y, p.st.pos.z);
+        p.model.root.rotation.set(0, p.st.heading, 0);
+        const mode = p.kind === 'seated' ? 'sit' : (moving && p.st.speed > 0.1) ? 'walk' : 'stand';
+        p.model.update({ mode, stride: p.st.stride, speed: p.st.speed, time: p.time, skis: p.skis, seat: p.seatH, handsOnTable: p.tableH, lookYaw: p.lookYaw * 0.6 });
+      }
+      p.model.human.mesh.castShadow = dist < 45;
+      if (dist < 110) p.model.pushGear(this.gear, dist < 50);
+    }
+    this.gear.end();
+  }
+
+  /** People currently simulated (for tests). */
+  stats() {
+    const by: Record<string, number> = {};
+    for (const p of this.people) by[p.kind] = (by[p.kind] ?? 0) + 1;
+    return { built: this.built, nodes: this.nav.nodes.length, links: this.nav.nodes.reduce((a, n) => a + n.links.length, 0) / 2, destinations: this.destinations.length, people: by, visible: this.people.filter((p) => p.visible).length };
+  }
+}

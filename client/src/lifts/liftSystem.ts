@@ -2,7 +2,7 @@
 // transforms for riders. Chair motion comes from shared/lifts.ts on the shared lift clock.
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
+import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET, UNLOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
@@ -68,6 +68,24 @@ export class LiftSystem {
   }
 
   now() { return Date.now() / 1000 + this.clockOffset; }
+
+  /** Seats taken by ambient riders on a chair (the crowd queue boards exactly these). */
+  riderSeats(li: number, chair: number) {
+    const R = this.riders[li];
+    return R ? R.slots.filter((s) => s.chair === chair).map((s) => s.seat) : [];
+  }
+
+  /** Chairs whose grip passed loop position `u` during (t0, t1]. */
+  chairsPassing(li: number, u: number, t0: number, t1: number) {
+    const path = this.paths[li], out: number[] = [];
+    const travel = (t1 - t0) * path.def.speed;
+    if (travel <= 0 || travel > path.spacing) return out;
+    for (let i = 0; i < path.chairCount; i++) {
+      const d = ((u - path.chairU(i, t0)) % path.loopLen + path.loopLen) % path.loopLen;
+      if (d > 0 && d <= travel) out.push(i);
+    }
+    return out;
+  }
 
   buildStationSurfaces(terrain: TerrainProbe) {
     const stations = new LiftStations(this.paths, terrain);
@@ -208,7 +226,8 @@ export class LiftSystem {
         let visible = 0;
         R.slots.forEach((sl, k) => {
           const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
-          if (!info.uphill || info.h < 20 || info.h > path.horiz - 10 || occupied.some(o => o.lift === li && o.chair === sl.chair)) return;
+          // riders board at the load line (base queues board these chairs) and stand up at the unload line
+          if (!info.uphill || info.h < LOAD_OFFSET + 0.2 || info.h > path.horiz - UNLOAD_OFFSET + 0.3 || occupied.some(o => o.lift === li && o.chair === sl.chair)) return;
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
           this.m4.compose(p, this.q, new THREE.Vector3(1, 1, 1));
           R.mesh.setMatrixAt(visible, this.m4);

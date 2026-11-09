@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { HumanBody } from '../skier/humanBody';
 import { helmetAndGoggles, skiBoot, skiWithBindings, skiPole, jacketCollar } from '../skier/skiEquipment';
+import type { CrowdGear } from './crowdGear';
 
 export interface PedestrianPose {
   mode: 'walk' | 'stand' | 'sit';
@@ -12,6 +13,7 @@ export interface PedestrianPose {
   time: number;      // s, for idle motion
   seat?: number;     // seat height above the feet, when sitting
   carry?: boolean;   // skis on the shoulder and poles in hand
+  skis?: 'shoulder' | 'feet' | 'planted' | 'none'; // overrides `carry`: on the feet in a lift line, planted beside a group
   handsOnTable?: number; // table height above the feet, when seated at one
   lookYaw?: number;  // head turn, rad
 }
@@ -43,33 +45,51 @@ function beanie(color: THREE.Color) {
   return g;
 }
 
-export interface Appearance { jacket: THREE.Color; skin?: THREE.Color; hat?: 'helmet' | 'beanie'; hatColor?: THREE.Color }
+export interface Appearance { jacket: THREE.Color; skin?: THREE.Color; hat?: 'helmet' | 'beanie'; hatColor?: THREE.Color; instancedGear?: boolean; lod?: 'full' | 'crowd' }
 
 export class PedestrianModel {
   readonly root = new THREE.Group();
   readonly human: HumanBody;
   private head: THREE.Group;
-  private boots = [skiBoot(), skiBoot()];
-  private skis = [skiWithBindings(), skiWithBindings()];
-  private poles = [skiPole(), skiPole()];
+  private boots: THREE.Group[];
+  private skis: THREE.Group[];
+  private poles: THREE.Group[];
   private collar;
   private stand = Math.random() * 10;
+  carrying = true;
 
-  constructor(look: Appearance) {
-    this.human = new HumanBody(look.jacket, look.skin ?? new THREE.Color(1, 1, 1));
+  constructor(readonly look: Appearance) {
+    this.human = new HumanBody(look.jacket, look.skin ?? new THREE.Color(1, 1, 1), look.lod ?? 'full');
     this.collar = jacketCollar(look.jacket);
-    this.head = look.hat === 'beanie' ? beanie(look.hatColor ?? new THREE.Color(0x2b4a7a)) : helmetAndGoggles();
-    this.root.add(this.human.root, this.head, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
+    // Crowd members keep empty anchors; CrowdGear draws their gear instanced at these transforms.
+    const anchor = (make: () => THREE.Group) => look.instancedGear ? new THREE.Group() : make();
+    this.head = anchor(() => look.hat === 'beanie' ? beanie(look.hatColor ?? new THREE.Color(0x2b4a7a)) : helmetAndGoggles());
+    this.boots = [anchor(skiBoot), anchor(skiBoot)];
+    this.skis = [anchor(skiWithBindings), anchor(skiWithBindings)];
+    this.poles = [anchor(skiPole), anchor(skiPole)];
+    this.root.add(this.human.root, this.head, ...this.boots, ...this.skis, ...this.poles);
+    if (!look.instancedGear) this.root.add(this.collar.group);
     this.root.traverse((o) => { o.frustumCulled = false; if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     this.update({ mode: 'stand', stride: 0, speed: 0, time: 0, carry: true });
   }
 
   setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
 
+  /** Draw this person's gear through the shared crowd instancer (call after update()). */
+  pushGear(gear: CrowdGear, detail: boolean) {
+    this.root.updateMatrixWorld(true);
+    gear.push(this.look.hat === 'beanie' ? 'beanie' : 'helmet', this.head.matrixWorld, this.look.hatColor);
+    if (!detail) return;
+    for (const b of this.boots) gear.push('boot', b.matrixWorld);
+    if (this.carrying) { for (const s of this.skis) gear.push('ski', s.matrixWorld); for (const p of this.poles) gear.push('pole', p.matrixWorld); }
+  }
+
   /** Local frame: feet at the origin, facing -z, +x to the right. */
   update(p: PedestrianPose) {
     const t = p.time + this.stand;
-    const carry = p.carry ?? true;
+    const skiMode = p.skis ?? ((p.carry ?? true) ? 'shoulder' : 'none');
+    const carry = skiMode === 'shoulder';
+    const onSkis = skiMode === 'feet';
     let pelvis: THREE.Vector3, chest: THREE.Vector3, ankleL: THREE.Vector3, ankleR: THREE.Vector3;
     let handL: THREE.Vector3, handR: THREE.Vector3;
     let liftL = 0, liftR = 0, footPitchL = 0, footPitchR = 0;
@@ -90,10 +110,11 @@ export class PedestrianModel {
       const S = (0.3 + 0.14 * run) * walking; // half stride (ski boots shorten the step)
       const sway = Math.sin(theta) * 0.025 * walking;
       const idle = (1 - walking) * Math.sin(t * 0.6) * 0.02;
-      ankleL = V(-0.11, 0.115, -Math.sin(theta) * S);
-      ankleR = V(0.11, 0.115, Math.sin(theta) * S);
+      ankleL = V(onSkis ? -0.13 : -0.11, 0.115, -Math.sin(theta) * S * (onSkis ? 0.4 : 1));
+      ankleR = V(onSkis ? 0.13 : 0.11, 0.115, Math.sin(theta) * S * (onSkis ? 0.4 : 1));
       liftL = Math.max(0, Math.cos(theta)) * (0.07 + 0.05 * run) * walking;
       liftR = Math.max(0, -Math.cos(theta)) * (0.07 + 0.05 * run) * walking;
+      if (onSkis) { liftL = 0; liftR = 0; } // skis glide; boots stay clicked in
       ankleL.y += liftL; ankleR.y += liftR;
       // stiff boots: the sole rolls from heel to toe rather than flexing at the ankle
       footPitchL = -Math.cos(theta) * 0.18 * walking; footPitchR = Math.cos(theta) * 0.18 * walking;
@@ -104,6 +125,11 @@ export class PedestrianModel {
       const swing = Math.sin(theta) * (0.18 + 0.12 * run) * walking;
       handL = chest.clone().add(V(-0.27, -0.55, -swing + 0.02));
       handR = carry ? chest.clone().add(V(0.2, -0.05, -0.32)) : chest.clone().add(V(0.27, -0.55, swing + 0.02));
+      if (onSkis) { // hands forward on the pole grips, pushing gently when shuffling forward
+        const push = Math.sin(theta) * 0.12 * walking;
+        handL = chest.clone().add(V(-0.3, -0.42, -0.22 + push)); handR = chest.clone().add(V(0.3, -0.42, -0.22 + push));
+        pelvis.y -= 0.05; pelvis.z += 0.04;
+      }
     }
     const neck = chest.clone().add(V(0, 0.12, -0.02));
     const head = neck.clone().add(V(0, 0.1, -0.015));
@@ -123,9 +149,30 @@ export class PedestrianModel {
     this.boots[0].position.copy(ankleL); this.boots[1].position.copy(ankleR);
     this.boots[0].rotation.set(footPitchL, 0, 0); this.boots[1].rotation.set(footPitchR, 0, 0);
 
-    for (const s of this.skis) s.visible = carry && p.mode !== 'sit';
-    for (const s of this.poles) s.visible = carry && p.mode !== 'sit';
-    if (carry && p.mode !== 'sit') {
+    this.carrying = skiMode !== 'none' && p.mode !== 'sit';
+    for (const s of this.skis) s.visible = this.carrying;
+    for (const s of this.poles) s.visible = this.carrying;
+    if (onSkis && p.mode !== 'sit') {
+      // clicked in: skis under the boots, pole baskets planted beside the ski tips
+      const ankles = [ankleL, ankleR];
+      for (let i = 0; i < 2; i++) { this.skis[i].position.set(ankles[i].x, ankles[i].y - 0.13, ankles[i].z - 0.05); this.skis[i].rotation.set(0, 0, 0); }
+      for (let i = 0; i < 2; i++) {
+        const hand = i === 0 ? handL : handR, side = i === 0 ? -1 : 1;
+        const tip = V(side * 0.42, 0.02, hand.z + 0.1);
+        const d = tip.clone().sub(hand);
+        this.poles[i].position.copy(hand).addScaledVector(d, 0.5);
+        this.poles[i].quaternion.setFromUnitVectors(UP, d.normalize());
+      }
+    } else if (skiMode === 'planted' && p.mode !== 'sit') {
+      // skis standing tail-down in the snow at the person's right side, poles leaning against them
+      for (let i = 0; i < 2; i++) { this.skis[i].position.set(0.45 + i * 0.05, 0.76, -0.08 + i * 0.02); this.skis[i].rotation.set(Math.PI / 2 - 0.06, 0, i === 0 ? 0.03 : -0.03); }
+      for (let i = 0; i < 2; i++) {
+        const top = V(0.48 + i * 0.03, 1.25, -0.02), tip = V(0.62 + i * 0.1, 0.0, 0.25 - i * 0.12);
+        const d = tip.clone().sub(top);
+        this.poles[i].position.copy(top).addScaledVector(d, 0.5);
+        this.poles[i].quaternion.setFromUnitVectors(UP, d.normalize());
+      }
+    } else if (carry && p.mode !== 'sit') {
       // both skis base to base on the right shoulder, bindings just behind it, tips forward and low
       const shoulder = shR.clone().add(V(0.02, 0.06, 0));
       for (let i = 0; i < 2; i++) {

@@ -5,7 +5,8 @@ import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrain
 import { Environment } from './sky/environment';
 import { LiftSystem } from './lifts/liftSystem';
 import { Player } from './skier/player';
-import { loadHumanAsset } from './skier/humanBody';
+import { loadHumanAsset, loadCrowdHumanAsset } from './skier/humanBody';
+import { BaseLife } from './world/baseLife';
 import { InputManager } from './skier/input';
 import { CameraRig } from './camera/cameraRig';
 import { Hud } from './ui/hud';
@@ -72,6 +73,7 @@ export class Game {
   hud!: Hud;
   drone!: DroneSystem;
   onFoot!: OnFoot;
+  baseLife: BaseLife | null = null;
   private launchingDrone = false;
   params = new URLSearchParams(location.search);
   timer = new THREE.Timer();
@@ -209,6 +211,12 @@ export class Game {
     this.scene.add(this.tracks.mesh);
     if (this.params.get('ambient') !== '0') {
       this.ambient = new AmbientSkiers(this.resort.runs, this.probe, this.quality.name === 'low' ? 4 : 8);
+      // people around the base area, lodge and lift lines
+      await loadCrowdHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')).catch((e) => console.warn('crowd mesh unavailable; using the full human', e));
+      const q = this.quality.name;
+      const budget = q === 'low' ? { seated: 8, walkers: 5, groups: 2, queueRows: 2 } : q === 'medium' ? { seated: 16, walkers: 9, groups: 3, queueRows: 3 } : { seated: 26, walkers: 14, groups: 4, queueRows: 4 };
+      this.baseLife = new BaseLife(this.lifts, (x, z) => walkable.snowHeight(x, z, this.probe.height(x, z)), this.colliders, budget);
+      this.scene.add(this.baseLife.group);
       this.scene.add(this.ambient.group);
     }
     if (this.params.get('snow') === '1') this.setSnow(true);
@@ -428,8 +436,9 @@ export class Game {
   }
 
   private updateCamera(dt: number) {
-    if (this.drone?.active || this.onFoot?.active) return;
+    if (this.drone?.active) return;
     if (this.flyMode) { this.updateFlyCamera(dt); return; }
+    if (this.onFoot?.active) return;
     const st = this.player.st;
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
     this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride);
@@ -469,6 +478,7 @@ export class Game {
       if (actions.respawn && this.input.enabled) this.respawn();
       if (actions.camera && this.input.enabled) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
       this.player.update(dt, inp, !this.ready);
+      if (this.baseLife && !this.player.ride) this.baseLife.collidePlayer(this.player.st);
       }
       if (this.net) {
         if (!this.drone.active && this.net.collideLocal()) { this.player.st.mode = 'fallen'; this.player.st.modeTime = 0; }
@@ -496,6 +506,7 @@ export class Game {
       ...[...(this.net?.remotes.values() ?? [])].flatMap(r => r.ride ? [r.ride] : []),
     ], this.camera.position);
     this.ambient?.update(dt, this.player.position, this.camera.position);
+    this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
     this.updateCamera(dt);
     for (const f of this.onFrame) f(dt);
     const p = this.drone.state?.pos ?? (this.flyMode ? this.camera.position : this.player.position);

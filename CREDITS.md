@@ -79,3 +79,7 @@ All recordings below are [CC0 1.0](https://creativecommons.org/publicdomain/zero
 ## Lift towers, terminals and operator huts
 - All tower, terminal, bullwheel, sheave and hut geometry and textures are original procedural assets in `client/src/lifts/liftStructures.ts`. Logo end caps use a generic red mark, not a manufacturer logo.
 - Reference only, not redistributed: Lift Blog photo surveys of [Primo](https://liftblog.com/primo-sunlight-co-2/) and [Segundo](https://liftblog.com/segundo-sunlight-co-2/) (March 2026) and [Tercero](https://liftblog.com/tercero-sunlight-co/) (September 2016).
+
+## Base-area crowds
+- `client/public/models/skier-human-crowd.json.gz` is a simplification of the CC0 MakeHuman/MPFB winter human already credited above, produced by `pipeline/build_crowd_human.ts` with [meshoptimizer](https://github.com/zeux/meshoptimizer) 1.1.1 (MIT licence, build-time only). The CC0 dedication of the character is unchanged.
+- Crowd behaviour, knit beanies, lift-maze posts and ropes are original code in `client/src/world/`.
