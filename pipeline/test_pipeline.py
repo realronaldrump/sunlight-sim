@@ -47,6 +47,11 @@ def test_reference_structures():
     assert all(90 < x < 135 and -985 < z < -935 for x, z in lodge["points"])
     condos = [b for b in resort["buildings"] if b.get("style") == "brettelberg"]
     assert len(condos) == 1 and condos[0]["id"] == 789090241
+    measured = [b for b in resort["buildings"] if b.get("heightSource")]
+    assert len(measured) >= 12, "generic buildings take eave/ridge heights from lidar"
+    for b in measured:
+        assert b["grade"][0] - 1 < b["eave"] <= b["roofTop"] < b["grade"][1] + 16, b
+        assert b["roofForm"] in ("pitched", "flat")
 
 
 if __name__ == "__main__":

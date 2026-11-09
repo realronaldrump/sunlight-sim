@@ -5,7 +5,7 @@ See DECISIONS.md and CREDITS.md for photo references and uncertainty. Run after 
 """
 import json
 import numpy as np
-from scipy.ndimage import map_coordinates
+from scipy.ndimage import map_coordinates, binary_erosion, binary_dilation
 from config import PROC, PUBLIC
 
 LODGE = {
@@ -19,6 +19,52 @@ OVERRIDES = {
     789101612: {"name": "Base area service building", "style": "base_modular", "levels": 1},
     789106639: {"name": "Base lift operations building", "style": "base_modular", "levels": 1},
 }
+
+def _inside(x, y, poly):
+    inside = np.zeros(x.shape, bool)
+    for i in range(len(poly)):
+        x1, y1 = poly[i]; x2, y2 = poly[(i + 1) % len(poly)]
+        inside ^= ((y1 > y) != (y2 > y)) & (x < (x2 - x1) * (y - y1) / ((y2 - y1) + 1e-12) + x1)
+    return inside
+
+
+def lidar_massing(resort, dem, chm, meta):
+    """Eave, ridge and roof form for every generic OSM building from 2016 lidar first returns.
+
+    Grade is the DEM on a 2 m ring outside the footprint. Inside the eroded footprint the surface
+    (DEM + canopy/structure height) gives roof elevations: the 20th percentile approximates the eave
+    and the 90th the ridge, capped at 4.5 m above the median so overhanging trees do not inflate it.
+    A spread under 1.2 m is a flat or low-slope roof. Footprints without returns keep OSM levels.
+    """
+    x0, n0 = meta["x0"], meta["n0"]
+    H, W = dem.shape
+    for b in resort["buildings"]:
+        if b.get("style") or b["id"] < 0:
+            continue
+        pts = np.array(b["points"], float)
+        xs, ns = pts[:, 0], -pts[:, 1]
+        i0, i1 = int(xs.min() - x0) - 2, int(xs.max() - x0) + 3
+        j0, j1 = int(ns.min() - n0) - 2, int(ns.max() - n0) + 3
+        if i0 < 0 or j0 < 0 or i1 > W or j1 > H:
+            continue
+        jj, ii = np.mgrid[j0:j1, i0:i1]
+        inside = _inside((ii + x0).astype(float), (jj + n0).astype(float), list(zip(xs, ns)))
+        core = binary_erosion(inside, iterations=1)
+        if core.sum() < 4:
+            core = inside
+        D = np.asarray(dem[j0:j1, i0:i1]); C = np.asarray(chm[j0:j1, i0:i1])
+        ring = binary_dilation(inside, iterations=2) & ~inside
+        roof = (D + C)[core]
+        if core.sum() < 4 or np.percentile(C[core], 50) < 2.0:
+            continue
+        p20, p50, p90 = np.percentile(roof, [20, 50, 90])
+        ridge = min(p90, p50 + 4.5)
+        b["grade"] = [round(float(D[ring].min()), 2), round(float(D[ring].max()), 2)]
+        b["roofTop"] = round(float(ridge), 2)
+        b["eave"] = round(float(p20 if ridge - p20 > 1.2 else ridge), 2)
+        b["roofForm"] = "pitched" if ridge - p20 > 1.2 else "flat"
+        b["heightSource"] = "2016 USGS lidar first returns inside the OSM footprint"
+
 
 def apply(resort):
     for b in resort["buildings"]:
@@ -39,6 +85,7 @@ def apply(resort):
     roof = dem[j0:j1, i0:i1] + chm[j0:j1, i0:i1]
     b["roofElevation"] = round(float(np.median(roof)), 3)
     b["roofSampleRange"] = [round(float(v), 3) for v in np.percentile(roof, [10, 90])]
+    lidar_massing(resort, dem, chm, meta)
     return resort
 
 if __name__ == "__main__":
