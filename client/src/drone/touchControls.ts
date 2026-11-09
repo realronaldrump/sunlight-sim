@@ -3,6 +3,7 @@ import type { FlightPace } from '../../../shared/droneNavigation';
 interface TouchActions {
   map(): void; options(): void; chat(): void; camera(): void; home(): void; hold(): void;
   fly(x: number, y: number): void; pace(pace: FlightPace): void;
+  allowed(): boolean;
 }
 
 /** Tap a destination; drag the scene to look. No virtual sticks or persistent held movement. */
@@ -38,8 +39,9 @@ export class TouchControls {
     const bind = (id: string, action: () => void) => {
       this.root.querySelector<HTMLButtonElement>(id)!.onclick = () => { this.reset(); action(); };
     };
-    bind('#touch-map', actions.map); bind('#touch-view', actions.camera); bind('#touch-chat', actions.chat);
-    bind('#touch-options', actions.options); bind('#touch-home', actions.home); bind('#touch-hold', actions.hold);
+    bind('#touch-map', () => { actions.hold(); actions.map(); }); bind('#touch-view', actions.camera);
+    bind('#touch-chat', () => { actions.hold(); actions.chat(); });
+    bind('#touch-options', () => { actions.hold(); actions.options(); }); bind('#touch-home', actions.home); bind('#touch-hold', actions.hold);
     bind('#touch-help', () => {
       this.help.hidden = !this.help.hidden;
       this.root.querySelector('#touch-help')!.setAttribute('aria-expanded', String(!this.help.hidden)); actions.hold();
@@ -47,7 +49,7 @@ export class TouchControls {
     this.help.querySelector('button')!.onclick = () => { this.help.hidden = true; this.root.querySelector('#touch-help')!.setAttribute('aria-expanded', 'false'); };
     this.root.querySelector<HTMLSelectElement>('#touch-speed')!.onchange = e => actions.pace((e.target as HTMLSelectElement).value as FlightPace);
     canvas.addEventListener('pointerdown', e => {
-      if (!this.enabled || !this.focused || !this.help.hidden || e.button !== 0) return;
+      if (!this.canFly || e.button !== 0) return;
       e.preventDefault();
       // A second finger cancels a gesture instead of accidentally setting a destination.
       if (this.pointer) { this.reset(); actions.hold(); return; }
@@ -56,7 +58,7 @@ export class TouchControls {
     });
     canvas.addEventListener('contextmenu', e => { e.preventDefault(); this.reset(); actions.hold(); });
     window.addEventListener('pointermove', e => {
-      const p = this.pointer; if (!p || p.id !== e.pointerId || !this.enabled) return;
+      const p = this.pointer; if (!p || p.id !== e.pointerId || !this.canFly) return;
       e.preventDefault();
       if (!p.dragged && Math.hypot(e.clientX-p.startX,e.clientY-p.startY) > 7) { p.dragged = true; actions.hold(); }
       if (p.dragged) { this.look.x += e.clientX-p.x; this.look.y += e.clientY-p.y; }
@@ -66,7 +68,7 @@ export class TouchControls {
       const p = this.pointer; if (!p || p.id !== e.pointerId) return;
       const tapped = !p.dragged && Math.hypot(e.clientX-p.startX,e.clientY-p.startY) < 8 && performance.now()-p.at < 600;
       this.release();
-      if (tapped && this.enabled && this.focused && this.help.hidden) actions.fly(e.clientX,e.clientY);
+      if (tapped && this.canFly) actions.fly(e.clientX,e.clientY);
     });
     for (const event of ['pointercancel','lostpointercapture']) canvas.addEventListener(event, e => {
       if (this.pointer?.id !== (e as PointerEvent).pointerId) return;
@@ -90,10 +92,15 @@ export class TouchControls {
     if (this.status.textContent !== connection) this.status.textContent = connection;
     this.root.querySelector<HTMLButtonElement>('#touch-chat')!.disabled = !canChat;
   }
-  get canFly() { return this.enabled && this.help.hidden; }
+  get canFly() { return this.focused && !document.hidden && this.help.hidden && this.actions.allowed(); }
   showDestination(point: {x:number;y:number} | null, status: string) {
     this.marker.hidden = !point;
-    if (point) { this.marker.style.left=`${point.x}px`; this.marker.style.top=`${point.y}px`; }
+    if (point) {
+      const landscape=innerWidth>innerHeight, top=landscape ? 108 : 164, bottom=innerHeight-(landscape ? 125 : 166);
+      const x=Math.max(52,Math.min(innerWidth-52,point.x)), y=Math.max(top,Math.min(bottom,point.y));
+      this.marker.style.left=`${x}px`; this.marker.style.top=`${y}px`;
+      this.marker.querySelector('b')!.textContent=point.y<top ? 'DESTINATION ↑' : point.y>bottom ? 'DESTINATION ↓' : point.x<52 ? '← DESTINATION' : point.x>innerWidth-52 ? 'DESTINATION →' : 'DESTINATION';
+    }
     if (this.flightStatus.textContent !== status) this.flightStatus.textContent=status;
   }
   consumeLook(dt: number) {

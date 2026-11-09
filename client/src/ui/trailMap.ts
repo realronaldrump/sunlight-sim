@@ -6,7 +6,7 @@ import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
 import { IPHONE } from '../platform';
 
-export interface MapPlayer { name: string; color: string; x: number; z: number; heading: number; self?: boolean }
+export interface MapPlayer { id?: string; name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 
 const css = `
 #tmap { position: fixed; inset: 0; z-index: 30; background: rgba(8,16,28,.82); display: none; }
@@ -110,7 +110,7 @@ export class TrailMap {
       if(!pointers.size) { moved=false;travel=0; }
       else moved=true;
       pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-      this.cv.setPointerCapture(e.pointerId);
+      try { this.cv.setPointerCapture(e.pointerId); } catch { /* Synthetic test pointer. */ }
     });
     this.cv.addEventListener('pointermove',e => {
       const old=pointers.get(e.pointerId);
@@ -143,7 +143,7 @@ export class TrailMap {
       const existed=pointers.delete(e.pointerId);
       if(existed && !moved && !pointers.size && this.visible){
         const friend=this.pickPlayer(e.clientX,e.clientY), run=this.pick(e.clientX,e.clientY);
-        if(friend && this.onJoinPlayer){this.onJoinPlayer(friend.name);this.toggle(false);}
+        if(friend && this.onJoinPlayer){this.onJoinPlayer(friend.id ?? friend.name);this.toggle(false);}
         else if(run && this.onTeleport){this.onTeleport(run.name);this.toggle(false);}
       }
     });

@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url?.startsWith('/health')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
+    res.end(JSON.stringify({ ok: true, release:process.env.RELEASE_SHA ?? 'development', droneOnly:true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
     return;
   }
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -25,6 +25,8 @@ const wss = new WebSocketServer({ server, maxPayload: 16 * 1024 });
 wss.on('connection', (ws: WebSocket) => {
   let room: string | null = null;
   let id: string | null = null;
+  const joinDeadline=setTimeout(() => { if(!room)ws.close(1008,'Join a room first'); },15000);
+  ws.on('error', () => ws.close());
   const conn = {
     send: (m: ServerMsg) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); },
     close: () => ws.close(),
@@ -36,13 +38,14 @@ wss.on('connection', (ws: WebSocket) => {
     if (msg.type === 'join') {
       if (room) return;
       const r = lobby.join(conn, String(msg.room ?? ''), String(msg.name ?? ''), String(msg.color ?? ''), msg.controlMode === 'drone' ? 'drone' : 'skier');
-      if (r) { room = r.room.code; id = r.id; console.log(`join ${room} ${id}`); }
+      if (r) { clearTimeout(joinDeadline); room = r.room.code; id = r.id; console.log(`join ${room} ${id}`); }
       return;
     }
     if (!room || !id) return;
     lobby.rooms.get(room)?.handle(id, msg);
   });
   ws.on('close', () => {
+    clearTimeout(joinDeadline);
     if (room && id) { lobby.leave(room, id); console.log(`leave ${room} ${id}`); }
   });
 });

@@ -10,11 +10,11 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 - Multiplayer rooms by link, shared chairs, chat, trail map with other players.
 - All in-game measurements use U.S. units: speed in mph, elevation in feet, and lift distances and trail lengths in feet or miles.
 
-**Play now (solo):** https://sunlight-sim.vercel.app  (the multiplayer server is not hosted yet; see Deploy below. Multiplayer works locally and on a LAN.)
+**Play now:** https://sunlight-sim.vercel.app. Desktop skiing and iPhone drone exploration share the same multiplayer rooms.
 
 ## Run it locally
 
-Requirements: Node 20.19+ (or 22+). A desktop browser with WebGPU (Chrome or Safari on macOS) or WebGL2.
+Requirements: Node 20.19+ (or 22+). A browser with WebGPU or WebGL2. Desktop browsers support skiing and drone flight; iPhones launch in drone-only mode.
 
 ```bash
 npm install && npm run dev
@@ -24,7 +24,20 @@ Open the printed URL (http://localhost:5173). `npm run dev` starts both the clie
 
 All game-ready world data is committed under `client/public/world`, so no data download is needed to play.
 
-## Controls
+## iPhone controls
+
+An iPhone always starts as a drone. Skiing, walking and lift boarding are unavailable, including with an attached keyboard or gamepad. Portrait and landscape both work.
+
+- **Tap a destination** in the scenery to fly there. Tap the mountain to fly above it; tap the sky to climb toward it. The marker shows where you are heading.
+- **Drag to look around.** Dragging pauses flight, so you can aim before choosing your next destination.
+- **Hold** stops immediately. **Home** returns to your current launch point. **View** switches between chase and the drone camera.
+- Choose **Gentle**, **Cruise** or **Fast**. Flight accelerates and slows smoothly, climbs for nearby terrain and obstacles, and stops with a message if the path stays blocked. Pick a closer or higher destination to go around dense obstacles.
+- **Map** lets you tap a run or friend to fly there. Pinch to zoom and drag to pan. **Chat**, **Options** and **?** are available without a keyboard.
+- Backgrounding Safari, losing focus, rotating, opening a panel or losing the multiplayer connection stops flight. Rejoining your room is automatic; movement does not resume by itself.
+
+Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail range and no shadows. Real terrain and Mount Sopris detail remain. Physical iPhone GPU performance still depends on the device and thermal state; browser emulation is not a hardware benchmark.
+
+## Desktop controls
 
 | Key | Action |
 |---|---|
@@ -47,13 +60,13 @@ Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y c
 
 To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Press F to skip the ride. See ACCURACY.md for the remaining geometry and operating-speed limitations.
 
-## Ski with a friend (share a link)
+## Explore with a friend (share a link)
 
 1. In the start menu enter a name, pick a jacket colour and press **Create room**.
-2. Press **Copy invite link** (top left) and send the link (it contains `?room=CODE`).
+2. Press **Copy invite link**, or **Share invite** on iPhone, and send the link (it contains `?room=CODE`).
 3. Your friend opens the link and presses **Join**. Up to 8 players per room.
 
-The client connects to the multiplayer server at `ws(s)://<page host>:8787` by default. Override with `?server=wss://your-server` or at build time with `VITE_SERVER_URL`.
+The public client uses the hosted multiplayer service configured by `VITE_SERVER_URL`. Locally it defaults to `ws(s)://<page host>:8787`. Override with `?server=wss://your-server` or at build time with `VITE_SERVER_URL`. Drone pilots and desktop skiers share rooms; friends and map markers follow the aircraft while flying. Phone pilots do not leave a ghost skier behind.
 
 ## Build for production
 
@@ -76,7 +89,22 @@ npx vercel@latest deploy --prod
 
 (or connect the GitHub repo in the Vercel dashboard with build command `npm run build` and output directory `dist`, and set the `VITE_SERVER_URL` environment variable).
 
-### Multiplayer server on Fly.io
+### Multiplayer server on the mini-PC (production)
+
+The production service is the isolated `sunlight-multiplayer` container from `hosting/compose.yaml`, listening only on `127.0.0.1:8787`. It restarts automatically. Its public WebSocket endpoint is `wss://davis-mini-pc-1.tail59b3f5.ts.net:10000/sunlight/`, through an added Tailscale Funnel path. The existing portal and other app routes remain separate.
+
+Deploy a committed source snapshot (package manifests, tsconfig, shared, server, hosting/compose.yaml and client/public/world/resort.json), then on the mini-PC:
+
+```bash
+RELEASE_SHA=<full-commit-sha> docker compose -f hosting/compose.yaml up -d --build
+sudo tailscale funnel --bg --https=10000 --set-path=/sunlight http://127.0.0.1:8787
+```
+
+`GET https://davis-mini-pc-1.tail59b3f5.ts.net:10000/sunlight/health` reports the deployed source SHA, room/player counts and drone-only protocol support. Set the Vercel production `VITE_SERVER_URL` to the endpoint above before building the client. Verify the matching public client and server together. All deployments require committing changes, `git push origin main`, and verifying the deployed commit is on `origin/main`.
+
+The service relies on the mini-PC and its internet connection being available. Rooms are ephemeral; clients automatically reconnect after an interruption. Existing alternatives below can host the same server.
+
+### Alternative: Multiplayer server on Fly.io
 
 `hosting/fly.toml` and `server/Dockerfile` are included.
 

@@ -296,6 +296,7 @@ export class NetClient {
         r.flightYaw+=Math.atan2(Math.sin(f.yaw-r.flightYaw),Math.cos(f.yaw-r.flightYaw))*k;
         r.drone.update(dt,{pos:r.flightPos,yaw:r.flightYaw,pitch:f.pitch,bank:f.bank,tilt:f.tilt,rpm:f.rpm});
       }
+      if (r.droneOnly) continue;
       let s: NetSkier | undefined;
       let heading = 0;
       let loading = false;
@@ -362,7 +363,7 @@ export class NetClient {
 
   mapPlayers() {
     return [...this.remotes.values()].map((r) => ({
-      name: r.name, color: r.color, x: r.flight ? r.flightPos.x : r.model.root.position.x, z: r.flight ? r.flightPos.z : r.model.root.position.z, heading: r.flight ? r.flightYaw : r.heading,
+      id: r.id, name: r.name, color: r.color, x: r.flight ? r.flightPos.x : r.model.root.position.x, z: r.flight ? r.flightPos.z : r.model.root.position.z, heading: r.flight ? r.flightYaw : r.heading,
     }));
   }
 }

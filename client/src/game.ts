@@ -95,7 +95,13 @@ export class Game {
   onFrame: ((dt: number) => void)[] = [];
   ready = false;
 
-  constructor(private container: HTMLElement) { document.body.classList.toggle('iphone', this.droneOnly); }
+  constructor(private container: HTMLElement) {
+    document.body.classList.toggle('iphone', this.droneOnly);
+    if (this.droneOnly && window.visualViewport) {
+      const resize = () => document.body.style.setProperty('--visual-height', `${window.visualViewport!.height}px`);
+      window.visualViewport.addEventListener('resize',resize); resize();
+    }
+  }
 
   setLoading(frac: number, text: string) {
     const b = document.getElementById('load-bar');
@@ -107,7 +113,7 @@ export class Game {
   async start() {
     this.setLoading(0.05, 'Starting renderer');
     const graphics = await detectGraphics(this.params.get('webgl') === '1');
-    this.quality = this.droneOnly ? { ...PRESETS.low, pixelRatio: 1.25, targetMP: .7, treeNear: 75 } : PRESETS[graphics.quality];
+    this.quality = this.droneOnly ? { ...PRESETS.low, pixelRatio: 1.25, targetMP: .7, treeNear: 75, antialias: true } : PRESETS[graphics.quality];
     const Q = this.quality;
     this.renderer = await initializeRenderer(Q.antialias, graphics.forceWebGL);
     // Khronos PBR Neutral keeps the deep high-altitude sky blue and snow white without ACES hue shifts.
@@ -212,6 +218,7 @@ export class Game {
         chat: () => { if (this.net?.connected) this.chat.openInput(); },
         camera: () => this.drone.cycleCamera(), home: () => this.recallDrone(), hold: () => this.holdDrone(),
         fly: (x,y) => this.tapDestination(x,y), pace: pace => { this.navigation.pace = pace; },
+        allowed: () => this.ready && !this.chat?.open && !this.options?.visible && !this.trailMap.visible && !this.launchingDrone && (!this.net || this.net.connected),
       });
     }
 
@@ -714,27 +721,27 @@ export class Game {
   /** Teleport next to another player (or to the top of the lift they are riding). */
   async joinFriend(name: string) {
     this.leaveOnFoot();
-    const r = this.net ? [...this.net.remotes.values()].find((x) => x.name === name) : null;
+    const r = this.net ? [...this.net.remotes.values()].find((x) => x.id === name || x.name === name) : null;
     if (!r) return;
     if (this.droneOnly) {
       const p = r.flight ? r.flightPos : r.model.root.position;
       await this.travelDrone(p.x + 3, p.z, r.flight ? r.flightYaw : r.heading, r.flight ? p.y : undefined);
-      this.hud.toast(`Flying near ${name}`); return;
+      this.hud.toast(`Flying near ${r.name}`); return;
     }
     if (this.drone.active) this.toggleDrone();
     let x: number, z: number, heading: number;
-    if (r.ride) {
+    if (r.ride && !r.flight) {
       const up = this.lifts.paths[r.ride.lift].unloadPoint();
       x = up.x; z = up.z; heading = up.heading;
     } else {
-      const p = r.model.root.position;
-      heading = r.heading;
+      const p = r.flight ? r.flightPos : r.model.root.position;
+      heading = r.flight ? r.flightYaw : r.heading;
       x = p.x + Math.cos(heading) * 2.5; z = p.z - Math.sin(heading) * 2.5; // 2.5 m to their right
     }
     await this.hf.ensureArea(0, x, -z, 200);
     this.player.teleport(x, z, heading);
     this.net?.markTeleport();
-    this.hud.toast(r.ride ? `Waiting for ${name} at the top of the lift` : `Joined ${name}`);
+    this.hud.toast(r.ride && !r.flight ? `Waiting for ${r.name} at the top of the lift` : `Joined ${r.name}`);
   }
 
   async teleportToRun(name: string) {
