@@ -1,10 +1,11 @@
 # Progress
 
-## The sound of places (November 9, 2026, in progress)
+## The sound of places (November 9, 2026, released)
 
 - **Where you are changes the sound** (`client/src/audio/audioModel.ts` `environmentMix`, game `placeSound`): inside the lodge the outdoor wind and machinery drop away behind the walls and glass, and the room comes up: room tone, the conversation of the people actually seated nearby, cups set down, the register, and now and then the grinder and the steam wand. Ski boots clunk on the lodge floor and the deck and crunch on snow. In sheltered groves (canopy around you from the lidar canopy map) the wind is hushed and softened and bare branches knock now and then. On open, high ground that stands above its surroundings (ridges, the summit, a chair high over the snow) the wind is stronger and brighter with slow gusts and a faint whistle. Chatter also rises around the deck, lift lines and the lesson kids. Doorways and groves fade smoothly.
 - **Groomers rumble** when you are near one at work.
 - The new sounds are deterministic synthesis (`client/src/audio/ambienceSynth.ts`, CC0), so no downloads were needed.
+- Release `df2f813`: pushed and verified on `origin/main`; Vercel deployment `dpl_2byGZS3WKmtbQKbbi2H1AxwuuEh9` READY at https://sunlight-sim.vercel.app serving `index-BgsKk7a9.js`; live audio and place-audio scenarios passed in Chromium and WebKit. No server change.
 - Verified: offline renders of the real audio graph at rest measured open slope -46 dB, grove -53 dB, deck -43 dB, lodge -37 dB and ridge about -36 dB (clips in `screenshots/review-audio/`); new `audioPlaces.spec.ts` asserts those relationships in Chromium and WebKit; the game measured indoor 1 and chatter 0.6 in the dining room, shelter 0.88 in a dense grove, 0.08 on Sun King and exposure 0.41 at the top of Primo. Existing audio scenarios pass.
 
 ## Lodge stops and gestures (November 9, 2026, released)
