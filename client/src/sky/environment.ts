@@ -15,7 +15,9 @@ export interface EnvOptions { shadows: boolean; shadowMapSize: number; cascades:
 export class Environment {
   readonly sky = new SkyMesh();
   readonly sun = new THREE.DirectionalLight(0xfff4e6, 3.2);
-  readonly hemi = new THREE.HemisphereLight(0xbcd4ff, 0xe8ecf2, 0.55);
+  // Sky fill is kept well below the sun: on a clear high-altitude day diffuse sky light on flat snow
+  // is roughly a quarter of the direct beam, so tree and terrain shadows read about 3 to 4x darker.
+  readonly hemi = new THREE.HemisphereLight(0xb4d0ff, 0xeef1f4, 0.18);
   readonly sunDir = uniform(new THREE.Vector3(0, 1, 0));
   readonly hazeColor = uniform(new THREE.Color(0.66, 0.75, 0.88));
   readonly hazeDensity = uniform(1.1e-5);
@@ -27,6 +29,15 @@ export class Environment {
   private skyScene = new THREE.Scene();
   private envDirty = true;
   sunInfo = sunPosition(januaryMST(11), LAT, LON);
+  /** Image-based sky fill, see `hemi`. */
+  envIntensity = 0.22;
+  /** Base camera exposure for Khronos PBR Neutral tone mapping, before eye adaptation. */
+  baseExposure = 0.74;
+  /** Current adapted exposure multiplier (eye/camera adaptation to the lit terrain in view). */
+  adaptation = 1;
+  private adaptTarget = 1;
+  private adaptClock = 0;
+  private lastAdaptPos = new THREE.Vector3(1e9, 0, 0);
 
   constructor(private scene: THREE.Scene, private renderer: THREE.WebGPURenderer, private camera: THREE.PerspectiveCamera, opts: EnvOptions) {
     this.sky.scale.setScalar(450000);
@@ -95,7 +106,7 @@ export class Environment {
     const t = THREE.MathUtils.clamp((el - 2) / 25, 0, 1);
     this.sun.color.setRGB(1.0, 0.78 + 0.18 * t, 0.6 + 0.32 * t);
     this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (this.snowing ? 0.25 : 1);
-    this.hemi.intensity = (0.25 + 0.35 * t) * (this.snowing ? 1.8 : 1);
+    this.hemi.intensity = (0.1 + 0.08 * t) * (this.snowing ? 3.2 : 1);
     this.envDirty = true;
   }
 
@@ -106,6 +117,44 @@ export class Environment {
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();
     if (this.envDirty) this.updateEnvMap();
+  }
+
+  get exposure() { return this.baseExposure * this.adaptation; }
+
+  /**
+   * Gradual eye adaptation. Samples the terrain the camera is looking at and compares its direct plus
+   * sky irradiance with flat open snow. North-facing slopes in low January sun are brightened, sunny
+   * faces darkened, but only partially (square root response) so sun and shade still read differently.
+   */
+  adapt(dt: number, cam: THREE.Camera, normalAt: (x: number, z: number) => { x: number; y: number; z: number }) {
+    this.adaptClock += dt;
+    // a teleport or camera cut adapts immediately instead of fading in from the old view
+    const cut = cam.position.distanceTo(this.lastAdaptPos) > 30;
+    this.lastAdaptPos.copy(cam.position);
+    if (this.adaptClock > 0.25 || cut) {
+      this.adaptClock = 0;
+      const dir = new THREE.Vector3(); cam.getWorldDirection(dir);
+      const fx = dir.x, fz = dir.z, fl = Math.hypot(fx, fz) || 1;
+      const ux = fx / fl, uz = fz / fl;
+      const s = this.sunDir.value;
+      const fill = 0.19;
+      let key = 0, weight = 0;
+      for (const d of [3, 8, 18, 40, 90, 180]) {
+        for (const lat of [-0.6, 0, 0.6]) {
+          const x = cam.position.x + ux * d - uz * lat * d, z = cam.position.z + uz * d + ux * lat * d;
+          const n = normalAt(x, z);
+          const w = 1 / Math.sqrt(d);
+          key += w * (Math.max(0, n.x * s.x + n.y * s.y + n.z * s.z) + fill);
+          weight += w;
+        }
+      }
+      key /= weight;
+      const flat = Math.max(0.05, Math.max(0, s.y)) + fill;
+      this.adaptTarget = this.snowing ? 1 : THREE.MathUtils.clamp(Math.sqrt(flat / Math.max(key, 0.05)), 0.8, 1.45);
+    }
+    // eyes adapt over a second or two
+    if (cut) this.adaptation = this.adaptTarget;
+    else this.adaptation += (this.adaptTarget - this.adaptation) * (1 - Math.exp(-dt / 1.4));
   }
 
   private updateEnvMap() {
@@ -126,7 +175,7 @@ export class Environment {
       this.envRT?.dispose();
       this.envRT = rt;
       this.scene.environment = rt.texture;
-      this.scene.environmentIntensity = 0.65;
+      this.scene.environmentIntensity = this.envIntensity * (this.snowing ? 2.2 : 1);
     } catch (e) {
       console.warn('env map failed', e);
     }

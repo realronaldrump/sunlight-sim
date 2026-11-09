@@ -98,8 +98,9 @@ export class Game {
     this.quality = PRESETS[graphics.quality];
     const Q = this.quality;
     this.renderer = await initializeRenderer(Q.antialias, graphics.forceWebGL);
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.55;
+    // Khronos PBR Neutral keeps the deep high-altitude sky blue and snow white without ACES hue shifts.
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 0.74;
     this.renderer.shadowMap.enabled = Q.shadows;
     this.container.appendChild(this.renderer.domElement);
     this.onResize();
@@ -145,7 +146,7 @@ export class Game {
     this.probe = this.lifts.buildStationSurfaces(this.probe);
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
-    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings);
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings, Q.antialias);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);
@@ -430,6 +431,8 @@ export class Game {
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
     this.tmpV.set(p.x,p.y,p.z); this.env.update(this.tmpV);
+    this.env.adapt(dt, this.camera, (x, z) => this.hf.normalAt(x, z, 2));
+    this.renderer.toneMappingExposure = this.env.exposure;
 
     const st = this.player.st;
     const mapPos = this.drone.state?.pos ?? st.pos;

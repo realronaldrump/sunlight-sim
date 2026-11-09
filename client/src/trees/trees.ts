@@ -4,9 +4,12 @@
 import * as THREE from 'three/webgpu';
 import { texture, uv, vec2, vec3, float, attribute, transformNormalToView, mix, positionWorld, cameraPosition, length, smoothstep } from 'three/tsl';
 import { coniferGeometry, aspenGeometry, oakGeometry, impostorAtlas, crossQuadGeometry, branchTexture } from './treeAssets';
+import { ASPEN_STEMS, aspenBarkTexture, aspenTwigTexture } from './aspen';
 import type { ColliderGrid } from '../../../shared/collision';
 
 const CELL = 64;
+/** Trees closer than this use the full-detail meshes; the rest of the near ring uses the light meshes. */
+const HIGH_DETAIL_DIST = 85;
 
 interface TileData {
   tx: number; tn: number; n: number;
@@ -31,7 +34,8 @@ export class TreeSystem {
   readonly group = new THREE.Group();
   private tiles = new Map<string, TileData>();
   private cells = new Map<number, { tile: TileData; idx: number[] }[]>();
-  private nearMeshes: THREE.InstancedMesh[] = [];
+  /** nearMeshes[tier][species]; tier 0 is full detail. */
+  private nearMeshes: THREE.InstancedMesh[][] = [[], []];
   private nearCells = new Set<number>();
   private impostorMat: THREE.MeshStandardNodeMaterial;
   private quad = crossQuadGeometry();
@@ -45,10 +49,12 @@ export class TreeSystem {
   enabled = true;
 
   constructor(private base: string, private colliders: ColliderGrid, private nearDist = 210, private farDist = 3200,
-    private buildings: { points: number[][] }[] = []) {
+    private buildings: { points: number[][] }[] = [], msaa = true) {
     this.group.name = 'trees';
     const atlas = impostorAtlas();
-    const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, alphaTest: 0.5, roughness: 0.95 });
+    // With MSAA, alpha-to-coverage keeps thin winter crowns translucent instead of speckled cut-outs.
+    const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, alphaTest: msaa ? 0.03 : 0.5, roughness: 0.95 });
+    mat.alphaToCoverage = msaa;
     const sp = attribute('species', 'float');
     const tint = attribute('tint', 'float');
     const tuv = uv().mul(vec2(0.25, 1)).add(vec2(sp.mul(0.25), 0));
@@ -59,7 +65,7 @@ export class TreeSystem {
     // fade out impostors beyond farDist
     const d = length(positionWorld.sub(cameraPosition));
     // keep coverage at distance (mipmapped alpha thins out foliage) and fade out at the far limit
-    const cover = float(1).add(d.div(450.0));
+    const cover = float(1).add(d.div(msaa ? 1600.0 : 450.0));
     mat.opacityNode = texel.a.mul(cover).mul(float(1).sub(smoothstep(this.farDist * 0.85, this.farDist, d)));
     this.impostorMat = mat;
 
@@ -68,13 +74,26 @@ export class TreeSystem {
       vertexColors: true, map: branchTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95,
     });
     coniferMat.envMapIntensity = 0.5;
-    const geos = [coniferGeometry(0, 'high'), coniferGeometry(1, 'high'), aspenGeometry('high'), oakGeometry('high')];
-    for (let s = 0; s < 4; s++) {
-      const m = new THREE.InstancedMesh(geos[s], s <= 1 ? coniferMat : nearMat, 24000);
-      m.count = 0;
-      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-      this.nearMeshes.push(m);
-      this.group.add(m);
+    const barkMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, map: aspenBarkTexture(), roughness: 0.82 });
+    const twigTex = aspenTwigTexture();
+    const twigMat = new THREE.MeshStandardNodeMaterial({
+      vertexColors: true, map: twigTex, alphaTest: msaa ? 0.08 : 0.4, side: THREE.DoubleSide, roughness: 0.95,
+    });
+    twigMat.alphaToCoverage = msaa;
+    // shadows keep only the solid twigs, so crowns cast lacy rather than card-shaped shadows
+    twigMat.maskShadowNode = texture(twigTex).a.greaterThan(0.45);
+    twigMat.envMapIntensity = 0.6;
+    const caps = [[14000, 4000, 9000, 6000], [24000, 12000, 30000, 16000]];
+    for (const [tier, detail] of (['high', 'low'] as const).entries()) {
+      const geos = [coniferGeometry(0, detail), coniferGeometry(1, detail), aspenGeometry(detail), oakGeometry(detail)];
+      for (let s = 0; s < 4; s++) {
+        const mat = s <= 1 ? coniferMat : s === 2 ? [barkMat, twigMat] : nearMat;
+        const m = new THREE.InstancedMesh(geos[s], mat, caps[tier][s]);
+        m.count = 0;
+        m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+        this.nearMeshes[tier].push(m);
+        this.group.add(m);
+      }
     }
   }
 
@@ -131,7 +150,14 @@ export class TreeSystem {
       entry.idx.push(i);
       if (!excluded[i] && h[i] > 3 && s[i] !== 3) {
         const trunk = 0.1 + 0.012 * h[i] + (s[i] <= 1 ? 0.3 : 0.05);
-        this.colliders.add({ type: 'cyl', x: x[i], z: z[i], r: trunk, top: y[i] + h[i] });
+        if (s[i] === 2) {
+          // every rendered aspen stem is solid, matching the near mesh orientation in update()
+          const rot = (seed[i] / 255) * Math.PI * 2, c = Math.cos(rot), sn = Math.sin(rot);
+          for (const [dx, dz, hf, gs] of ASPEN_STEMS) {
+            const ox = (dx * c + dz * sn) * r[i], oz = (-dx * sn + dz * c) * r[i];
+            this.colliders.add({ type: 'cyl', x: x[i] + ox, z: z[i] + oz, r: Math.max(0.08, (0.04 + 0.012 * h[i]) * gs), top: y[i] + h[i] * hf });
+          }
+        } else this.colliders.add({ type: 'cyl', x: x[i], z: z[i], r: trunk, top: y[i] + h[i] });
       }
     }
     this.buildImpostors(t);
@@ -171,7 +197,7 @@ export class TreeSystem {
   update(cam: THREE.Vector3) {
     this.group.visible = this.enabled;
     if (!this.enabled) return;
-    if (cam.distanceToSquared(this.lastCam) < 15 * 15) return;
+    if (cam.distanceToSquared(this.lastCam) < 10 * 10) return;
     this.lastCam.copy(cam);
     const ci = Math.floor(cam.x / CELL), cj = Math.floor(cam.z / CELL);
     const rad = Math.ceil(this.nearDist / CELL) + 1;
@@ -197,7 +223,8 @@ export class TreeSystem {
     this.nearCells = want;
     for (const t of changedTiles) t.mesh!.instanceMatrix.needsUpdate = true;
     // rebuild near meshes
-    const counts = [0, 0, 0, 0];
+    const counts = [[0, 0, 0, 0], [0, 0, 0, 0]];
+    const high2 = HIGH_DETAIL_DIST * HIGH_DETAIL_DIST;
     for (const k of want) {
       const list = this.cells.get(k);
       if (!list) continue;
@@ -206,8 +233,11 @@ export class TreeSystem {
         for (const i of e.idx) {
           if (t.excluded[i]) continue;
           const s = t.s[i];
-          const mesh = this.nearMeshes[s];
-          if (counts[s] >= mesh.instanceMatrix.count) continue;
+          const dx = t.x[i] - cam.x, dz = t.z[i] - cam.z;
+          let tier = dx * dx + dz * dz < high2 ? 0 : 1;
+          if (tier === 0 && counts[0][s] >= this.nearMeshes[0][s].instanceMatrix.count) tier = 1;
+          const mesh = this.nearMeshes[tier][s];
+          if (counts[tier][s] >= mesh.instanceMatrix.count) continue;
           const rot = (t.seed[i] / 255) * Math.PI * 2;
           this.q.setFromAxisAngle(this.v.set(0, 1, 0), rot);
           const lean = ((t.seed[i] * 7) % 255) / 255 * 0.04 - 0.02;
@@ -215,13 +245,13 @@ export class TreeSystem {
           this.q.multiply(q2);
           this.sc.set(t.r[i], t.h[i], t.r[i]);
           this.m4.compose(this.v.set(t.x[i], t.y[i] - 0.2, t.z[i]), this.q, this.sc);
-          mesh.setMatrixAt(counts[s]++, this.m4);
+          mesh.setMatrixAt(counts[tier][s]++, this.m4);
         }
       }
     }
-    for (let s = 0; s < 4; s++) {
-      this.nearMeshes[s].count = counts[s];
-      this.nearMeshes[s].instanceMatrix.needsUpdate = true;
+    for (let tier = 0; tier < 2; tier++) for (let s = 0; s < 4; s++) {
+      this.nearMeshes[tier][s].count = counts[tier][s];
+      this.nearMeshes[tier][s].instanceMatrix.needsUpdate = true;
     }
   }
 

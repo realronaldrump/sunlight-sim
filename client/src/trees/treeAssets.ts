@@ -3,6 +3,7 @@
 // (crown radius, height, crown radius), so horizontal and vertical extents are designed separately.
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { drawAspenImpostor } from './aspen';
 
 // species: 0 spruce/fir, 1 Douglas-fir, 2 aspen (bare), 3 Gambel oak (bare shrub)
 
@@ -144,56 +145,7 @@ export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.Buff
   return g;
 }
 
-/** Bare aspen: pale trunk with dark marks and spreading branches with fine twigs. Height 1, radius ~1. */
-export function aspenGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-  const r = rand(29);
-  const R = 2.1, H = 14;
-  const seg = (a: THREE.Vector3, b: THREE.Vector3, rad0: number, rad1: number, col: THREE.Color, sides = 4) => {
-    a = a.clone().multiply(new THREE.Vector3(R, H, R));
-    b = b.clone().multiply(new THREE.Vector3(R, H, R));
-    const d = b.clone().sub(a); const L = d.length();
-    const c = new THREE.CylinderGeometry(rad1 * R, rad0 * R, L, sides, 1, true);
-    c.translate(0, L / 2, 0);
-    c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
-    c.translate(a.x, a.y, a.z);
-    parts.push(colorize(c.toNonIndexed(), () => col));
-  };
-  const trunk = new THREE.CylinderGeometry(0.028, 0.05, 1.0, detail === 'high' ? 9 : 5, detail === 'high' ? 28 : 8, true);
-  trunk.translate(0, 0.5, 0);
-  parts.push(colorize(trunk.toNonIndexed(), (p) => {
-    const mark = Math.sin(p.y * 190 + Math.atan2(p.z, p.x) * 3.7) > 0.94 ? 0.32 : 1;
-    const base = p.y < 0.07 ? 0.55 : 1;
-    return new THREE.Color(0.43, 0.45, 0.40).multiplyScalar(mark * base);
-  }));
-  parts[0].scale(R, H, R);
-  const nb = detail === 'high' ? 16 : 6;
-  const branchCol = new THREE.Color(0.105, 0.095, 0.08), twigCol = new THREE.Color(0.065, 0.058, 0.05);
-  for (let i = 0; i < nb; i++) {
-    const y0 = 0.42 + r() * 0.5;
-    const ang = r() * Math.PI * 2;
-    const reach = (0.55 + r() * 0.45) * (1 - (y0 - 0.42) * 0.6);
-    const rise = 0.06 + r() * 0.12;
-    const a = new THREE.Vector3(0, y0, 0);
-    const b = new THREE.Vector3(Math.cos(ang) * reach, y0 + rise, Math.sin(ang) * reach);
-    seg(a, b, 0.016, 0.006, branchCol);
-    if (detail === 'high') {
-      for (let k = 0; k < 4; k++) {
-        const t = 0.35 + r() * 0.6;
-        const p = a.clone().lerp(b, t);
-        const a2 = ang + (r() - 0.5) * 1.6;
-        const l2 = 0.15 + r() * 0.25;
-        seg(p, new THREE.Vector3(p.x + Math.cos(a2) * l2, p.y + 0.03 + r() * 0.05, p.z + Math.sin(a2) * l2), 0.006, 0.002, twigCol, 3);
-      }
-    }
-  }
-  const result = mergeGeometries(parts);
-  result.scale(1 / R, 1 / H, 1 / R);
-  result.computeBoundingBox();
-  result.scale(1, 1 / result.boundingBox!.max.y, 1);
-  for (const part of parts) part.dispose();
-  return result;
-}
+export { aspenGeometry } from './aspen';
 
 /** Gambel oak thicket clump: many crooked grey-brown stems from the ground, each with twigs (bare in winter). */
 export function oakGeometry(detail: 'high' | 'low'): THREE.BufferGeometry {
@@ -271,19 +223,7 @@ export function impostorAtlas(): THREE.CanvasTexture {
   };
   conifer(0, S * 0.36, 0.8);
   conifer(S, S * 0.42, 0.68);
-  {
-    const ox = S * 2;
-    g.strokeStyle = '#b8b9ac'; g.lineWidth = 8;
-    g.beginPath(); g.moveTo(ox + S / 2, S); g.lineTo(ox + S / 2, S * 0.12); g.stroke();
-    for (let i = 0; i < 220; i++) {
-      const y = S * (0.12 + r() * 0.5);
-      const a = (r() - 0.5) * 2.4;
-      const len = 25 + r() * 60;
-      g.strokeStyle = `rgba(${95 + r() * 30 | 0},${88 + r() * 25 | 0},${80 + r() * 20 | 0},0.9)`;
-      g.lineWidth = 1 + r() * 1.5;
-      g.beginPath(); g.moveTo(ox + S / 2, y + 30); g.lineTo(ox + S / 2 + Math.sin(a) * len, y + 30 - Math.cos(a) * len * 0.6); g.stroke();
-    }
-  }
+  drawAspenImpostor(g, S * 2, S);
   {
     const ox = S * 3;
     for (let i = 0; i < 300; i++) {

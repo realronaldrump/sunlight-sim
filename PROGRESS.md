@@ -1,5 +1,17 @@
 # Progress
 
+## Realism pass 3 (Claude, November 8, 2026, in progress)
+- Owner direction: focus entirely on realism (accuracy, physics, visuals); performance later. Should feel like a polished open-world 1:1 Sunlight ski simulator, including getting around the base, to lifts and riding. Another agent is finishing lift-boarding physics (`client/src/skier/player.ts`, `shared/lifts.ts`, `server/src/rooms.ts`, `shared/protocol.ts`, `client/src/net/netClient.ts`, `client/src/ui/hud.ts`, lift tests). Do not touch or commit those until that work lands; after that this agent is the only one working.
+- Session start: production build, 89 unit tests and 5 pipeline checks passed. Review script `tests/scratch/review.mjs <url> <outDir> [views] [extraQuery]` (ignored) captures base, primo_load, segundo_top, aspen, sopris, midway, sunking, aerial, chase at 1600x900; `SETUP` env runs JS after boot, `SUFFIX` renames shots. Baseline shots: `screenshots/review-before/`.
+- DONE Lighting (D18): Neutral tone mapping, fill reduced to give real 3 to 4x sun/shade contrast on snow, deep blue sky, eye adaptation from terrain irradiance in view. Reviewed base, Midway, Sun King, aerial and chase views (`screenshots/review-light/`).
+- DONE Aspen groves (D17): new `client/src/trees/aspen.ts` (bark texture, twig cards, clonal ramets with collision, matching impostor), alpha-to-coverage crowns and impostors, 85 m full-detail tier plus light tier. Removed the mauve impostor streaks. Reviewed `screenshots/review-aspen/`.
+- NEXT (in order):
+  1. Lift terminals and towers per reference photos (`data/raw/reference/lifts/`): Primo bottom = open spoked bullwheel on one galvanized tapered column (Leitner-Poma 2025); Segundo bottom = dark green Leitner-Poma curved housing with dark windows on big tube arms and angled legs; Tercero = dark brown Riblet pipe towers with ring chair guards and sheave trains. Replace the blue disc hood and box legs in `client/src/lifts/liftSystem.ts` `buildStatic`. Wait for the other agent's lift work to land first.
+  2. Station snow ramps are hard-edged rectangular slabs; blend edges into the terrain (shared/liftStations.ts, after the other agent's work).
+  3. Base-area navigation at 1:1: lift maze ropes, load boards, signs, liftie shacks colored per lift, lodge to lift paths. Consider a lower camera FOV (currently 62 vertical) for natural scale.
+  4. Conifer near/far look under the new lighting, mid-distance forest density, snow on conifer boughs.
+  5. Post-processing (GTAO contact shading, subtle bloom) if it improves realism.
+
 ## Mount Sopris detail (November 8, 2026, complete)
 - Owner requested accurate Sopris geometry while retaining the existing roughness of other distant mountains. Other agents are actively editing this checkout; their work is preserved.
 - Starting build, 72 unit tests and 4 pipeline checks passed. The original summit-view mesh used 64 to 128 m spacing around Sopris; captured `screenshots/sopris-before-{summit,detail}.png`.
