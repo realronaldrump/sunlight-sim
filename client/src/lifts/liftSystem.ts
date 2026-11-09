@@ -245,7 +245,7 @@ export class LiftSystem {
     return { heading: lp.heading, uphill: lp.uphill, h: lp.h };
   }
 
-  update(occupied: { lift: number; chair: number }[] = []) {
+  update(occupied: { lift: number; chair: number }[] = [], viewer?: THREE.Vector3) {
     const t = this.now();
     for (let li = 0; li < this.paths.length; li++) {
       const path = this.paths[li];
