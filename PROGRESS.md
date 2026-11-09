@@ -4,6 +4,8 @@
 - Owner requests lift speed control, removal of B teleport, pause-menu-only teleportation, optional skier tracking marker in drone mode, and deployment. Clarification: speed up only the occupied lift, never the surroundings or other lifts.
 - Added independent 1×/8× lift clocks, per-lift multiplayer synchronization, natural unload deadlines, visible controls, pause travel actions and optional screen-space skier marker. Normal map is view-only; B and live drone recall shortcuts are removed.
 - Baseline build, 107 unit tests and five pipeline checks passed. Implementation build and 114 current unit tests pass, including all three lifts, synchronized seating, unchanged other clocks, unload and disconnect resets. Browser scenarios and immutable release validation are in progress.
+- Chromium browser checks pass for pause-only travel, removed B, selected-lift-only speed, natural unload and on/off-screen drone markers on both rendering backends. Added a single sampled lift time per rendered frame so seats and carriers stay exactly aligned at 8×; Safari verification and final release remain pending.
+- Implementation was included in concurrent checkpoint `1f6ad9d`; this follow-up completes frame alignment and browser timing checks.
 - Other chats are actively changing structures, chair swing/falls and buildings in this checkout. Preserve their edits; deploy only a tested committed snapshot. Some clock/render integration already landed in a concurrent lift-structure checkpoint.
 
 

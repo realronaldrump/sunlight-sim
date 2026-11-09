@@ -28,6 +28,7 @@ export class LiftSystem {
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
   private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
   readonly clocks: LiftClock[] = [];
+  private frameTimes: number[] | null = null;
   clockOffset = 0; // test-time offset; network synchronization uses clock
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -81,7 +82,9 @@ export class LiftSystem {
     }
   }
 
-  now(lift?: number) { return (lift === undefined ? Date.now() / 1000 : this.clocks[lift].now()) + this.clockOffset; }
+  now(lift?: number) { return (lift === undefined ? Date.now() / 1000 : this.frameTimes?.[lift] ?? this.clocks[lift].now()) + this.clockOffset; }
+  beginFrame() { this.frameTimes = this.clocks.map(clock => clock.now()); }
+  endFrame() { this.frameTimes = null; }
 
   /** Seats taken by ambient riders on a chair (the crowd queue boards exactly these). */
   riderSeats(li: number, chair: number) {

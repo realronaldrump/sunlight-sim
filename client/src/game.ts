@@ -573,6 +573,7 @@ export class Game {
 
   private frame() {
     this.timer.update();
+    this.lifts.beginFrame();
     const t0 = performance.now();
     const dt = Math.min(this.timer.getDelta(), 0.1);
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
@@ -687,6 +688,7 @@ export class Game {
     this.updateAudio(dt);
     this.updateTracks(dt);
     this.renderer.render(this.scene, this.camera);
+    this.lifts.endFrame();
     this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
     if (Math.random() < 0.1) {
       const info = this.renderer.info;
