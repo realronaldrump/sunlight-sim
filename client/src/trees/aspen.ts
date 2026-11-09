@@ -108,7 +108,7 @@ function stem(ox: number, oz: number, height: number, girth: number, seed: numbe
     trunkR.push(baseRadius * flare * Math.max(0.05, 1 - t * 0.93));
   }
   const scarTop = 1.1 + r() * 1.0; // elk browse scars reach about 2 m
-  bark.push(tube(trunkPts, trunkR, detail === 'high' ? 10 : 6, 1.6, (p, along) => {
+  bark.push(tube(trunkPts, trunkR, detail === 'high' ? 10 : 6, 2.6, (p, along) => {
     const y = p.y;
     // weathered black base and browse scarring, fading into smooth cream bark
     const base = THREE.MathUtils.smoothstep(y, 0.15, scarTop);
@@ -257,13 +257,13 @@ export function aspenBarkTexture(): THREE.CanvasTexture {
     g.fillRect(x, y, w, 1 + r() * 1.6);
     if (x + w > W) g.fillRect(x - W, y, w, 1.5);
   }
-  // branch-scar eyes: dark chevrons with a lighter center
-  for (let i = 0; i < 7; i++) {
-    const x = 20 + r() * (W - 40), y = 30 + r() * (Hh - 60), w = 14 + r() * 26, h = 5 + r() * 8;
-    g.fillStyle = 'rgba(28,25,22,0.92)';
-    g.beginPath(); g.moveTo(x - w, y); g.quadraticCurveTo(x, y - h * 1.6, x + w, y); g.quadraticCurveTo(x, y + h * 0.5, x - w, y); g.fill();
-    g.fillStyle = 'rgba(40,36,31,0.8)';
-    g.beginPath(); g.ellipse(x, y + h * 0.9, w * 0.25, h * 0.8, 0, 0, Math.PI * 2); g.fill();
+  // branch-scar eyes: small, irregular dark chevrons, a few per repeat
+  for (let i = 0; i < 4; i++) {
+    const x = 20 + r() * (W - 40), y = 30 + r() * (Hh - 60), w = 5 + r() * 9, h = 1.5 + r() * 3, tilt = (r() - 0.5) * 0.4;
+    g.save(); g.translate(x, y); g.rotate(tilt);
+    g.fillStyle = `rgba(30,27,24,${0.6 + r() * 0.3})`;
+    g.beginPath(); g.moveTo(-w, 0); g.quadraticCurveTo(0, -h * 1.8, w, 0); g.quadraticCurveTo(0, h * 0.6, -w, 0); g.fill();
+    g.restore();
   }
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;

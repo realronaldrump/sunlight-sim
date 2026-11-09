@@ -20,6 +20,7 @@ import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
+import { walkable } from './world/walkable';
 import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
 import { Snowfall } from './sky/snowfall';
@@ -173,6 +174,7 @@ export class Game {
     staticGroup.add(buildResortExtras(this.resort.lifts, (x, z) => this.hf.heightAt(x, z), (x, z) => this.hf.slopeDeg(x, z, 3), this.colliders));
     mergeStatic(staticGroup);
     this.scene.add(staticGroup);
+    this.terrainMat.setCutouts(walkable.cutouts);
     for (const g of this.lifts.group.children) if (!(g as THREE.InstancedMesh).isInstancedMesh) mergeStatic(g);
     mergeStatic(this.runs.group);
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
@@ -440,7 +442,7 @@ export class Game {
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
     this.tmpV.set(p.x,p.y,p.z); this.env.update(this.tmpV);
-    this.env.adapt(dt, this.camera, (x, z) => this.hf.normalAt(x, z, 2));
+    this.env.adapt(dt, this.camera, (x, z) => this.hf.normalAt(x, z, 2), !!walkable.surfaces.indoor(this.camera.position.x, this.camera.position.y, this.camera.position.z));
     this.renderer.toneMappingExposure = this.env.exposure;
 
     const st = this.player.st;

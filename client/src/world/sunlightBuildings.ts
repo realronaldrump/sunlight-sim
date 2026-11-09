@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { mx_noise_float, positionWorld, vec3 } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
+import { buildMainLodge } from './mainLodge';
 
 export interface BuildingDef { id: number; name: string; levels: number; base: number; points: number[][]; style?: string; roofElevation?: number }
 const wall = new THREE.MeshStandardNodeMaterial({color:0xd1c8a6,roughness:0.95});
@@ -59,47 +60,6 @@ function table(g:THREE.Object3D,x:number,z:number,y:number) {
   }
 }
 
-/** Main lodge: low cream walls, west-facing glass wall, timber deck, lower service level and roof plant. */
-function lodge(b:BuildingDef,height:(x:number,z:number)=>number,colliders:ColliderGrid) {
-  const g=new THREE.Group();g.name=b.name;
-  // Local X follows the long west facade, local +Z faces the ski slope to the west.
-  const yaw=-1.83,cx=112.5,cz=-960.5;
-  const deckY=b.roofElevation ? b.roofElevation-3.69 : height(100,-957)+.25;
-  g.position.set(cx,deckY,cz);g.rotation.y=yaw;
-  box(g,31,3.35,14.5,0,1.675,0,wall);
-  box(g,31,2.8,14.5,0,-1.4,0,concrete);
-  // Shallow roof pitch and overhanging snow cap, as shown in the main-lodge reference.
-  box(g,33,.28,16,0,3.55,0,roofMetal);
-  box(g,32.8,.17,15.7,0,3.75,0,snow);
-  box(g,11.2,.38,.18,8,3.28,7.93,redwood);
-  // A short solid signed bay, then full-height windows and doors toward the deck.
-  label(g,'sunlight',5.4,1.4,-10.6,2.1,7.27);
-  for(let i=0;i<7;i++){
-    const x=-5.5+i*2.65;
-    windowBay(g,x,1.83,7.31,2.24,2.7);
-    box(g,.20,3.8,.22,x-1.3,1.9,7.95,redwood);
-  }
-  // Sun deck and visible board spacing. It ends at the lodge, not at an invented mountain-facing building.
-  box(g,32,.24,5.0,0,-.13,9.6,deckMat);
-  for(let x=-15.7;x<16;x+=.16)box(g,.012,.012,4.9,x,.001,9.6,timber);
-  railing(g,-16,12.0,16,12.0,0,true);railing(g,-16,7.4,-16,12,0,true);
-  for(const x of [-6,-2,2,6,10])table(g,x,10,0);
-  // Downhill access stairs toward the parking side.
-  for(let i=0;i<15;i++)box(g,2.8,.20,.32,17.3,-i*.19,8.3-i*.29,deckMat);
-  beam(g,new THREE.Vector3(15.9,1,8.3),new THREE.Vector3(15.9,-1.66,4.24),.05);
-  beam(g,new THREE.Vector3(18.7,1,8.3),new THREE.Vector3(18.7,-1.66,4.24),.05);
-  for(const x of [-13,-5,3,11])box(g,.25,2.4,.25,x,-1.2,11.7,timber);
-  // Service core visible above the rear roof, plus small roof exhausts.
-  box(g,7,2.3,4.8,7.8,4.75,-3.8,wall);box(g,7.4,.18,5.2,7.8,5.95,-3.8,snow);
-  for(const x of [-10,-4,1]){box(g,.6,.9,.6,x,4.2,-1,roofMetal);box(g,.9,.12,.9,x,4.7,-1,roofMetal);}
-  for(const x of [-11,-4,3,10])windowBay(g,x,-1,-7.3,1.5,1.2,Math.PI);
-  // Small cafe/service wing beside the deck, visible in NAIP and the reference photo.
-  box(g,7,2.7,7,7,1.35,8.8,wall);box(g,7.5,.22,7.6,7,2.85,8.8,snow);
-  windowBay(g,7,1.55,12.32,4.8,1.7);
-  colliders.add({type:'box',x:cx,z:cz,hx:15.5,hz:7.25,yaw,top:deckY+3.4});
-  return g;
-}
-
 /** Brettelberg's long, timber-framed gable and exterior galleries, on its OSM footprint. */
 function condos(b:BuildingDef,height:(x:number,z:number)=>number,colliders:ColliderGrid) {
   const g=new THREE.Group();g.name=b.name;
@@ -146,7 +106,7 @@ function condos(b:BuildingDef,height:(x:number,z:number)=>number,colliders:Colli
 }
 
 export function buildSunlightStructure(b:BuildingDef,height:(x:number,z:number)=>number,colliders:ColliderGrid) {
-  if(b.style==='sunlight_lodge')return lodge(b,height,colliders);
+  if(b.style==='sunlight_lodge')return buildMainLodge(b,height,colliders);
   if(b.style==='brettelberg')return condos(b,height,colliders);
   if(b.style==='base_modular') {
     const g=new THREE.Group();g.name=b.name;

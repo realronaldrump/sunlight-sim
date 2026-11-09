@@ -20,6 +20,8 @@ export interface TerrainMaterialHandles {
   setLandcover(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setLandcoverMid(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setBase(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
+  /** Hide snow inside building footprints below their floors (oriented rectangles in game x/z). */
+  setCutouts(list: { cx: number; cz: number; yaw: number; hx: number; hz: number; y: number }[]): void;
 }
 
 export const viewerUniform = uniform(new THREE.Vector3());
@@ -112,6 +114,19 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   mat.aoNode = snowDetail.ao;
   mat.metalnessNode = float(0.0);
   useSnowLighting(mat, rock.oneMinus().mul(plowed.oneMinus()).mul(slopeOverlay.oneMinus()), dist);
+  // Building cut-outs: DEM ground interpolated under a footprint must not show through floors.
+  const MAX_CUTS = 6;
+  const cutA = Array.from({ length: MAX_CUTS }, () => uniform(new THREE.Vector4(0, 0, 1, 0)));
+  const cutB = Array.from({ length: MAX_CUTS }, () => uniform(new THREE.Vector4(0, 0, -1e9, 0)));
+  let hidden = float(0);
+  for (let i = 0; i < MAX_CUTS; i++) {
+    const a = cutA[i], b = cutB[i];
+    const dx = positionWorld.x.sub(a.x), dz = positionWorld.z.sub(a.y);
+    const lx = a.z.mul(dx).sub(a.w.mul(dz)), lz = a.w.mul(dx).add(a.z.mul(dz));
+    const inside = step(abs(lx), b.x).mul(step(abs(lz), b.y)).mul(step(positionWorld.y, b.z)).mul(b.w);
+    hidden = hidden.add(inside);
+  }
+  mat.maskNode = hidden.lessThan(0.5);
   // The beginner aid alone is self-lit so its colors remain legible in shadow.
   mat.emissiveNode = overlay.mul(slopeOverlay).mul(0.5);
 
@@ -132,6 +147,14 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     setLandcoverMid(tex, x0, n0, sx, sn) {
       midTex.value = tex;
       midBounds.value.set(x0, n0, sx, sn);
+    },
+    setCutouts(list) {
+      for (let i = 0; i < MAX_CUTS; i++) {
+        const c = list[i];
+        if (!c) { cutB[i].value.set(0, 0, -1e9, 0); continue; }
+        cutA[i].value.set(c.cx, c.cz, Math.cos(c.yaw), Math.sin(c.yaw));
+        cutB[i].value.set(c.hx, c.hz, c.y, 1);
+      }
     },
     setLandcover(tex, x0, n0, sx, sn) {
       landTex.value = tex;

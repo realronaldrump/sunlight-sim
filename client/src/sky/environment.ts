@@ -126,7 +126,7 @@ export class Environment {
    * sky irradiance with flat open snow. North-facing slopes in low January sun are brightened, sunny
    * faces darkened, but only partially (square root response) so sun and shade still read differently.
    */
-  adapt(dt: number, cam: THREE.Camera, normalAt: (x: number, z: number) => { x: number; y: number; z: number }) {
+  adapt(dt: number, cam: THREE.Camera, normalAt: (x: number, z: number) => { x: number; y: number; z: number }, indoor = false) {
     this.adaptClock += dt;
     // a teleport or camera cut adapts immediately instead of fading in from the old view
     const cut = cam.position.distanceTo(this.lastAdaptPos) > 30;
@@ -151,6 +151,8 @@ export class Environment {
       key /= weight;
       const flat = Math.max(0.05, Math.max(0, s.y)) + fill;
       this.adaptTarget = this.snowing ? 1 : THREE.MathUtils.clamp(Math.sqrt(flat / Math.max(key, 0.05)), 0.8, 1.45);
+      // indoors the eye opens up to lamp light, so windows read bright as they do in a real lodge
+      if (indoor) this.adaptTarget = 2.1;
     }
     // eyes adapt over a second or two
     if (cut) this.adaptation = this.adaptTarget;

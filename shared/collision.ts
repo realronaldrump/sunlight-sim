@@ -1,7 +1,8 @@
 // Static collider spatial hash (trees, towers, buildings). Shared by client, tests and server.
 import { SkierState, collideCylinder, collideBox } from './skiPhysics';
 
-export interface Collider { type: 'cyl' | 'box'; x: number; z: number; r?: number; hx?: number; hz?: number; yaw?: number; top: number }
+/** `bottom` (optional) lets upper-storey walls and overhangs leave the space beneath them free. */
+export interface Collider { type: 'cyl' | 'box'; x: number; z: number; r?: number; hx?: number; hz?: number; yaw?: number; top: number; bottom?: number }
 
 export class ColliderGrid {
   private cells = new Map<number, Collider[]>();
@@ -37,6 +38,7 @@ export class ColliderGrid {
     let n = 0;
     for (const c of near) {
       if (st.pos.y > c.top + 0.5) continue; // flying over (e.g. small trees)
+      if (c.bottom !== undefined && st.pos.y + 1.7 < c.bottom) continue; // passing under
       if (c.type === 'cyl') { if (collideCylinder(st, c.x, c.z, c.r!)) n++; }
       else if (collideBox(st, c.x, c.z, c.hx!, c.hz!, c.yaw ?? 0)) n++;
     }
