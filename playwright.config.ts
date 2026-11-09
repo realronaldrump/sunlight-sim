@@ -14,7 +14,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium', launchOptions: { args: gpuArgs } } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /(smoke|minimap|audio|drone|phoneDrone|liftControls|chairFall|lodgeSignWalker|lesson|skiLog|resortDay)\.spec\.ts/ },
+    { name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /(smoke|minimap|audio|drone|phoneDrone|liftControls|chairFall|lodgeSignWalker|lesson|skiLog|resortDay|social)\.spec\.ts/ },
   ],
   webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npm run dev',

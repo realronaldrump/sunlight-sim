@@ -1,6 +1,7 @@
 // Multiplayer client: sends the local skier at 15 Hz, interpolates remote skiers ~120 ms in the past,
 // asks the server for chair seats, syncs the lift clock, and relays chat.
 import * as THREE from 'three/webgpu';
+import { PedestrianModel } from '../world/pedestrian';
 import { resortClock } from '../world/resortClock';
 import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
@@ -30,6 +31,11 @@ export class RemoteSkier {
   flight: NetDrone | null = null;
   flightPos = new THREE.Vector3();
   flightYaw = 0;
+  /** On foot or seated: the same person in ski boots, created when first needed. */
+  walker: PedestrianModel | null = null;
+  stride = 0;
+  act = 0;
+  lastAct: string | undefined;
   constructor(public id: string, public name: string, public color: string) {
     this.model = new SkierModel(new THREE.Color(color));
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
@@ -140,6 +146,7 @@ export class NetClient {
 
   private removeRemote(r: RemoteSkier) {
     this.group.remove(r.model.root);
+    if (r.walker) this.group.remove(r.walker.root);
     if (r.drone) { this.group.remove(r.drone.root); r.drone.dispose(); }
     (r.label.material as THREE.SpriteMaterial).map?.dispose(); r.label.material.dispose();
   }
@@ -295,13 +302,19 @@ export class NetClient {
 
   serverNow() { return Date.now() / 1000 + this.clockOffset; }
 
+  /** Extra state from the game: walking or sitting on foot, and gestures. */
+  localExtras: (() => Partial<NetSkier>) | null = null;
+  /** A friend nearby started waving or pointing. */
+  onGesture: ((r: RemoteSkier, act: 'wave' | 'point') => void) | null = null;
+
   private sendState(releaseSwing?: ChairSwing) {
-    const st = this.player.st;
+    const st = this.player.st, extras = this.player.ride ? {} : this.localExtras?.() ?? {};
     this.send({ type: 'state', teleport: this.teleportPending || undefined, drone: this.localDrone?.() ?? null, s: {
       x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
       mode: this.droneOnly ? 'drone' : this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
       swing: releaseSwing ?? (this.player.ride ? { ...this.player.chairSwing } : undefined),
       tumble: this.player.tumble ? { pitch: this.player.tumble.pitch, roll: this.player.tumble.roll } : undefined,
+      ...extras,
     } });
     this.teleportPending = false;
   }
@@ -364,12 +377,35 @@ export class NetClient {
       const swing = r.ride ? carriedSwing(s.swing ?? createChairSwing(), this.lifts.chairSwing(r.ride.lift, r.ride.chair)) : undefined, tumble = !r.ride ? s.tumble : undefined;
       if (swing || tumble) r.model.root.rotation.set(swing?.pitch ?? tumble!.pitch, heading, swing?.roll ?? tumble!.roll, 'YXZ');
       const speed = Math.hypot(s.vx, s.vy, s.vz);
+      // gestures: blend the arm in and out, and tell the local player when one starts
+      r.act += ((s.act ? 1 : 0) - r.act) * Math.min(1, dt * 6);
+      if (s.act && s.act !== r.lastAct) this.onGesture?.(r, s.act);
+      r.lastAct = s.act;
+      // walking or sitting: show the person in ski boots instead of the skier
+      const onFoot = !r.ride && (s.mode === 'walking' || s.mode === 'sitting');
+      (r.model.root.children[0] as THREE.Object3D).visible = !onFoot;
+      if (onFoot && !r.walker) { r.walker = new PedestrianModel({ jacket: new THREE.Color(r.color), hat: 'helmet' }); this.group.add(r.walker.root); }
+      if (r.walker) {
+        r.walker.root.visible = onFoot;
+        if (onFoot) {
+          r.stride += speed * dt / 0.6;
+          r.walker.root.position.copy(r.model.root.position);
+          r.walker.root.rotation.set(0, heading, 0);
+          r.model.root.rotation.set(0, heading, 0);
+          const sitting = s.mode === 'sitting';
+          r.walker.update({ mode: sitting ? 'sit' : speed > 0.15 ? 'walk' : 'stand', stride: r.stride, speed, time: r.time,
+            carry: s.foot?.carry ?? true, skis: sitting || !(s.foot?.carry ?? true) ? 'none' : 'shoulder', seat: s.foot?.seat, handsOnTable: s.foot?.table,
+            gesture: s.act ? { kind: s.act, amount: r.act, yaw: s.actYaw } : undefined });
+          continue;
+        }
+      }
       if (!loading) r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 5);
       const pos = r.model.root.position;
       const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y : undefined;
       const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y);
       r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false,
-        airborne: !!tumble, rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip });
+        airborne: !!tumble, rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip,
+        gesture: s.act && !r.ride ? { kind: s.act, amount: r.act, yaw: s.actYaw } : undefined });
     }
   }
 

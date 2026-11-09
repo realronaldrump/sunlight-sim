@@ -579,6 +579,11 @@ export class BaseLife {
     this.gear.end();
   }
 
+  /** Whether a guest is sitting at (or next to) this seat right now. */
+  seatTaken(x: number, z: number) {
+    return this.people.some((p) => p.kind === 'seated' && p.presence < this.level && Math.hypot(p.st.pos.x - x, p.st.pos.z - z) < 0.35);
+  }
+
   /** People currently simulated (for tests). */
   stats() {
     const by: Record<string, number> = {};

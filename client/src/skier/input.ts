@@ -6,6 +6,7 @@ export interface Actions {
   getUp: boolean; camera: boolean; map: boolean; slope: boolean; fastLift: boolean; help: boolean;
   chat: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
   skis: boolean; lesson: boolean;
+  wave: boolean; point: boolean; sit: boolean;
 }
 
 export class InputManager {
@@ -122,6 +123,9 @@ export class InputManager {
       drone: pr.has('KeyG') || btn(10),
       skis: pr.has('KeyK') || btn(11),
       lesson: pr.has('KeyL'),
+      wave: pr.has('Digit1') || pr.has('Numpad1'),
+      point: pr.has('Digit2') || pr.has('Numpad2'),
+      sit: pr.has('KeyE'),
     };
     pr.clear();
     return a;

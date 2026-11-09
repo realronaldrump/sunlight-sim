@@ -19,6 +19,8 @@ export class Player {
   time = 0;
   lastInput: SkiInput = { steer: 0, tuck: false, plow: 0, stop: false, push: false };
   inLoadZone = -1;
+  /** A wave or a point downhill, blended in and out by the game. */
+  gesture: { kind: 'wave' | 'point'; amount: number; yaw?: number } | null = null;
   justUnloaded = false;
   onUnload?: (lift: number, teleport: boolean) => void;
   onBoard?: (ride: RideState) => void;
@@ -227,6 +229,7 @@ export class Player {
       sitting: this.sitBlend, liftPreparation: this.liftPreparation, footGroundY, footGroundPitch, time: this.time, pushing: input.push && st.speed < 4 && st.mode !== 'fallen' && !this.ride,
       airborne: !!this.tumble, rockX: this.ride ? this.chairSwing.leanX : 0, rockZ: this.ride ? this.chairSwing.leanZ : 0,
       slipping: this.ride ? this.chairSwing.slip : 0,
+      gesture: this.gesture && !this.ride ? this.gesture : undefined,
     });
   }
 

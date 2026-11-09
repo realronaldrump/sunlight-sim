@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { createWalker, stepWalker, supportHeight, type WalkState } from '../../../shared/walk';
 import type { ColliderGrid, Collider } from '../../../shared/collision';
-import { walkable } from '../world/walkable';
+import { walkable, type Poi } from '../world/walkable';
 import { PedestrianModel } from '../world/pedestrian';
 
 export interface WalkControls { forward: number; right: number; run: boolean }
@@ -13,6 +13,11 @@ export class OnFoot {
   st: WalkState = createWalker(0, 0, 0, 0);
   readonly model: PedestrianModel;
   firstPerson = false;
+  /** Skis on the shoulder; false once they are left in a rack. */
+  carrying = true;
+  /** Seated at a table or bench, with seat and table heights above the floor. */
+  seat: { poi: Poi; floor: number; seatH: number; tableH?: number } | null = null;
+  gesture: { kind: 'wave' | 'point'; amount: number; yaw?: number } | null = null;
   private yaw = 0;          // camera azimuth (same convention as heading: 0 looks toward -z)
   private pitch = 0.22;     // rad, positive looks down at the walker
   private dist = 3.3;
@@ -48,7 +53,24 @@ export class OnFoot {
     this.camPos.set(1e9, 0, 0);
   }
 
-  exit() { this.active = false; this.model.root.visible = false; this.dragging = false; }
+  exit() { this.active = false; this.model.root.visible = false; this.dragging = false; this.seat = null; }
+
+  /** Sit down at a seat (deck picnic table, dining table, bench). */
+  sit(poi: Poi) {
+    const below = walkable.surfaces.heightsAt(poi.x, poi.z).filter((h) => h <= poi.y);
+    const floor = below.length ? Math.max(...below) : poi.y - 0.45;
+    this.seat = { poi, floor, seatH: poi.y - floor, tableH: poi.tag === 'stool' ? 1.06 : poi.tag === 'bench' ? undefined : poi.tag === 'deck' ? 0.79 : 0.76 };
+    this.st.pos.x = poi.x; this.st.pos.z = poi.z; this.st.pos.y = floor; this.st.heading = poi.heading;
+    this.st.vel.x = 0; this.st.vel.z = 0; this.st.speed = 0;
+  }
+
+  stand() {
+    if (!this.seat) return;
+    // step back from the table, out of the bench
+    const h = this.seat.poi.heading;
+    this.st.pos.x += Math.sin(h) * 0.55; this.st.pos.z += Math.cos(h) * 0.55;
+    this.seat = null;
+  }
 
   /** True when standing on open snow where skis can be clicked back on. */
   canClickIn() { return this.st.onSnow && !this.st.indoor && this.st.grounded; }
@@ -56,6 +78,16 @@ export class OnFoot {
   update(dt: number, c: WalkControls) {
     if (!this.active) return;
     this.time += dt;
+    if (this.seat && (Math.abs(c.forward) > 0.5 || Math.abs(c.right) > 0.5)) this.stand();
+    if (this.seat) {
+      const st = this.st, s = this.seat;
+      this.model.root.position.set(st.pos.x, s.floor, st.pos.z);
+      this.model.root.rotation.set(0, s.poi.heading, 0);
+      this.model.update({ mode: 'sit', stride: 0, speed: 0, time: this.time, seat: s.seatH, handsOnTable: s.tableH, skis: 'none', gesture: this.gesture ?? undefined });
+      this.model.root.visible = !this.firstPerson;
+      this.updateCamera(dt);
+      return;
+    }
     // controls are relative to the camera view, like any third-person walk
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     const rx = -fz, rz = fx;
@@ -71,7 +103,8 @@ export class OnFoot {
     const st = this.st;
     this.model.root.position.set(st.pos.x, st.pos.y, st.pos.z);
     this.model.root.rotation.set(0, st.heading, 0);
-    this.model.update({ mode: st.speed > 0.15 ? 'walk' : 'stand', stride: st.stride, speed: st.speed, time: this.time, carry: true });
+    this.model.update({ mode: st.speed > 0.15 ? 'walk' : 'stand', stride: st.stride, speed: st.speed, time: this.time, carry: this.carrying,
+      skis: this.carrying ? 'shoulder' : 'none', gesture: this.gesture ?? undefined });
     this.model.root.visible = !this.firstPerson;
     this.updateCamera(dt);
   }

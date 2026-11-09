@@ -1,5 +1,13 @@
 # Progress
 
+## Lodge stops and gestures (November 9, 2026, in progress)
+
+- **Rack your skis**: on foot (K to step out), K at a lodge ski rack leaves your skis and poles standing in it; walk in for a coffee or sit outside, then K at the rack picks them up and K on open snow clicks in. Teleporting away brings them along.
+- **Sit with friends**: E at a free deck picnic table, dining table, stool or bench sits you down (guests already sitting keep their seats); E or walking stands you up.
+- **Wave and point**: 1 waves your pole hand beside your helmet; 2 points down the fall line (or where you look on the flat) and names the run in that direction. Friends see the arm move and get a note ("Ben waves", "Ann points down Midway").
+- **Friends see you on foot**: the state you send now says walking or sitting, whether your skis are on your shoulder or racked, and seat and table heights, so a friend sees you walking in ski boots or seated at the table instead of a standing skier. Optional fields only; the deployed server already relays them, so no server change.
+- Verified: new two-player `social.spec.ts` (rack, sit, remote sees her seated within 0.5 m of the seat with skis racked, wave and point notes both ways, stand and pick the skis up) passes in Chromium and WebKit. Regression: multiplayer, chair-fall multiplayer, on-foot, gameplay and smoke pass. Review captures in `screenshots/review-social/`.
+
 ## Crews and Resort Day (November 9, 2026, released)
 
 - **Resort Day or Free Explore** (pause menu, Clock; `client/src/world/resortDay.ts`): Free Explore keeps the time you choose and runs the lifts at any hour. Resort Day runs a compressed day on the shared resort clock (an hour every six real minutes, 7 AM to 8:30 PM, then the next morning), so everyone in a room shares the hour; the time slider shows the clock and locks. Lifts load 9 AM to 4 PM: outside those hours the lines empty, a LIFT CLOSED rope (with a collider) closes each maze, the chairs run empty and standing at the load line shows a closed hint. The crowd follows the day (a few early, busiest late morning and early afternoon, nobody after the sweep), and the Snowriders' Club is out 9:15 to 3:45. The status board shows Open, Opens 9 AM or Closed.

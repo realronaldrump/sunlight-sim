@@ -12,6 +12,11 @@ export interface NetSkier {
   mode: string; edge: number; plow: number; tuck: number; fallen: number;
   swing?: ChairSwing;
   tumble?: { pitch: number; roll: number };
+  /** On foot (mode 'walking' or 'sitting'): skis on the shoulder or racked, seat and table heights. */
+  foot?: { carry: boolean; seat?: number; table?: number };
+  /** A gesture friends can see: a wave, or a point toward actYaw (radians, relative to heading). */
+  act?: 'wave' | 'point';
+  actYaw?: number;
 }
 
 export interface NetRide { lift: number; chair: number; seat: number; boardedAt?: number }

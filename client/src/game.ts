@@ -58,6 +58,9 @@ import { LINEUP } from './world/lesson';
 import { SkiLog, type Descent } from './log/skiLog';
 import { SkiLogPanel } from './ui/skiLogPanel';
 import { formatDistance as fmtDist, formatFeet } from './ui/units';
+import { skiWithBindings, skiPole } from './skier/skiEquipment';
+import type { Poi } from './world/walkable';
+import type { RemoteSkier } from './net/netClient';
 import { collideCylinder } from '../../shared/skiPhysics';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
@@ -124,6 +127,11 @@ export class Game {
   tagging = false;
   private lessonNear = Infinity;
   board: ConditionsBoard | null = null;
+  /** Your skis standing in a lodge rack while you are inside, if you left them there. */
+  private rackedSkis: THREE.Group | null = null;
+  private rackedAt: Poi | null = null;
+  /** The current wave or point: remaining seconds and its pose. */
+  private gestureState: { kind: 'wave' | 'point'; t: number; yaw: number } | null = null;
   skiLog: SkiLog | null = null;
   skiLogPanel: SkiLogPanel | null = null;
   private boardTimer = 0;
@@ -413,6 +421,13 @@ export class Game {
   toggleSkis() {
     if (this.droneOnly || this.drone.active) return;
     if (this.onFoot.active) {
+      // at a lodge rack: leave your skis there, or pick them back up
+      const rack = this.nearPoi('rack', 3.2);
+      if (rack && this.onFoot.carrying && !this.onFoot.seat) { this.rackSkis(rack); return; }
+      if (!this.onFoot.carrying) {
+        if (this.rackedAt && Math.hypot(this.rackedAt.x - this.onFoot.st.pos.x, this.rackedAt.z - this.onFoot.st.pos.z) < 3.5) { this.unrackSkis(); return; }
+        this.hud.toast('Your skis are in the rack by the deck. Walk back and press K to pick them up', 4); return;
+      }
       if (!this.onFoot.canClickIn()) { this.hud.toast('Find open snow outside to click into your skis'); return; }
       const w = this.onFoot.st;
       this.onFoot.exit();
@@ -431,8 +446,112 @@ export class Game {
     this.hud.toast('Skis off. Shift to jog, K to click back in');
   }
 
+  /** The nearest point of interest of a kind within `radius` of the walker. */
+  private nearPoi(kind: Poi['kind'], radius: number) {
+    const w = this.onFoot.st.pos;
+    let best: Poi | null = null, bd = radius;
+    for (const p of walkable.pois) {
+      if (p.kind !== kind || Math.abs(p.y - w.y) > 1.6) continue;
+      const d = Math.hypot(p.x - w.x, p.z - w.z);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  private rackSkis(rack: Poi) {
+    if (!this.rackedSkis) {
+      const g = new THREE.Group(); g.name = 'your-racked-skis';
+      for (let i = 0; i < 2; i++) { const s = skiWithBindings(); s.position.set(i * 0.09 - 0.045, 0.85, 0); s.rotation.set(Math.PI / 2 - 0.08, 0, 0); g.add(s); }
+      for (let i = 0; i < 2; i++) { const p = skiPole(); p.position.set(0.18 + i * 0.05, 0.6, 0.06); p.rotation.set(-0.12, 0, 0.05); g.add(p); }
+      g.traverse((o) => { o.castShadow = true; });
+      this.scene.add(g);
+      this.rackedSkis = g;
+    }
+    // at the rack's free end, leaning tails-down against the bar like everyone else's
+    const off = 0.6;
+    this.rackedSkis.position.set(rack.x + Math.sin(rack.heading) * 0.35 + Math.cos(rack.heading) * off, rack.y, rack.z + Math.cos(rack.heading) * 0.35 - Math.sin(rack.heading) * off);
+    this.rackedSkis.rotation.set(0, rack.heading + Math.PI, 0);
+    this.rackedSkis.visible = true;
+    this.rackedAt = rack;
+    this.onFoot.carrying = false;
+    this.hud.toast('Skis racked. Head in for a coffee or sit on the deck; press K here to pick them up', 4.5);
+  }
+
+  private unrackSkis() {
+    if (this.rackedSkis) this.rackedSkis.visible = false;
+    this.rackedAt = null;
+    this.onFoot.carrying = true;
+    this.hud.toast('Skis on your shoulder. K on open snow to click in');
+  }
+
+  /** E: sit at a free table or bench nearby, or stand up. */
+  private toggleSeat() {
+    if (!this.onFoot.active) return;
+    if (this.onFoot.seat) { this.onFoot.stand(); return; }
+    const w = this.onFoot.st.pos;
+    const taken = (p: Poi) => !!this.baseLife?.seatTaken(p.x, p.z) ||
+      [...(this.net?.remotes.values() ?? [])].some((r) => r.last?.mode === 'sitting' && Math.hypot(r.model.root.position.x - p.x, r.model.root.position.z - p.z) < 0.35);
+    let best: Poi | null = null, bd = 1.5;
+    for (const p of walkable.pois) {
+      if (p.kind !== 'seat' || Math.abs(p.y - w.y) > 1.2 || taken(p)) continue;
+      const d = Math.hypot(p.x - w.x, p.z - w.z);
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (!best) { this.hud.toast('No free seat right here. Try another table'); return; }
+    this.onFoot.sit(best);
+  }
+
+  /** 1 waves, 2 points downhill (or where you look on the flat). Friends see both. */
+  private startGesture(kind: 'wave' | 'point') {
+    if (this.player.ride || this.drone.active || this.player.tumble) return;
+    const heading = this.onFoot.active ? (this.onFoot.seat?.poi.heading ?? this.onFoot.st.heading) : this.player.st.heading;
+    const pos = this.onFoot.active ? this.onFoot.st.pos : this.player.st.pos;
+    let yaw = 0;
+    if (kind === 'point') {
+      const n = this.hf.normalAt(pos.x, pos.z, 4), slope = Math.hypot(n.x, n.z);
+      let world: number;
+      if (slope > 0.07) world = Math.atan2(-n.x, -n.z);
+      else { const d = this.camera.getWorldDirection(this.tmpV2); world = Math.atan2(-d.x, -d.z); }
+      yaw = Math.atan2(Math.sin(world - heading), Math.cos(world - heading));
+      const run = this.runDownHeading(pos.x, pos.z, world);
+      this.hud.toast(run ? `You point down ${run}` : 'You point downhill');
+    }
+    this.gestureState = { kind, t: kind === 'wave' ? 2.6 : 3.2, yaw };
+  }
+
+  /** The first named run along a direction from a point (what a point downhill shows a friend). */
+  private runDownHeading(x: number, z: number, heading: number) {
+    const dx = -Math.sin(heading), dz = -Math.cos(heading);
+    for (let d = 25; d <= 160; d += 15) { const r = this.runAt(x + dx * d, z + dz * d); if (r) return r.name; }
+    return null;
+  }
+
+  private updateGesture(dt: number) {
+    const g = this.gestureState;
+    let pose: { kind: 'wave' | 'point'; amount: number; yaw?: number } | null = null;
+    if (g) {
+      g.t -= dt;
+      const total = g.kind === 'wave' ? 2.6 : 3.2, elapsed = total - g.t;
+      pose = { kind: g.kind, amount: Math.max(0, Math.min(1, elapsed / 0.3, g.t / 0.4)), yaw: g.yaw };
+      if (g.t <= 0) { this.gestureState = null; pose = null; }
+    }
+    this.player.gesture = pose;
+    this.onFoot.gesture = pose;
+  }
+
+  /** A friend waves or points: tell the player, naming the run they point down. */
+  private friendGesture(r: RemoteSkier, act: 'wave' | 'point') {
+    const p = r.model.root.position, me = this.player.st.pos;
+    if (Math.hypot(p.x - me.x, p.z - me.z) > 450) return;
+    if (act === 'wave') { this.hud.toast(`${r.name} waves`); return; }
+    const run = this.runDownHeading(p.x, p.z, r.heading + (r.last?.actYaw ?? 0));
+    this.hud.toast(run ? `${r.name} points down ${run}` : `${r.name} points downhill`, 3.5);
+  }
+
   private leaveOnFoot() {
     if (!this.onFoot?.active) return;
+    // teleporting away takes your skis with you
+    if (this.rackedAt) { if (this.rackedSkis) this.rackedSkis.visible = false; this.rackedAt = null; this.onFoot.carrying = true; }
     this.onFoot.exit(); this.player.model.root.visible = true; this.camRig.enabled = true; this.camRig.reset();
   }
 
@@ -655,6 +774,7 @@ export class Game {
         else { this.player.model.root.visible = false; this.player.st.mode = 'standing'; this.player.st.speed = 0; this.player.st.vel = {x:0,y:0,z:0}; }
       } else if (this.onFoot.active) {
         if (actions.skis && this.input.enabled) this.toggleSkis();
+        if (actions.sit && this.input.enabled) this.toggleSeat();
         if (actions.camera && this.input.enabled) { this.onFoot.firstPerson = !this.onFoot.firstPerson; this.hud.toast(this.onFoot.firstPerson ? 'Camera: first person' : 'Camera: behind'); }
         if (this.onFoot.active) { if (!this.options.visible) this.onFoot.update(dt, this.input.walk()); this.parkSkierAtWalker(); }
       } else {
@@ -671,6 +791,8 @@ export class Game {
       }
     }
     if (actions.help) { if (this.drone.active) this.drone.hud.help(); else this.hud.toggleHelp(); }
+    if (this.input.enabled && !this.droneOnly && (actions.wave || actions.point)) this.startGesture(actions.wave ? 'wave' : 'point');
+    this.updateGesture(dt);
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
     if (actions.minimap) this.minimap.toggle();
@@ -817,6 +939,19 @@ export class Game {
     };
     this.scene.add(this.net.group);
     this.net.onChat = (n, t) => this.chat.add(n, t);
+    this.net.onGesture = (r, act) => this.friendGesture(r, act);
+    this.net.localExtras = () => {
+      const x: Record<string, unknown> = {};
+      if (this.onFoot.active) {
+        const s = this.onFoot.seat;
+        x.mode = s ? 'sitting' : 'walking';
+        x.foot = { carry: this.onFoot.carrying, seat: s?.seatH, table: s?.tableH };
+        if (s) { x.heading = s.poi.heading; x.y = s.floor; }
+      }
+      const g = this.gestureState;
+      if (g) { x.act = g.kind; x.actYaw = g.yaw; }
+      return x;
+    };
     this.net.onStatus = (t) => this.hud.toast(t, 3);
     this.chat.onSend = (t) => this.net?.chat(t);
     this.remoteMapPlayers = () => this.net?.mapPlayers() ?? [];
@@ -1131,7 +1266,12 @@ export class Game {
   private updateHints() {
     if (this.drone.active) { this.hud.hint(null); return; }
     if (this.onFoot.active) {
-      this.hud.hint(this.onFoot.canClickIn() ? 'On foot in ski boots. Press <b>K</b> to click into your skis.' : null);
+      const f = this.onFoot;
+      if (f.seat) this.hud.hint('Sitting. <b>E</b> or walk to stand up. <b>1</b> wave, <b>2</b> point.');
+      else if (f.carrying && this.nearPoi('rack', 3.2)) this.hud.hint('Ski rack. Press <b>K</b> to leave your skis here.');
+      else if (!f.carrying && this.rackedAt && Math.hypot(this.rackedAt.x - f.st.pos.x, this.rackedAt.z - f.st.pos.z) < 3.5) this.hud.hint('Your skis. Press <b>K</b> to pick them up.');
+      else if (this.nearPoi('seat', 1.5)) this.hud.hint('Press <b>E</b> to sit down.');
+      else this.hud.hint(f.canClickIn() && f.carrying ? 'On foot in ski boots. Press <b>K</b> to click into your skis.' : null);
       return;
     }
     const pl = this.player;
