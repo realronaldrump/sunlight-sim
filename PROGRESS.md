@@ -189,6 +189,17 @@ Connect the existing lodge, lift queues, ambient skiers, weather and ski tracks 
 4. **Lodge stops and social gestures.** Let players leave skis in a rack and retrieve them, then meet and sit with friends on the deck. Fade outdoor wind as players enter and bring up local sounds like ski boots, conversation and coffee orders. Add a wave and a downhill point that friends can see without opening chat. Use the [main lodge dining](https://sunlightmtn.com/explore/glenwood-springs-dining/) as a reference for indoor activity.
 5. **Quiet terrain and uphill exploration.** Let a passing squall hide and reveal Mount Sopris from the chair. Give sheltered aspen groves quieter, more enclosed sound than exposed ridges. After the core day loop, add ski touring on one route from [Sunlight's designated uphill network](https://sunlightmtn.com/uphill-pass-program/) so players can skin up before first chair.
 
+### Ski log and mountain coverage (planned)
+
+After the first Living Resort Day milestone, add a personal ski log that players can review from the pause menu. Save it in the player's browser across solo and multiplayer sessions. Use mph, feet and miles, and present durations as a record of time spent exploring.
+
+1. **Session and lifetime stats.** Show ski days, completed descents, ski distance, vertical descended, average moving speed and highest valid ski speed. Break out elapsed session time, time moving on skis and time riding lifts. Measure durations from actual play time independently of the resort clock and lift speed settings.
+2. **Run history.** Show each descent's date, distance, vertical, moving time and average and top speeds. Let players review their line on the trail map and see how speed and elevation changed along it.
+3. **Whole mountain progress.** Show how many unique named runs the player has completed out of the playable trail catalog, with a percentage and filters by difficulty. Mark unvisited, partially skied and completed runs on the map. Measure partial coverage by progress along the run. Credit completion for a continuous descent through the mapped route from its upper to lower section, allowing for trail width and junctions. Repeat descents add laps to the same trail's history.
+4. **Recording rules.** Accumulate ski stats from valid movement on skis. Break the trace at teleports, lift rides, walking and drone flight. Use stable trail IDs so history survives a renamed run.
+
+**First milestone.** Record one full descent and one partial descent through normal play. Review both in the ski log and on the coverage map, then reload and verify the history persists. Repeat the full descent and check that it adds a lap while the unique run count stays the same.
+
 ## Character and building verification checkpoint (November 8, 2026)
 - Character commit `adbb728`: anatomical human bodies and detailed ski gear for the player, friends, ambient skiers and seated chair passengers. The source hash, license and reproducible pipeline are committed. Building and startup work was included by the concurrent repository checkpoint `2d2d062`.
 - Added the missing main lodge footprint from NAIP. Its roof is anchored at 2493.065 m NAVD88 from 78 lidar-plus-DEM cells. Added its cream facade, window wall, deck, access stairs and roof service block. Added Brettelberg's timber framing, gable and exterior galleries, and corrected three base support buildings to one story. Exclude false vegetation candidates inside building polygons.
