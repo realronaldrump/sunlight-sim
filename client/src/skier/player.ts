@@ -112,6 +112,8 @@ export class Player {
           const dx = tx - st.pos.x, dz = tz - st.pos.z, distance = Math.hypot(dx, dz);
           const k = Math.min(1, dt * 1.25 / Math.max(distance, 0.001));
           st.pos.x += dx * k; st.pos.z += dz * k; st.pos.y = this.probe.height(st.pos.x, st.pos.z);
+          this.probe.normal(st.pos.x, st.pos.z, st.normal);
+          st.slopeDeg = Math.acos(Math.max(-1, Math.min(1, st.normal.y))) * 180 / Math.PI;
           st.heading += Math.atan2(Math.sin(lp.heading - st.heading), Math.cos(lp.heading - st.heading)) * Math.min(1, dt * 6);
           st.vel = { x: 0, y: 0, z: 0 }; st.speed = 0; st.edge = 0; st.plow = 0; st.tuck = 0;
           const chair = path.crossingChair(previous, t);

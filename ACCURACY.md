@@ -23,14 +23,13 @@ Speeds and installed chair counts come from [Lift Blog's Sunlight inventory](htt
 
 | Lift | Published speed ft/min | Chairs | Published ride min | Simulated ride | Headway s | Cable length ft (model / published) | Towers (OSM / published) |
 |---|---:|---:|---:|---|---:|---|---|
-| Segundo | 500 | 140 | 9 | 9:00 | 7.83 | 4,543 / 4,492 | 14 / 16 |
+| Segundo | 500 | 140 | 9 | 9:00 | 7.84 | 4,545 / 4,492 | 14 / 16 |
 | Primo | 450 | 115 | 11.4 | 11:34 | 12.23 | 5,247 / 5,126 | 23 / 17 |
-| Tercero | 300 | 110 | 9.9 | 9:34 | 10.70 | 2,916 / 2,983 | 11 / 20 |
+| Tercero | 300 | 110 | 9.9 | 9:35 | 10.71 | 2,918 / 2,983 | 11 / 20 |
 
 Published nominal capacities (Primo 1,800, Segundo 1,400, Tercero 1,200 people/hour) do not all reconcile with the published chair counts, lengths and speeds. The simulation preserves speed and chair count; headway follows loop length. Existing OSM alignments differ from published lengths by roughly 1 to 2.5 percent. Replacement tower coordinates are not surveyed, and old OSM tower counts are retained explicitly as a limitation.
 
-Station snow pads use the same 0.5 m triangle mesh for physics and rendering. Seat clearance is approximately 0.52 m over the pad; seat pitch is 0.60 m. These, the 5.2 m rope gauge, 3 m hanger, sag approximation and snow-ramp dimensions are modeling estimates. Bare-earth DEM elevations are unchanged. No operator stops, reduced-speed setting, dynamic cable tension or full passenger swing simulation is modeled. See DECISIONS.md D15.
-
+Station snow pads use the same 0.5 m triangle mesh for physics and rendering. Seat clearance is approximately 0.52 m over the pad; seat pitch is 0.60 m. These, the 5.2 m rope gauge, 3 m hanger, sag approximation and snow-ramp dimensions are modeling estimates. Carrier graphics distinguish the 2025 Primo/Segundo Leitner-Poma chairs from the older painted Tercero Riblet references. Upholstery, fittings, small dimensions and Tercero's current retrofit status are not surveyed. Bare-earth DEM elevations are unchanged. No operator stops, reduced-speed setting, dynamic cable tension or full passenger swing simulation is modeled. See DECISIONS.md D15.
 
 ## Per-run comparison: in-game vs DEM
 

@@ -77,7 +77,7 @@ export class Hud {
       <kbd>F</kbd>: skip the lift ride<br>
       <kbd>B</kbd>: back to the base area<br>
       <kbd>P</kbd>: options (time of day, snowfall, volume, quality)<br><kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera<br>
-      Ski into the red load line under a chairlift and wait for the chair. Drag the mouse to look around.`;
+      Approach the red load line slowly, face uphill, and stop pushing or turning. Wait for the next chair. Drag the mouse to look around.`;
     document.body.appendChild(help);
     this.speedEl = document.getElementById('h-speed')!; this.slopeEl = document.getElementById('h-slope')!;
     this.altEl = document.getElementById('h-alt')!; this.marker = document.getElementById('h-marker')!;

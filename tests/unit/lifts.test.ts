@@ -90,6 +90,17 @@ describe('lifts', () => {
     }
   });
 
+  it('keeps seats level on the line and banks outward smoothly around bullwheels', () => {
+    for (const p of paths) {
+      expect(p.chairBank(p.loadU)).toBe(0);
+      expect(p.chairBank(p.unloadU)).toBe(0);
+      expect(p.chairBank(p.lineLen)).toBeCloseTo(0, 12);
+      const bank = p.chairBank(p.lineLen + Math.PI * 5.2 / 4);
+      expect(bank).toBeGreaterThan(0);
+      expect(bank).toBeLessThan(0.26);
+    }
+  });
+
   it('the rope keeps riders clear of the ground between towers', async () => {
     for (const p of paths) {
       await world.hf.ensureArea(0, (p.def.bottom[0] + p.def.top[0]) / 2, -(p.def.bottom[2] + p.def.top[2]) / 2, p.horiz / 2 + 100);

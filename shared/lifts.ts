@@ -187,11 +187,13 @@ export class LiftPath {
 
   /** One seat transform for rendering, player physics and the authoritative server. */
   seatPoint(chair: number, seat: number, t: number) {
-    const lp = this.loopPoint(this.chairU(chair, t));
+    const u = this.chairU(chair, t), lp = this.loopPoint(u);
     const off = this.seatOffset(seat), h = lp.heading;
-    lp.p.x += Math.cos(h) * off + Math.sin(h) * 0.12;
-    lp.p.z += -Math.sin(h) * off + Math.cos(h) * 0.12;
-    lp.p.y += -HANGER + SEAT_TOP;
+    const bank = this.chairBank(u), y = -HANGER + SEAT_TOP;
+    const x = off * Math.cos(bank) - y * Math.sin(bank);
+    lp.p.x += Math.cos(h) * x + Math.sin(h) * 0.12;
+    lp.p.z += -Math.sin(h) * x + Math.cos(h) * 0.12;
+    lp.p.y += off * Math.sin(bank) + y * Math.cos(bank);
     return lp;
   }
 
@@ -222,6 +224,16 @@ export class LiftPath {
     const smooth = (v: number) => { const x = Math.max(0, Math.min(1, v)); return x * x * (3 - 2 * x); };
     const closed = uphill ? smooth((h - LOAD_OFFSET - 4) / 10) * smooth((this.horiz - UNLOAD_OFFSET - h - 6) / 14) : 0;
     return (1 - closed) * Math.PI * 0.96;
+  }
+
+  /** Smooth quasi-static outward bank on the bullwheel, from v²/r and gravity.
+   * This approximates empty-chair swing, not a full pendulum/cable dynamics solver. */
+  chairBank(u: number) {
+    u = ((u % this.loopLen) + this.loopLen) % this.loopLen;
+    const arc = Math.PI * GAUGE / 2;
+    const a = u >= this.lineLen && u < this.lineLen + arc ? (u - this.lineLen) / arc
+      : u >= 2 * this.lineLen + arc ? (u - 2 * this.lineLen - arc) / arc : 0;
+    return Math.atan(this.def.speed ** 2 / ((GAUGE / 2) * 9.81)) * Math.sin(Math.PI * a) ** 2;
   }
 
   /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
