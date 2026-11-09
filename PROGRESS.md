@@ -1,12 +1,13 @@
 # Progress
 
-## Crews and Resort Day (November 9, 2026, in progress)
+## Crews and Resort Day (November 9, 2026, released)
 
 - **Resort Day or Free Explore** (pause menu, Clock; `client/src/world/resortDay.ts`): Free Explore keeps the time you choose and runs the lifts at any hour. Resort Day runs a compressed day on the shared resort clock (an hour every six real minutes, 7 AM to 8:30 PM, then the next morning), so everyone in a room shares the hour; the time slider shows the clock and locks. Lifts load 9 AM to 4 PM: outside those hours the lines empty, a LIFT CLOSED rope (with a collider) closes each maze, the chairs run empty and standing at the load line shows a closed hint. The crowd follows the day (a few early, busiest late morning and early afternoon, nobody after the sweep), and the Snowriders' Club is out 9:15 to 3:45. The status board shows Open, Opens 9 AM or Closed.
 - **Lift operators** watch each incoming chair and raise an arm as one carrying riders (or you) comes into the load line (`baseLife.ts`, new pedestrian and skier gesture poses).
 - **Ski patrol sweep** (`client/src/world/patrol.ts`): three patrollers in red jackets with white crosses and SKI PATROL on the back sweep Ute from the top of Primo, Sun King and Midway, and Segundo from the top of Segundo between last chair and about 4:40. Within earshot you hear the last-run call as a caption. After the sweep and before opening, yellow closure ropes with CLOSED signs go up across the run entrances near you.
 - **Groomers** (released earlier today) start after the sweep, so the evening reads in order: last chair, sweep, ropes, cats under headlights.
 - **Fix: holding still in the lift line.** Measured the loading snow at 8.6 to 11.6 degrees uphill (it follows the climbing rope), steeper than snow's static friction holds, so a skier waiting for a chair slid backward out of the load zone about half the time and the gameplay test was flaky. Waiting in a loading lane without pushing now plants the poles (`SkiInput.hold`, extra static friction). Six of six probe boardings and all lift scenarios pass.
+- Release `967a8c8`: pushed and verified on `origin/main`; Vercel deployment `dpl_DUESr8SvFG6hGnEeW2gw39rCDbVV` READY at https://sunlight-sim.vercel.app serving `index-BJ1GiUJe.js`. Live Resort Day and smoke scenarios passed in Chromium and WebKit, and two live clients in one public room shared the Resort Day hour and snowcat positions. No server change.
 - Verified: new `resortDay.spec.ts` (closing at 4:12, no boarding after hours with the closed hint, patrol out, empty lines, lesson in; reopening at 10:30 with boarding) passes in Chromium and WebKit; two clients in Resort Day shared the hour and snowcat positions. Review captures in `screenshots/review-day/`.
 
 ## Snow that remembers (November 9, 2026, released)
