@@ -10,7 +10,7 @@ export interface NetSkier {
   mode: string; edge: number; plow: number; tuck: number; fallen: number;
 }
 
-export interface NetRide { lift: number; chair: number; seat: number }
+export interface NetRide { lift: number; chair: number; seat: number; boardedAt?: number }
 export interface NetDrone { x: number; y: number; z: number; yaw: number; pitch: number; bank: number; tilt: number; rpm: number[] }
 
 export interface PlayerInfo {
@@ -32,7 +32,7 @@ export type ServerMsg =
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }
   | { type: 'snapshot'; serverTime: number; players: PlayerInfo[] }
-  | { type: 'boarded'; id: string; lift: number; chair: number; seat: number }
+  | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
   | { type: 'unloaded'; id: string }
   | { type: 'correct'; s: NetSkier }

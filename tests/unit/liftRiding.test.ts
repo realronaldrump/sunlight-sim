@@ -29,7 +29,7 @@ function fixture(index: number) {
   // This suite exercises Player's actual state machine and terrain probe; visual poses have
   // their own model/browser tests and need not be recalculated for every simulated minute.
   player.model.update = () => {};
-  return { player, path, now: () => clock, at: (t: number, dt = 1 / 30) => { clock = t; player.update(dt, idle); } };
+  return { player, path, now: () => clock, at: (t: number, dt = 1 / 30, input = idle) => { clock = t; player.update(dt, input); } };
 }
 
 describe('Sunlight boarding and riding', () => {
@@ -57,13 +57,13 @@ describe('Sunlight boarding and riding', () => {
     for (let i = 0; i < 600 && !player.ride; i++) f.at(f.now() + 1 / 30);
     expect(player.ride).not.toBeNull();
     const ride = { ...player.ride! };
-    expect(ride.unloadAt - ride.boardedAt).toBeCloseTo(path.rideTime(), 0);
+    expect(ride.unloadAt - ride.boardedAt).toBeCloseTo(path.remainingRideTime(ride.chair, ride.boardedAt), 6);
     const seat = ride.seat;
     while (f.now() < ride.unloadAt - 0.1) {
       f.at(Math.min(ride.unloadAt - 0.05, f.now() + 0.1), 0.1);
       expect(player.st.mode).toBe('riding');
       const p = path.riderPoint(ride.chair, seat, f.now()).p;
-      expect(player.st.pos).toEqual(p);
+      if (f.now() - ride.boardedAt >= .85) expect(player.st.pos).toEqual(p);
     }
     f.at(ride.unloadAt + 0.01);
     expect(player.ride).toBeNull();
@@ -90,17 +90,59 @@ describe('Sunlight boarding and riding', () => {
     expect(f.player.st.mode).toBe('skiing');
   });
 
-  it('does not board fallen, airborne, fast, or backward-facing skiers', () => {
-    for (const mode of ['fallen', 'air', 'fast', 'backward']) {
+  it('requires an upright skier facing uphill and does not collect airborne skiers', () => {
+    for (const mode of ['fallen', 'air', 'backward']) {
       const f = fixture(0), st = f.player.st;
       const n = f.path.nextChairAt(f.path.loadU, f.now());
-      f.at(n.arrive - 0.01);
+      f.at(n.arrive - 1);
       if (mode === 'fallen' || mode === 'air') { st.mode = mode; st.grounded = mode !== 'air'; }
-      if (mode === 'fast') { st.speed = 8; st.vel = { x: f.path.ax * 8, y: 0, z: f.path.az * 8 }; }
+      if (mode === 'air') st.pos.y += 4;
       if (mode === 'backward') st.heading += Math.PI;
       f.at(n.arrive + 0.01);
       expect(f.player.ride).toBeNull();
     }
+  });
+
+  it('boards on chair contact away from the stripe without snapping the skier into position', () => {
+    for (const offset of [-2, 3]) {
+      const f = fixture(0), p = f.player, lp = f.path.loadPoint();
+      p.teleport(lp.x + f.path.ax * offset, lp.z + f.path.az * offset, lp.heading);
+      const next = f.path.nextChairAt(f.path.sAtH(7 + offset), f.now());
+      f.at(next.arrive - .6);
+      let before = { ...p.st.pos };
+      for (let i = 0; i < 80 && !p.ride; i++) { before = { ...p.st.pos }; f.at(f.now() + 1 / 120, 1 / 120, { ...idle, push: true, steer: .15 }); }
+      expect(p.ride, `offset ${offset}`).not.toBeNull();
+      expect(Math.hypot(p.st.pos.x - before.x, p.st.pos.y - before.y, p.st.pos.z - before.z)).toBeLessThan(.04);
+      const start = { ...p.st.pos }, at = f.now();
+      f.at(at + .35);
+      expect(p.sitBlend).toBeGreaterThan(.2); expect(p.sitBlend).toBeLessThan(.6);
+      expect(Math.hypot(p.st.pos.x - start.x, p.st.pos.z - start.z)).toBeGreaterThan(.5);
+      f.at(at + .9);
+      expect(p.sitBlend).toBe(1);
+      expect(p.st.pos).toEqual(f.path.riderPoint(p.ride!.chair, p.ride!.seat, f.now()).p);
+    }
+  });
+
+  it('chair contact is authoritative even when the skier has not slowed to a speed threshold', () => {
+    const f = fixture(0), n = f.path.nextChairAt(f.path.loadU, f.now());
+    f.at(n.arrive - .5);
+    f.player.st.speed = 6;
+    f.player.st.vel = { x: -f.path.ax * 6, y: 0, z: -f.path.az * 6 };
+    f.at(n.arrive - .05);
+    expect(f.player.ride).not.toBeNull();
+  });
+
+  it('a server seat change preserves continuous loading and rejection restores snow contact', () => {
+    const f = fixture(0), n = f.path.nextChairAt(f.path.loadU, f.now());
+    const saved = structuredClone(f.player.st);
+    f.at(n.arrive - .5); f.at(n.arrive);
+    const p = f.player, before = { ...p.st.pos };
+    p.confirmSeat((p.ride!.seat + 1) % f.path.def.seats);
+    f.at(f.now(), 0);
+    expect(p.st.pos).toEqual(before);
+    p.rejectBoard(saved);
+    expect(p.ride).toBeNull(); expect(p.sitBlend).toBe(0);
+    expect(p.st.pos.y).toBeCloseTo(stations.height(p.st.pos.x, p.st.pos.z), 8);
   });
 
   it('skip exits at the correct seat lane and marks the move as a teleport', () => {

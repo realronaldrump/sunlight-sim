@@ -655,8 +655,9 @@ export class Game {
       this.hud.hint(`${path.def.name} lift: ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')} to the top. Press <b>F</b> to skip.`);
     } else if (pl.inLoadZone >= 0) {
       const path = this.lifts.paths[pl.inLoadZone], t = this.lifts.now();
-      const wait = Math.ceil(path.nextChairAt(path.loadU, t).arrive - t);
-      this.hud.hint(`${path.def.name}: face uphill and wait at the red line. Next chair in ${wait} s.`);
+      const along = (pl.st.pos.x - path.def.bottom[0]) * path.ax + (pl.st.pos.z - path.def.bottom[2]) * path.az;
+      const wait = Math.ceil(path.nextChairAt(path.sAtH(Math.max(0, along)), t).arrive - t);
+      this.hud.hint(`${path.def.name}: face uphill and let the chair scoop you up. Next chair in ${wait} s.`);
     } else if (pl.st.mode === 'fallen' && pl.st.speed < 1) {
       this.hud.hint('You fell. Press <b>R</b> to get up');
     } else this.hud.hint(null);

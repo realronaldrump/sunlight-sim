@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { LiftPath, LiftDef, LOAD_OFFSET, MAX_BOARD_SPEED } from '../../shared/lifts';
+import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import type { NetDrone } from '../../shared/protocol';
 import {
@@ -126,18 +126,13 @@ export class Room {
           else reject('already riding');
           return;
         }
-        const along = (p.s.x - lift.def.bottom[0]) * lift.ax + (p.s.z - lift.def.bottom[2]) * lift.az;
-        if (!lift.inLoadZone(p.s.x, p.s.z) || Math.abs(along - LOAD_OFFSET) > 0.8 || Math.abs(p.s.y - lift.stationHeight(false)) > 0.8 ||
-            !['standing', 'skiing'].includes(p.s.mode) || Math.hypot(p.s.vx, p.s.vy, p.s.vz) > MAX_BOARD_SPEED ||
-            Math.cos(p.s.heading - lift.loadPoint().heading) < 0.5) {
-          reject('stand facing uphill at the load line'); return;
+        if (!lift.inBoardingApproach(p.s.x, p.s.z) || !['standing', 'skiing', 'air'].includes(p.s.mode) ||
+            Math.cos(p.s.heading - lift.loadPoint().heading) < BOARD_FACING_COS) {
+          reject('face uphill in the loading approach'); return;
         }
-        // A bounded network allowance around the load crossing, not anywhere on the loop.
-        const u = lift.chairU(msg.chair, t);
-        const delta = Math.abs(u - lift.loadU), du = Math.min(delta, lift.loopLen - delta);
-        if (du > lift.def.speed * 0.75 + 0.15) {
-          p.conn.send({ type: 'boardRejected', reason: 'chair not at the load line' }); return;
-        }
+        const point = { x: p.s.x, y: p.s.y, z: p.s.z };
+        const contact = lift.boardingContact(point, point, t - .75, t + .1, msg.chair);
+        if (!contact) { reject('chair has not reached you'); return; }
         const key = `${msg.lift}/${msg.chair}`;
         let m = this.seats.get(key);
         if (!m) { m = new Map(); this.seats.set(key, m); }
@@ -149,7 +144,7 @@ export class Room {
           seat = free[0];
         }
         m.set(seat, p.id);
-        p.ride = { lift: msg.lift, chair: msg.chair, seat };
+        p.ride = { lift: msg.lift, chair: msg.chair, seat, boardedAt: t };
         p.unloadAt = t + lift.remainingRideTime(msg.chair, t);
         this.broadcast({ type: 'boarded', id: p.id, ...p.ride });
         return;

@@ -23,7 +23,7 @@ export class LiftSystem {
   readonly colliders: Collider[] = [];
   private chairMeshes: { near: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; far: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; labels: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
-  private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[] }[] = [];
+  private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
   clockOffset = 0; // seconds added to Date.now()/1000 to get the shared lift clock
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -63,7 +63,7 @@ export class LiftSystem {
       rm.geometry.setAttribute('riderColor', new THREE.InstancedBufferAttribute(riderColors, 3));
       rm.castShadow = true; rm.frustumCulled = false;
       this.group.add(rm);
-      this.riders.push({ mesh: rm, slots });
+      this.riders.push({ mesh: rm, slots, colors: riderColors.slice() });
     }
   }
 
@@ -203,14 +203,19 @@ export class LiftSystem {
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];
       if (R) {
-        const p = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+        const p = new THREE.Vector3();
+        const colors = R.mesh.geometry.getAttribute('riderColor') as THREE.InstancedBufferAttribute;
+        let visible = 0;
         R.slots.forEach((sl, k) => {
           const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
-          if (!info.uphill || info.h < 12 || info.h > path.horiz - 10 || occupied.some(o => o.lift === li && o.chair === sl.chair)) { R.mesh.setMatrixAt(k, zero); return; }
+          if (!info.uphill || info.h < 20 || info.h > path.horiz - 10 || occupied.some(o => o.lift === li && o.chair === sl.chair)) return;
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
           this.m4.compose(p, this.q, new THREE.Vector3(1, 1, 1));
-          R.mesh.setMatrixAt(k, this.m4);
+          R.mesh.setMatrixAt(visible, this.m4);
+          colors.setXYZ(visible, R.colors[k * 3], R.colors[k * 3 + 1], R.colors[k * 3 + 2]);
+          visible++;
         });
+        R.mesh.count = visible; colors.needsUpdate = true;
         R.mesh.instanceMatrix.needsUpdate = true;
       }
     }

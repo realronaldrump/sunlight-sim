@@ -7,6 +7,7 @@ import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
 import type { Player } from '../skier/player';
 import type { LiftSystem } from '../lifts/liftSystem';
+import type { SkierState } from '../../../shared/skiPhysics';
 import { DroneModel } from '../drone/droneModel';
 
 interface Sample { t: number; s: NetSkier }
@@ -18,6 +19,8 @@ export class RemoteSkier {
   label: THREE.Sprite;
   fallen = 0; sit = 0; time = 0;
   heading = 0;
+  pickupOffset: THREE.Vector3 | null = null;
+  pickupHeading = 0;
   drone: DroneModel | null = null;
   flight: NetDrone | null = null;
   flightPos = new THREE.Vector3();
@@ -52,7 +55,7 @@ export class NetClient {
   onChat?: (name: string, text: string) => void;
   onStatus?: (text: string) => void;
   private teleportPending = false;
-  private pendingBoard: { lift: number; chair: number; seat: number; at: number } | null = null;
+  private pendingBoard: { lift: number; chair: number; seat: number; at: number; saved: SkierState } | null = null;
 
   constructor(private player: Player, private lifts: LiftSystem) {
     this.group.name = 'remote-players';
@@ -107,11 +110,12 @@ export class NetClient {
     // the server assigns chair seats
     this.player.requestBoard = (lift, chair, seat) => {
       if (this.pendingBoard && performance.now() - this.pendingBoard.at < 1500) return;
-      this.pendingBoard = { lift, chair, seat, at: performance.now() };
-      // Validate the current load-line position before requesting a seat. Wait for acceptance
-      // so a full chair/rejection cannot leave a player suspended in midair.
+      this.pendingBoard = { lift, chair, seat, at: performance.now(), saved: structuredClone(this.player.st) };
+      // Start the physical pickup at contact, without waiting for a round trip.
+      // Keep the last snow contact so rejection can restore it safely.
       this.sendState();
       this.send({ type: 'board', lift, chair, seat });
+      this.player.board(lift, chair, seat);
     };
     this.player.onUnload = (_lift, teleport) => {
       this.pendingBoard = null;
@@ -161,22 +165,27 @@ export class NetClient {
         if (m.id === this.id) {
           const pending = this.pendingBoard;
           this.pendingBoard = null;
-          const path = this.lifts.paths[m.lift];
-          if (pending?.lift === m.lift && pending.chair === m.chair && path?.inLoadZone(this.player.st.pos.x, this.player.st.pos.z)) this.player.board(m.lift, m.chair, m.seat);
+          if (pending?.lift === m.lift && pending.chair === m.chair && this.player.ride?.chair === m.chair && this.player.ride.lift === m.lift) this.player.confirmSeat(m.seat);
           else if (!this.player.ride) this.send({ type: 'unload' });
         } else {
           const r = this.remotes.get(m.id);
-          if (r) r.ride = { lift: m.lift, chair: m.chair, seat: m.seat };
+          if (r) {
+            r.ride = { lift: m.lift, chair: m.chair, seat: m.seat, boardedAt: m.boardedAt ?? this.serverNow() };
+            const p = this.lifts.paths[m.lift].riderPoint(m.chair, m.seat, r.ride.boardedAt!).p;
+            r.pickupOffset = r.model.root.position.clone().sub(new THREE.Vector3(p.x, p.y, p.z));
+            r.pickupHeading = r.heading;
+          }
         }
         break;
       case 'boardRejected':
+        if (this.pendingBoard) this.player.rejectBoard(this.pendingBoard.saved);
         this.pendingBoard = null;
         this.onStatus?.(`Could not board: ${m.reason}`);
         break;
       case 'unloaded': {
         if (m.id === this.id && this.player.ride) this.player.unload();
         const r = this.remotes.get(m.id);
-        if (r) r.ride = null;
+        if (r) { r.ride = null; r.pickupOffset = null; }
         break;
       }
       case 'correct':
@@ -231,11 +240,20 @@ export class NetClient {
       }
       let s: NetSkier | undefined;
       let heading = 0;
+      let loading = false;
       if (r.ride) {
         // ride exactly on the shared chair clock
         const info = this.lifts.paths[r.ride.lift].riderPoint(r.ride.chair, r.ride.seat, this.lifts.now());
         r.model.root.position.set(info.p.x, info.p.y, info.p.z);
         heading = info.heading;
+        if (r.pickupOffset && r.ride.boardedAt !== undefined) {
+          const progress = Math.min(1, Math.max(0, (this.lifts.now() - r.ride.boardedAt) / .85));
+          const blend = progress * progress * (3 - 2 * progress);
+          r.model.root.position.addScaledVector(r.pickupOffset, 1 - blend);
+          heading = r.pickupHeading + Math.atan2(Math.sin(heading - r.pickupHeading), Math.cos(heading - r.pickupHeading)) * blend;
+          r.sit = blend; loading = true;
+          if (progress === 1) r.pickupOffset = null;
+        }
         s = r.last;
       } else {
         const S = r.samples;
@@ -254,8 +272,11 @@ export class NetClient {
       orientSkier(r.model.root, heading, r.ride ? undefined : this.player.terrainNormal(r.model.root.position.x, r.model.root.position.z));
       if (!s) continue;
       const speed = Math.hypot(s.vx, s.vy, s.vz);
-      r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 4);
-      r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, time: r.time, pushing: false });
+      if (!loading) r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 5);
+      const pos = r.model.root.position;
+      const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y : undefined;
+      const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y);
+      r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false });
     }
   }
 

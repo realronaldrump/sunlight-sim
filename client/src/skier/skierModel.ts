@@ -14,6 +14,9 @@ export interface SkierPose {
   sitting: number;   // 0..1 blend (on the chair)
   time: number;      // seconds (for idle motion)
   pushing: boolean;
+  liftPreparation?: number; // preparing knees/hands for an approaching chair
+  footGroundY?: number; // snow height relative to the root, used until skis leave the ramp
+  footGroundPitch?: number;
 }
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -74,7 +77,8 @@ export class SkierModel {
     const dt = Math.max(0, Math.min(0.1, t - this.lastTime)); this.lastTime = t;
     this.plant = Math.max(0, this.plant - dt * 2.1);
     // ---- stance parameters ----
-    const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow;
+    const prepare = (p.liftPreparation ?? 0) * (1 - sit);
+    const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow + .08 * prepare;
     const incline = THREE.MathUtils.clamp(p.edge * 0.75, -0.75, 0.75) * Math.min(1, p.speed / 4) * (1 - sit);
     const wedge = p.plow * (1 - sit);
     const stanceW = 0.14 + 0.2 * wedge;
@@ -95,7 +99,8 @@ export class SkierModel {
       // sitting on the chair: hips back on the seat, thighs horizontal, legs hanging
       const sp = V(0, 0.54, 0.25), sc = V(0, 1.07, 0.33);
       pelvis = pelvis.lerp(sp, sit); chest = chest.lerp(sc, sit);
-      ankleL.lerp(V(-0.14, -0.05, -0.2), sit); ankleR.lerp(V(0.14, -0.05, -0.2), sit);
+      const footY = Math.max(-.05, (p.footGroundY ?? -Infinity) + .145);
+      ankleL.lerp(V(-0.14, footY, -0.2), sit); ankleR.lerp(V(0.14, footY, -0.2), sit);
       pelvisH = pelvis.y;
     }
     const neck = chest.clone().add(V(0, 0.12, -0.03));
@@ -143,7 +148,11 @@ export class SkierModel {
     sk[1].position.set(ankleR.x, ankleR.y - 0.13, ankleR.z - 0.05);
     sk[0].rotation.set(0, -toe, edgeTilt + wedge * 0.18, 'YXZ');
     sk[1].rotation.set(0, toe, edgeTilt - wedge * 0.18, 'YXZ');
-    if (sit > 0) { for (const s of sk) s.rotation.x = 0.35 * sit; }
+    if (sit > 0 || p.footGroundY !== undefined) {
+      const clearance = Math.max(0, -.18 - (p.footGroundY ?? -Infinity));
+      const hanging = Math.min(1, clearance / .3);
+      for (const s of sk) s.rotation.x = (p.footGroundPitch ?? 0) * (1 - hanging) + .35 * sit * hanging;
+    }
     this.boots[0].rotation.copy(sk[0].rotation);
     this.boots[1].rotation.copy(sk[1].rotation);
 
@@ -157,6 +166,9 @@ export class SkierModel {
       }
       if (p.tuck > 0.3) tipPos.lerp(hand.clone().add(V(side * 0.1, -0.35, 1.0)), p.tuck);
       if (p.pushing) tipPos.z += push * side * 0.25;
+      // Carry poles forward and clear of the snow during pickup and sitting.
+      const carry = Math.min(1, Math.max(sit * 2, prepare));
+      tipPos.lerp(hand.clone().add(V(side * .08, .2, -1.15)), carry);
       const d = tipPos.clone().sub(hand);
       pole.position.copy(hand).addScaledVector(d, 0.5);
       pole.quaternion.setFromUnitVectors(UP, d.normalize());

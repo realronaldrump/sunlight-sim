@@ -9,6 +9,19 @@ const pose: SkierPose = { speed: 8, edge: 0, plow: 0, tuck: 0, skid: 0, fallen: 
 
 describe('skier rendering', () => {
   beforeAll(() => prepareHumanAsset(JSON.parse(gunzipSync(readFileSync('client/public/models/skier-human.json.gz')).toString())));
+  it('keeps skis on the loading snow while the knees fold into the chair', () => {
+    const model = new SkierModel();
+    for (const sitting of [0, .2, .5, .8, 1]) {
+      const footGroundY = -.08 * sitting, footGroundPitch = .1;
+      model.update({ ...pose, speed: 2.54, sitting, footGroundY, footGroundPitch, liftPreparation: 1 });
+      model.root.updateMatrixWorld(true);
+      for (const ski of (model as any).skis as THREE.Group[]) for (const z of [-.6, 0, .6]) {
+        const point = new THREE.Vector3(0, 0, z).applyMatrix4(ski.matrixWorld);
+        const snow = footGroundY - Math.tan(footGroundPitch) * (point.z + .2);
+        expect(point.y - snow).toBeGreaterThan(-.05);
+      }
+    }
+  });
   it('uses a detailed articulated human instead of capsule limbs', () => {
     const model = new SkierModel();
     const meshes: THREE.Mesh[] = [];

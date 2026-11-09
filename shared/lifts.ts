@@ -22,7 +22,7 @@ export const SEAT_TOP = 0.035;
 export const LOAD_SEAT_HEIGHT = 0.52; // estimated maintained snow-to-seat clearance, not a surveyed Sunlight dimension
 export const RIDER_ROOT_BELOW_SEAT = 0.44; // seated hip joint is 0.54 m above origin; pelvis rests 0.10 m above cushion
 export const RIDER_ROOT_FORWARD = 0.25; // seated hips are 0.25 m behind the model origin
-export const MAX_BOARD_SPEED = 1.5;
+export const BOARD_FACING_COS = Math.cos(35 * Math.PI / 180);
 
 export interface P3 { x: number; y: number; z: number }
 
@@ -214,6 +214,54 @@ export class LiftPath {
     if (t < previousTime || t - previousTime > 2) return null;
     const next = this.nextChairAt(this.loadU, previousTime);
     return next.arrive <= t + 1e-7 ? next.index : null;
+  }
+
+  /** Swept carrier/skier contact on the straight loading approach. The red stripe
+   * is a guide, not a trigger. Both the skier and seat may move during the frame. */
+  boardingContact(from: P3, to: P3, start: number, end: number, onlyChair?: number): { chair: number; seat: number; fraction: number; along: number } | null {
+    if (end < start) return null;
+    if (end - start > 2) start = end;
+    const maxU = this.sAtH(LOAD_OFFSET + 12);
+    const bodyReach = .27, acrossReach = this.def.seats * SEAT_SPACING / 2 + bodyReach;
+    let best: { chair: number; seat: number; fraction: number; along: number } | null = null;
+    const min = onlyChair ?? 0, max = onlyChair === undefined ? this.chairCount : onlyChair + 1;
+    for (let chair = min; chair < max; chair++) {
+      const u = this.chairU(chair, end);
+      if (u > maxU + this.def.speed * (end - start)) continue;
+      const sampleStart = Math.max(start, end - u / this.def.speed);
+      const startFraction = end > start ? (sampleStart - start) / (end - start) : 0;
+      const sampledFrom = { x: from.x + (to.x - from.x) * startFraction, y: from.y + (to.y - from.y) * startFraction, z: from.z + (to.z - from.z) * startFraction };
+      const a = this.seatPoint(chair, (this.def.seats - 1) / 2, sampleStart).p;
+      const b = this.seatPoint(chair, (this.def.seats - 1) / 2, end).p;
+      const project = (p: P3, q: P3) => ({ along: (p.x - q.x) * this.ax + (p.z - q.z) * this.az, across: (p.x - q.x) * this.rx + (p.z - q.z) * this.rz });
+      const r0 = project(sampledFrom, a), r1 = project(to, b);
+      let enter = 0, exit = 1;
+      // At seat height the knees are ahead of the ski-root origin. The front of
+      // the cushion must actually reach the backs of the legs before pickup.
+      for (const [v0, v1, low, high] of [[r0.along, r1.along, -.3, .2], [r0.across, r1.across, -acrossReach, acrossReach]]) {
+        const delta = v1 - v0;
+        if (Math.abs(delta) < 1e-9) { if (v0 < low || v0 > high) exit = -1; }
+        else {
+          const t0 = (low - v0) / delta, t1 = (high - v0) / delta;
+          enter = Math.max(enter, Math.min(t0, t1)); exit = Math.min(exit, Math.max(t0, t1));
+        }
+      }
+      if (enter > exit || enter > 1 || exit < 0) continue;
+      const hitTime = sampleStart + (end - sampleStart) * enter, hitU = this.chairU(chair, hitTime);
+      if (hitU > maxU) continue; // never collect a rider from the return rope or mid-mountain
+      const clearance = a.y + (b.y - a.y) * enter - (sampledFrom.y + (to.y - sampledFrom.y) * enter);
+      if (clearance < .25 || clearance > 1.05) continue;
+      const across = r0.across + (r1.across - r0.across) * enter;
+      const seat = Math.max(0, Math.min(this.def.seats - 1, Math.round(across / SEAT_SPACING + (this.def.seats - 1) / 2)));
+      if (!best || enter < best.fraction) best = { chair, seat, fraction: enter, along: r1.along };
+    }
+    return best;
+  }
+
+  inBoardingApproach(x: number, z: number) {
+    const dx = x - this.def.bottom[0], dz = z - this.def.bottom[2];
+    const along = dx * this.ax + dz * this.az, across = dx * this.rx + dz * this.rz;
+    return along >= -1 && along <= LOAD_OFFSET + 13 && Math.abs(across - GAUGE / 2) <= this.def.seats * SEAT_SPACING / 2 + .4;
   }
 
   remainingRideTime(chair: number, t: number) {

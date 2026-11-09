@@ -75,20 +75,30 @@ describe('multiplayer rooms', () => {
     expect(c.c.msgs.some(m => m.type === 'boardRejected')).toBe(true);
   });
 
-  it('rejects distant, fallen, airborne, fast, backward and invalid boarding requests', () => {
+  it('rejects distant, fallen, airborne, backward and invalid boarding requests', () => {
     const { room, lift, chair, join } = boardFixture();
-    for (const bad of ['distance', 'height', 'fallen', 'air', 'speed', 'heading', 'chair', 'seat']) {
+    for (const bad of ['distance', 'height', 'fallen', 'air', 'heading', 'chair', 'seat']) {
       const { p, c } = join();
       if (bad === 'distance') p.s.x += 100;
       if (bad === 'height') p.s.y += 10;
       if (bad === 'fallen' || bad === 'air') p.s.mode = bad;
-      if (bad === 'speed') p.s.vx = 10;
+      if (bad === 'air') p.s.y += 4;
       if (bad === 'heading') p.s.heading += Math.PI;
       room.handle(p.id, { type: 'board', lift: 0, chair: bad === 'chair' ? lift.chairCount : chair.index, seat: bad === 'seat' ? -1 : 0 });
       expect(p.ride, bad).toBeNull();
       expect(c.msgs.at(-1)?.type, bad).toBe('boardRejected');
       room.leave(p.id);
     }
+  });
+
+  it('accepts physical chair contact off the load stripe while preserving the uphill requirement', () => {
+    const f = boardFixture(), { p } = f.join(), off = 3;
+    p.s.x += f.lift.ax * off; p.s.z += f.lift.az * off;
+    p.s.y = f.lift.stationHeight(false, 7 + off);
+    p.s.vx = f.lift.ax * 2; p.s.vz = f.lift.az * 2;
+    f.at(f.chair.arrive + (f.lift.sAtH(7 + off) - f.lift.loadU) / f.lift.def.speed);
+    f.room.handle(p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 1 });
+    expect(p.ride?.chair).toBe(f.chair.index);
   });
 
   it('rejects a full chair, preserves existing seats, and reuses a released seat', () => {
