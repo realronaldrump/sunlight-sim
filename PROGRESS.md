@@ -186,3 +186,8 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Starting build, 72 unit tests and four pipeline checks passed. Current build and all eight new drone tests pass; 80 tests passed overall, with four failures solely in another agent's then-untracked Sopris tests whose data generation is still running. Do not modify that agent's work to hide failures.
 - Concurrent checkpoint `2d2d062` already included the first drone physics/model/audio/input files along with the other active work. This checkpoint commits the remaining drone integration and docs; no unrelated files are staged by this task.
 - Next: frozen-build browser controls, graphics, audio, both render backends and multiplayer checks; fix observed issues; validate committed source; deploy to the existing Sunlight Vercel project and verify the public alias. No drone deployment yet.
+
+## Main-only deployment policy (November 8, 2026)
+- Owner requires `main` as the only local and GitHub branch, and every deployment to include `git push origin main`. Added this policy to AGENTS.md.
+- The minimap feature files already match their integrated versions on main. Preserve the former branch history with an ancestry-only merge, retaining the current implementation, then detach its clean checkout and remove the obsolete local branch. GitHub already has only main.
+- Validation: production build, all 84 unit tests and all five pipeline checks passed. Other chats' ongoing source/data/document edits remain unstaged.
