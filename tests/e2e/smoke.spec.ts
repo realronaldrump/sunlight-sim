@@ -57,5 +57,12 @@ test('starts beside the lodge racks and returns there from the slopes', async ({
 
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Teleport to base' }).click();
-  await expect.poll(skier).toMatchObject(start);
+  // A few physics frames can move the skis slightly on the apron after each spawn.
+  await expect.poll(async () => {
+    const returned = await skier();
+    return Math.hypot(returned.x - start.x, returned.y - start.y, returned.z - start.z);
+  }).toBeLessThan(0.25);
+  const returned = await skier();
+  expect(returned.onFoot).toBe(false);
+  expect(returned.heading).toBeCloseTo(start.heading);
 });
