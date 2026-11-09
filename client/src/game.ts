@@ -298,8 +298,8 @@ export class Game {
     const li = Math.max(0, this.resort.lifts.findIndex((l) => l.name === 'Segundo'));
     const path = this.lifts.paths[li];
     const lp = path.loadPoint();
-    // preferred spot: 14 m before the load line on the loading side
-    const px = lp.x - path.ax * 14 + path.rx * 3, pz = lp.z - path.az * 14 + path.rz * 3;
+    // behind the lift maze, in the open lane that leads straight to the load line
+    const px = lp.x - path.ax * 17, pz = lp.z - path.az * 17;
     let best = { x: px, z: pz, score: Infinity };
     for (let i = -20; i <= 20; i++) for (let j = -20; j <= 20; j++) {
       const x = px + i * 1.5, z = pz + j * 1.5;

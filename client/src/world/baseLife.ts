@@ -126,7 +126,7 @@ class NavGraph {
 }
 
 // ---------------------------------------------------------------- people
-type Kind = 'seated' | 'walker' | 'group' | 'queue';
+type Kind = 'seated' | 'walker' | 'group' | 'queue' | 'staff';
 interface Person {
   kind: Kind; model: PedestrianModel; st: WalkState; time: number;
   seatH?: number; tableH?: number; lookYaw: number; lookTimer: number;
@@ -135,7 +135,7 @@ interface Person {
   skis: 'shoulder' | 'feet' | 'planted' | 'none'; outdoorSkis: 'shoulder' | 'feet' | 'planted' | 'none'; visible: boolean; frame: number;
 }
 
-interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number }
+interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number; boarding: Map<number, Person[]> }
 
 export class BaseLife {
   readonly group = new THREE.Group();
@@ -168,17 +168,20 @@ export class BaseLife {
     return p;
   }
 
-  // ---------- lift mazes: posts and ropes behind each load line, where the queue stands
+  // ---------- lift mazes: an open lane straight to the load line and a crowd lane beside it that merges
+  // in front of the line, as at real chairlift mazes. Posts and ropes block skiers and walkers.
+  private laneShift(path: LiftPath) { return path.def.seats * 0.6 + 1.3; }
   private mazeGeo(path: LiftPath, rows: number) {
-    const lp = path.loadPoint(), half = (path.def.seats * 0.6 + 1.3) / 2;
+    const lp = path.loadPoint(), w = this.laneShift(path), half = w / 2;
     const post = new THREE.MeshStandardNodeMaterial({ color: 0x2c8a3c, roughness: 0.6 });
     const rope = new THREE.MeshStandardNodeMaterial({ color: 0xc8202a, roughness: 0.7 });
     const len = 3 + rows * 1.75 + 2;
     const g = new THREE.Group();
-    for (const side of [-1, 1]) {
+    // lines across the lift axis: player lane outer edge, the divider, and the crowd lane outer edge
+    for (const [lateral, from] of [[-half, 1.5], [half, 3.6], [half + w, 1.5]] as const) {
       let prev: THREE.Vector3 | null = null;
-      for (let d = 1.5; d <= len + 0.01; d += len / Math.ceil(len / 3)) {
-        const x = lp.x - path.ax * d + path.rx * side * half, z = lp.z - path.az * d + path.rz * side * half;
+      for (let d = from; d <= len + 0.01; d += (len - from) / Math.ceil((len - from) / 3)) {
+        const x = lp.x - path.ax * d + path.rx * lateral, z = lp.z - path.az * d + path.rz * lateral;
         const y = this.terrain(x, z);
         if (!Number.isFinite(y)) continue;
         const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 1.15, 8), post); m.position.set(x, y + 0.5, z); g.add(m);
@@ -192,6 +195,22 @@ export class BaseLife {
         prev = top;
       }
     }
+    // lift name board on two posts at the maze entrance, facing arriving skiers
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 192;
+    const c2 = cv.getContext('2d')!;
+    c2.fillStyle = '#163f2a'; c2.fillRect(0, 0, 512, 192); c2.strokeStyle = '#e9e2c8'; c2.lineWidth = 8; c2.strokeRect(10, 10, 492, 172);
+    c2.fillStyle = '#f3eedc'; c2.font = 'bold 84px Helvetica, Arial, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    c2.fillText(path.def.name.toUpperCase(), 256, 84);
+    c2.font = '30px Helvetica, Arial, sans-serif'; c2.fillText(`${path.def.seats}-person chair  ·  load here`, 256, 148);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const bx = lp.x - path.ax * (len + 1.2) + path.rx * w * 0.5, bz = lp.z - path.az * (len + 1.2) + path.rz * w * 0.5;
+    const by = this.terrain(bx, bz);
+    if (Number.isFinite(by)) {
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.68), new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.7, side: THREE.DoubleSide }));
+      board.position.set(bx, by + 1.75, bz); board.rotation.y = lp.heading; g.add(board); // faces arriving skiers
+      const wood = new THREE.MeshStandardNodeMaterial({ color: 0x5a3f2a, roughness: 0.9 });
+      for (const s of [-0.8, 0.8]) { const postM = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.1, 0.1), wood); postM.position.set(bx + path.rx * s, by + 1.0, bz + path.rz * s); g.add(postM); }
+    }
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return g;
   }
@@ -200,14 +219,16 @@ export class BaseLife {
     this.lifts.paths.forEach((path, li) => {
       const rows = Math.max(1, Math.round(this.budget.queueRows * (path.def.name === 'Segundo' ? 1.3 : path.def.name === 'Tercero' ? 1 : 0.8)));
       const lp = path.loadPoint();
-      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(), heading: lp.heading };
+      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(), heading: lp.heading, boarding: new Map() };
       this.group.add(this.mazeGeo(path, rows));
       this.queues.push(q);
     });
   }
 
+  /** Row 0 waits at the merge; boarding skiers step diagonally into their seat lane just behind the line. */
   private queueSpot(q: LiftQueue, row: number, seat: number) {
-    const lp = q.path.loadPoint(), off = q.path.seatOffset(seat), d = 3.0 + row * 1.75;
+    const lp = q.path.loadPoint(), d = row < 0 ? 0.7 : 3.0 + row * 1.75;
+    const off = q.path.seatOffset(seat) + (row < 0 ? 0 : this.laneShift(q.path));
     const x = lp.x - q.path.ax * d + q.path.rx * off, z = lp.z - q.path.az * d + q.path.rz * off;
     return { x, z, y: this.terrain(x, z) };
   }
@@ -287,6 +308,15 @@ export class BaseLife {
         this.person('group', appearance(r), x, this.terrain(x, z), z, heading, r() < 0.75 ? 'planted' : 'shoulder');
       }
     }
+    // a lift operator stands at each load area, between the hut and the line, watching the chairs
+    for (const q of this.queues) {
+      const lp = q.path.loadPoint(), w = this.laneShift(q.path);
+      const x = lp.x - q.path.ax * 1.5 - q.path.rx * (w * 0.5 + 1.4), z = lp.z - q.path.az * 1.5 - q.path.rz * (w * 0.5 + 1.4);
+      const y = this.terrain(x, z);
+      if (!Number.isFinite(y)) continue;
+      const look = appearance(r); look.jacket = new THREE.Color(0x1b1d22); look.hat = 'beanie'; look.hatColor = new THREE.Color(0xb3262e);
+      this.person('staff', look, x, y, z, Math.atan2(q.path.rx, q.path.rz) + Math.PI, 'none');
+    }
     // lift lines: rows of skiers standing on their skis, facing uphill
     for (const q of this.queues) {
       for (let row = 0; row < q.rows; row++) {
@@ -330,17 +360,21 @@ export class BaseLife {
     this.clock += dt; this.frameNo++;
     if (!this.built) { if (this.clock > 2.5) this.build(); return; }
     const t = this.lifts.now();
-    // lift queues advance whenever a chair carrying riders passes the load line
+    // Lift queues: 2.6 s before a chair carrying riders reaches the load line, the front row merges into
+    // its seat lanes; when that chair passes the line, they are its riders.
     for (const q of this.queues) {
+      const lead = q.path.def.speed * 2.6;
+      const merging = this.lifts.chairsPassing(q.li, (q.path.loadU - lead + q.path.loopLen) % q.path.loopLen, q.lastT, t);
       const passing = this.lifts.chairsPassing(q.li, q.path.loadU, q.lastT, t);
       q.lastT = t;
-      if (playerLoadLift === q.li) continue; // let the player have this chair
-      for (const chair of passing) {
+      for (const chair of merging) {
+        if (playerLoadLift === q.li) continue; // the player has this chair; the crowd waits for the next
         const seats = this.lifts.riderSeats(q.li, chair);
-        if (!seats.length) continue;
         const front = q.members[0];
-        for (const seat of seats) { const m = front[seat]; if (m) { m.model.root.visible = false; m.visible = false; this.people.splice(this.people.indexOf(m), 1); this.group.remove(m.model.root); front[seat] = null; } }
-        if (front.every((m) => !m)) {
+        const group: Person[] = [];
+        for (const seat of seats) { const m = front?.[seat]; if (m?.queue) { m.queue.boarding = 1; m.queue.row = -1; group.push(m); front[seat] = null; } }
+        if (group.length) q.boarding.set(chair, group);
+        if (front && front.every((m) => !m)) {
           q.members.shift();
           q.members.push(Array.from({ length: q.seats }, () => null));
           q.members.forEach((row, ri) => row.forEach((m) => { if (m?.queue) m.queue.row = ri; }));
@@ -355,6 +389,12 @@ export class BaseLife {
             back[seat] = p;
           }
         }
+      }
+      for (const chair of passing) {
+        const group = q.boarding.get(chair);
+        if (!group) continue;
+        q.boarding.delete(chair);
+        for (const m of group) { m.model.root.visible = false; m.visible = false; this.people.splice(this.people.indexOf(m), 1); this.group.remove(m.model.root); }
       }
     }
     this.gear.begin();
@@ -386,8 +426,8 @@ export class BaseLife {
       } else if (p.kind === 'queue' && p.queue) {
         const s = this.queueSpot(p.queue.q, p.queue.row, p.queue.seat);
         const ddx = s.x - p.st.pos.x, ddz = s.z - p.st.pos.z, d = Math.hypot(ddx, ddz);
-        if (d > 0.12) { // shuffle forward on skis toward the next row
-          const v = Math.min(0.9, d * 1.5);
+        if (d > 0.12) { // shuffle forward on skis toward the next row, or step briskly into the lane
+          const v = Math.min(p.queue.boarding ? 1.6 : 0.9, d * 1.5);
           p.st.pos.x += ddx / d * v * dt; p.st.pos.z += ddz / d * v * dt; p.st.pos.y = this.terrain(p.st.pos.x, p.st.pos.z);
           p.st.speed = v; p.st.stride += v * dt / 0.4; moving = true;
         } else p.st.speed = 0;
