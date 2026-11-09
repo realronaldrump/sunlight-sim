@@ -266,11 +266,10 @@ export class Game {
     // Compile carrier/character/terrain materials before play. A cold shader stall
     // must not consume the first approaching chair after the UI reports readiness.
     this.setLoading(.98, 'Preparing mountain graphics');
-    // Some WebGL drivers never report KHR_parallel_shader_compile completion in
-    // a second context. A real warm frame compiles and uploads synchronously,
-    // avoiding that unbounded poll while keeping all cold work behind loading.
-    if (this.renderer.coordinateSystem === THREE.WebGLCoordinateSystem) this.renderer.render(this.scene, this.camera);
-    else await this.renderer.compileAsync(this.scene, this.camera);
+    // Async pipeline completion can stall across browser contexts on either
+    // backend. A real warm frame compiles and uploads behind the loading overlay,
+    // without making multiplayer startup depend on a never-settling driver promise.
+    this.renderer.render(this.scene, this.camera);
     this.setLoading(1, 'Ready');
     document.getElementById('loading')?.classList.add('done');
     this.chat = new ChatUI();

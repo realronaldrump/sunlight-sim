@@ -13,6 +13,16 @@ test('WebGL starts even when parallel shader completion never reports ready', as
   expect(await page.evaluate(()=>(window as any).game.renderer.info.render.drawCalls)).toBeGreaterThan(0);
 });
 
+test('WebGPU starts without awaiting asynchronous pipeline completion',async({page})=>{
+  await page.addInitScript(()=>{
+    const device=(window as any).GPUDevice;
+    if(device)device.prototype.createRenderPipelineAsync=()=>new Promise(()=>{});
+  });
+  await page.goto('/?autostart=1&ambient=0');
+  await page.waitForFunction(()=>(window as any).game?.ready,null,{timeout:25000});
+  expect(await page.evaluate(()=>(window as any).game.renderer.info.render.drawCalls)).toBeGreaterThan(0);
+});
+
 test('starts via WebGL2 if the browser GPU capability request never returns', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'gpu', { configurable: true, value: { requestAdapter: () => new Promise(() => {}) } });
