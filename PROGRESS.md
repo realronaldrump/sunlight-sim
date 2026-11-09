@@ -1,11 +1,12 @@
 # Progress
 
-## Lodge stops and gestures (November 9, 2026, in progress)
+## Lodge stops and gestures (November 9, 2026, released)
 
 - **Rack your skis**: on foot (K to step out), K at a lodge ski rack leaves your skis and poles standing in it; walk in for a coffee or sit outside, then K at the rack picks them up and K on open snow clicks in. Teleporting away brings them along.
 - **Sit with friends**: E at a free deck picnic table, dining table, stool or bench sits you down (guests already sitting keep their seats); E or walking stands you up.
 - **Wave and point**: 1 waves your pole hand beside your helmet; 2 points down the fall line (or where you look on the flat) and names the run in that direction. Friends see the arm move and get a note ("Ben waves", "Ann points down Midway").
 - **Friends see you on foot**: the state you send now says walking or sitting, whether your skis are on your shoulder or racked, and seat and table heights, so a friend sees you walking in ski boots or seated at the table instead of a standing skier. Optional fields only; the deployed server already relays them, so no server change.
+- Release `c4490e6`: pushed and verified on `origin/main`; Vercel deployment `dpl_FRzWNyxxqXdDqb5h4aak37koAXdh` READY at https://sunlight-sim.vercel.app serving `index-D4I4vae0.js`. Two live Chromium clients in one public room: Ann racked her skis and sat at a deck table, Ben saw her seated with skis racked, and wave and point notes arrived both ways.
 - Verified: new two-player `social.spec.ts` (rack, sit, remote sees her seated within 0.5 m of the seat with skis racked, wave and point notes both ways, stand and pick the skis up) passes in Chromium and WebKit. Regression: multiplayer, chair-fall multiplayer, on-foot, gameplay and smoke pass. Review captures in `screenshots/review-social/`.
 
 ## Crews and Resort Day (November 9, 2026, released)
