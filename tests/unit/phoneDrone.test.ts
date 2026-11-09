@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { isIPhone } from '../../client/src/platform';
-import { DroneNavigation } from '../../shared/droneNavigation';
+import { directFlightInput } from '../../shared/droneTouch';
+import { fitPlayerLabel } from '../../client/src/net/playerLabels';
+import { PerspectiveCamera, Sprite } from 'three/webgpu';
 import { createDrone, FlightArea, stepDrone, type FlightWorld } from '../../shared/dronePhysics';
 import { Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
 
 const area=new FlightArea([[-1000,0,-1000],[1000,0,-1000],[1000,0,1000],[-1000,0,1000]],0);
 const world:FlightWorld={height:()=>2500};
-function navigate(hz:number, terrain=world) {
-  const drone=createDrone({x:0,y:2520,z:0},0,terrain,area), nav=new DroneNavigation();
-  nav.pace='cruise'; nav.setTarget({x:25,y:2520,z:-45},terrain,area);
-  for(let i=0;i<30*hz;i++)stepDrone(drone,nav.input(drone,terrain,1/hz),terrain,area,1/hz);
-  return {drone,nav};
+function fly(state:ReturnType<typeof createDrone>, seconds:number, direction:number, pitch=0,hz=60) {
+  for(let i=0;i<seconds*hz;i++)stepDrone(state,directFlightInput(direction,pitch),world,area,1/hz);
 }
+const spawn=()=>createDrone({x:0,y:2518,z:0},0,world,area);
 
 describe('iPhone launch policy',()=>{
   const desktop={userAgent:'Macintosh',platform:'MacIntel',maxTouchPoints:0,screenWidth:390,screenHeight:844};
@@ -25,33 +25,36 @@ describe('iPhone launch policy',()=>{
   });
 });
 
-describe('tap to fly navigation',()=>{
-  it('arrives without oscillation across frame rates and holds position after arrival',()=>{
-    const a=navigate(60), b=navigate(20);
-    for(const {nav,drone} of [a,b]){
-      expect(nav.target).toBeNull();expect(nav.message).toBe('Arrived · hovering');
-      expect(Math.hypot(drone.pos.x-25,drone.pos.z+45)).toBeLessThan(1);
-      expect(drone.speed).toBeLessThan(.01);
-    }
-    expect(Math.hypot(a.drone.pos.x-b.drone.pos.x,a.drone.pos.z-b.drone.pos.z)).toBeLessThan(.2);
+describe('direct phone flight',()=>{
+  it('flies forward smoothly, reverses more slowly, and follows the look direction vertically',()=>{
+    const s=spawn();fly(s,4,1);expect(s.speed).toBeCloseTo(6,5);expect(s.pos.z).toBeLessThan(-20);
+    const reverse=spawn();fly(reverse,4,-1);expect(reverse.speed).toBeCloseTo(3,5);expect(reverse.pos.z).toBeGreaterThan(10);
+    const up=spawn();fly(up,4,1,Math.PI/6);expect(up.vel.y).toBeCloseTo(3,5);expect(up.vel.z).toBeCloseTo(-6*Math.cos(Math.PI/6),5);
+    const down=spawn();fly(down,2,1,-Math.PI/6);expect(down.pos.y).toBeLessThan(2514);
   });
-  it('climbs over a roof using existing obstacles and never enters it',()=>{
-    const terrain:FlightWorld={...world,obstacles:()=>[{type:'box',x:0,z:-15,hx:5,hz:3,top:2528}]};
-    const drone=createDrone({x:0,y:2514,z:0},0,terrain,area),nav=new DroneNavigation();
-    nav.pace='cruise';nav.setTarget({x:0,y:2514,z:-30},terrain,area);
-    for(let i=0;i<60*40;i++){
-      stepDrone(drone,nav.input(drone,terrain,1/60),terrain,area,1/60);
-      if(Math.abs(drone.pos.z+15)<3.4)expect(drone.pos.y).toBeGreaterThan(2528);
-    }
-    expect(nav.target).toBeNull();expect(drone.pos.z).toBeLessThan(-29);
+  it('releasing the button brakes to hover and a short press gives a small nudge',()=>{
+    const s=spawn();fly(s,3,1);fly(s,1,0);expect(s.speed).toBeLessThan(.001);
+    const parked={...s.pos};fly(s,5,0);expect(s.pos).toEqual(parked);
+    const tap=spawn();fly(tap,.1,1);fly(tap,1,0);expect(Math.hypot(tap.pos.x,tap.pos.z)).toBeLessThan(.15);
   });
-  it('stops and explains an unreachable route and keeps taps within flight bounds',()=>{
-    const terrain:FlightWorld={...world,ready:()=>false},drone=createDrone({x:0,y:2514,z:0},0,terrain,area),nav=new DroneNavigation();
-    nav.setTarget({x:5000,y:4000,z:0},terrain,area);expect(area.contains(nav.target!.x,nav.target!.z)).toBe(true);
-    expect(nav.target!.y).toBeLessThanOrEqual(2618);
-    nav.setTarget({x:20,y:2514,z:0},terrain,area);
-    for(let i=0;i<600;i++)stepDrone(drone,nav.input(drone,terrain,1/60),terrain,area,1/60);
-    expect(nav.target).toBeNull();expect(nav.message).toContain('Path blocked');expect(drone.pos.x).toBe(0);
+  it('keeps flight frame-rate independent and obeys existing terrain and ceiling limits',()=>{
+    const a=spawn(),b=spawn();fly(a,5,1,.3,60);fly(b,5,1,.3,30);
+    expect(a.pos.x).toBeCloseTo(b.pos.x,5);expect(a.pos.y).toBeCloseTo(b.pos.y,5);expect(a.pos.z).toBeCloseTo(b.pos.z,5);
+    fly(a,40,1,Math.PI/2);expect(a.agl).toBeLessThanOrEqual(120.0001);
+    fly(a,40,1,-Math.PI/2);expect(a.agl).toBeGreaterThanOrEqual(1.3999);
+    expect(Object.values(directFlightInput(NaN,Infinity)).filter(v=>typeof v==='number').every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe('multiplayer name labels',()=>{
+  it('limits labels to the same screen height and hides labels inside the camera',()=>{
+    const camera=new PerspectiveCamera(68,390/844,.1,1000),label=new Sprite();
+    for(const depth of [3,30,300]){
+      label.position.set(0,0,-depth);fitPlayerLabel(label,camera,844);
+      expect(label.visible).toBe(true);
+      expect(label.scale.y/(2*depth*Math.tan(68*Math.PI/360))*844).toBeCloseTo(32,5);
+    }
+    for(const depth of [.5,800,-10]){label.position.z=-depth;fitPlayerLabel(label,camera,844);expect(label.visible).toBe(false);}
   });
 });
 

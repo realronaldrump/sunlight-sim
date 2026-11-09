@@ -17,14 +17,13 @@ body.iphone #hud, body.iphone #help, body.iphone #liftdir, body.iphone #hint, bo
  .flight-bottom { position: absolute; bottom: var(--flight-bottom); left: var(--flight-left); right: var(--flight-right); margin: auto; max-width: 330px; padding: 10px 12px; background: #102536d9; border: 1px solid #a5d7d655; border-radius: 16px; text-align: center; }
 .flight-actions { display: flex; gap: 8px; margin: 8px 0; }
 .flight-actions > * { flex: 1; min-width: 0; }
-.flight-actions select { appearance: none; -webkit-appearance: none; padding: 8px 4px !important; text-align: center; text-align-last: center; }
-#touch-hold { background: #d7f9f0 !important; color: #123241 !important; border-color: #fff !important; }
+body.iphone #touch-flight .flight-move { touch-action: none; min-height: 58px; font-size: 17px; }
+#touch-fly { flex: 1.5; }
+#touch-flight .flight-move.engaged { box-shadow: inset 0 0 0 2px #d7fff5; background: #377663; }
+#touch-fly { background: #d7f9f0 !important; color: #123241 !important; border-color: #fff !important; }
 .flight-tip { color: #d7edf0; font-size: 11px; }
 #touch-flight-status { color: #d7f9f0; font-size: 12px; min-height: 16px; }
-#flight-marker { position: absolute; transform: translate(-50%, -50%); text-align: center; color: #a9fff1; text-shadow: 0 2px 4px #00131c, 0 0 8px #00131c; }
-#flight-marker[hidden] { display: none; }
-#flight-marker span { display: block; font-size: 42px; line-height: 1; }
-#flight-marker b { display: block; font-size: 9px; letter-spacing: .12em; background: #102536c9; padding: 3px 6px; border-radius: 4px; }
+.flight-aim { position: absolute; left: calc(50% - 2px); top: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #fff9; box-shadow: 0 0 0 1px #001a3940; }
 .flight-help { position: absolute; top: calc(var(--flight-top) + 82px); left: var(--flight-left); right: var(--flight-right); margin: auto; max-width: 330px; padding: 18px; background: #102536f5; border: 1px solid #a5d7d6; border-radius: 16px; pointer-events: auto; line-height: 1.6; max-height: calc(100dvh - 100px); overflow-y: auto; }
 .flight-help strong { font-size: 17px; } .flight-help p { margin: 10px 0; }
 body.iphone #drone-telemetry { top: calc(var(--flight-top) + 76px); bottom: auto; padding: 8px 14px; gap: 22px; max-width: calc(100vw - 24px); background: #0d2738cf; }

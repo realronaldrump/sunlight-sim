@@ -39,7 +39,7 @@ import { FlightArea } from '../../shared/dronePhysics';
 import { DroneSystem } from './drone/droneSystem';
 import { TouchControls } from './drone/touchControls';
 import { IPHONE } from './platform';
-import { DroneNavigation } from '../../shared/droneNavigation';
+import { fitPlayerLabel } from './net/playerLabels';
 import { formatDistance } from './ui/units';
 import { LIFT_SPEEDS, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { LiftRideControls } from './ui/liftRideControls';
@@ -53,7 +53,6 @@ export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[
 export class Game {
   readonly droneOnly = IPHONE;
   touch: TouchControls | null = null;
-  readonly navigation = new DroneNavigation();
   renderer!: THREE.WebGPURenderer;
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(62, 1, 0.25, 300000);
@@ -222,6 +221,7 @@ export class Game {
     window.addEventListener('blur', stopFast);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopFast(); });
     if (this.droneOnly) {
+      this.drone.fpv = true;
       this.drone.enter(this.player.st.pos, this.player.st.heading);
       this.player.model.root.visible = false;
       this.camRig.enabled = false;
@@ -229,8 +229,7 @@ export class Game {
       this.touch = new TouchControls(this.renderer.domElement, {
         map: () => this.trailMap.toggle(), options: () => this.options.toggle(),
         chat: () => { if (this.net?.connected) this.chat.openInput(); },
-        camera: () => this.drone.cycleCamera(), home: () => this.options.toggle(true), hold: () => this.holdDrone(),
-        fly: (x,y) => this.tapDestination(x,y), pace: pace => { this.navigation.pace = pace; },
+        camera: () => this.drone.cycleCamera(), hold: () => this.holdDrone(),
         allowed: () => this.ready && !this.chat?.open && !this.options?.visible && !this.trailMap.visible && !this.launchingDrone && (!this.net || this.net.connected),
       });
     }
@@ -473,32 +472,12 @@ export class Game {
 
   recallDrone() {
     if (!this.drone.active) return;
-    this.navigation.stop();
     this.drone.recall(this.player.st.pos,this.player.st.heading);
     this.input.clear(); this.touch?.reset(); this.audioScene = new AudioScene();
     this.hud.toast(this.droneOnly ? 'Back at your launch point' : 'Drone recalled above your skier');
   }
 
-  holdDrone() { this.navigation.stop(); this.drone.hold(); this.input.clear(); }
-
-  /** Pick the real terrain under a tap; a sky tap selects a nearby point along that view ray. */
-  tapDestination(clientX: number, clientY: number) {
-    if (!this.touch?.canFly || !this.drone.state) return;
-    const bounds = this.renderer.domElement.getBoundingClientRect();
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2((clientX-bounds.left)/bounds.width*2-1, 1-(clientY-bounds.top)/bounds.height*2), this.camera);
-    const point = new THREE.Vector3();
-    let hit = false;
-    for (let d=4; d<=2400; d+=8) {
-      ray.ray.at(d,point);
-      if (point.y > this.probe.height(point.x,point.z)) continue;
-      let lo=Math.max(0,d-8), hi=d;
-      for(let i=0;i<10;i++) { const mid=(lo+hi)/2; ray.ray.at(mid,point); if(point.y>this.probe.height(point.x,point.z))lo=mid;else hi=mid; }
-      ray.ray.at(hi,point); point.y=this.probe.height(point.x,point.z)+12; hit=true; break;
-    }
-    if (!hit) ray.ray.at(100,point);
-    this.navigation.setTarget(point,this.drone.world,this.drone.area);
-  }
+  holdDrone() { this.drone.hold(); this.input.clear(); }
 
   private onResize() {
     const w = window.innerWidth, h = window.innerHeight;
@@ -576,11 +555,11 @@ export class Game {
         this.drone.controlsEnabled = this.input.enabled;
         let input = this.input.drone();
         if (this.touch) {
-          const manual = ['forward','right','up','yaw','pitch'].some(axis => Math.abs(input[axis as 'forward']) > .01);
-          if (manual || input.brake) this.navigation.stop();
-          else if (this.touch.canFly) input = this.navigation.input(this.drone.state!, this.drone.world, dt);
           const look = this.touch.consumeLook(dt);
           this.drone.look(look.x, look.y);
+          const touchInput = this.touch.input(this.drone.state!.pitch);
+          input.forward += touchInput.forward;
+          input.up += touchInput.up;
         }
         this.drone.update(dt,input);
         if (!this.droneOnly) this.player.update(dt,{steer:0,tuck:false,plow:0,push:false,stop:true},true);
@@ -627,6 +606,10 @@ export class Game {
     this.ambient?.update(dt, this.player.position, this.camera.position);
     this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
     this.updateCamera(dt);
+    for (const remote of this.net?.remotes.values() ?? []) {
+      fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
+      if (remote.drone && remote.flight) remote.drone.root.visible = remote.flightPos.distanceToSquared(this.camera.position) > .64;
+    }
     for (const f of this.onFrame) f(dt);
     const p = this.drone.state?.pos ?? (this.flyMode ? this.camera.position : this.player.position);
     void this.hf.ensureArea(0, p.x, -p.z, 160);
@@ -661,13 +644,7 @@ export class Game {
       ride ? this.lifts.clocks[ride.lift].rate : 1, overlaysClear,
       !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net);
     this.playerMarker.update(this.camera, st.pos, this.drone.active && !this.droneOnly && overlaysClear, lift?.def.name);
-    if (this.touch) {
-      const target = this.navigation.target;
-      const projected = target ? new THREE.Vector3(target.x,target.y,target.z).project(this.camera) : null;
-      const visible = projected && projected.z > -1 && projected.z < 1 && Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1;
-      this.touch.showDestination(visible ? {x:(projected!.x+1)/2*innerWidth,y:(1-projected!.y)/2*innerHeight} : null,
-        target ? `${this.navigation.message} · ${formatDistance(Math.hypot(target.x-mapPos.x,target.z-mapPos.z))}` : this.navigation.message || 'Hovering');
-    }
+    this.touch?.showStatus(this.drone.state?.speed ?? 0, this.drone.state?.warning ?? '');
     this.updateHints();
     this.updateLiftArrow();
     this.updateAudio(dt);
@@ -834,7 +811,7 @@ export class Game {
       if (level < 0 || level > 1) { this.hud.toast('Terrain is still loading. Try that location again.'); return; }
       this.player.teleport(destination.x, destination.z, heading);
       this.player.model.root.visible = false;
-      this.drone.recall({...this.player.st.pos, y: altitude === undefined ? this.player.st.pos.y : altitude - 7}, heading);
+      this.drone.recall({...this.player.st.pos, y: altitude === undefined ? this.player.st.pos.y : altitude - this.drone.launchHeight}, heading);
       this.net?.markTeleport(); this.audioScene = new AudioScene();
     } finally { this.launchingDrone = false; }
   }

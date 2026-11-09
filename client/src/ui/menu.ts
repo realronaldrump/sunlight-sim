@@ -44,7 +44,7 @@ export function showMenu(defaults: { quality: QualityName; droneOnly?: boolean }
   const el = document.createElement('div'); el.id = 'menu';
   const phone = !!defaults.droneOnly;
   el.innerHTML = `<div class="panel">
-    <h2>Sunlight Mountain</h2><p class="sub">${phone ? 'Drone explorer · Made for iPhone<br>Fly with two thumbs. Release to hover.' : 'Glenwood Springs, Colorado. Real terrain, real runs, real lifts.'}</p>
+    <h2>Sunlight Mountain</h2><p class="sub">${phone ? 'Drone explorer · Made for iPhone<br>Drag to look. Hold Fly to explore.' : 'Glenwood Springs, Colorado. Real terrain, real runs, real lifts.'}</p>
     <label for="m-name">Your name</label><input type="text" id="m-name" maxlength="18" autocomplete="nickname" placeholder="${phone ? 'Pilot' : 'Skier'}">
     <label>${phone ? 'Map color' : 'Jacket colour'}</label><div class="swatches">${COLORS.map((c,i) => `<button type="button" class="sw" data-c="${c}" aria-label="${['Red','Blue','Yellow','Green','Purple','Pink','Black','White'][i]}" style="background:${c}"></button>`).join('')}</div>
     <div ${phone ? 'hidden' : ''}><label for="m-q">Graphics quality</label><select id="m-q"><option value="auto">Auto (${defaults.quality})</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div>

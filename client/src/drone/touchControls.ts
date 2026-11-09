@@ -1,110 +1,121 @@
-import type { FlightPace } from '../../../shared/droneNavigation';
+import { directFlightInput } from '../../../shared/droneTouch';
 
 interface TouchActions {
-  map(): void; options(): void; chat(): void; camera(): void; home(): void; hold(): void;
-  fly(x: number, y: number): void; pace(pace: FlightPace): void;
-  allowed(): boolean;
+  map(): void; options(): void; chat(): void; camera(): void; hold(): void; allowed(): boolean;
 }
 
-/** Tap a destination; drag the scene to look. No virtual sticks or persistent held movement. */
+/** Look anywhere on the scene; hold Fly or Back with the other thumb. No sticks or destinations. */
 export class TouchControls {
-  readonly root = document.createElement('section');
-  private enabled = false;
-  private pointer: { id: number; x: number; y: number; startX: number; startY: number; at: number; dragged: boolean } | null = null;
-  private look = { x: 0, y: 0 };
-  private status: HTMLElement;
-  private help: HTMLElement;
-  private flightStatus: HTMLElement;
-  private marker: HTMLElement;
-  private focused = true;
+  readonly root=document.createElement('section');
+  private enabled=false;
+  private lookPointer: {id:number;x:number;y:number} | null=null;
+  private held=new Map<number,{element:HTMLElement;direction:number}>();
+  private look={x:0,y:0};
+  private connection:HTMLElement;
+  private help:HTMLElement;
+  private status:HTMLElement;
+  private focused=true;
 
-  constructor(private canvas: HTMLElement, private actions: TouchActions) {
-    this.root.id = 'touch-flight'; this.root.hidden = true;
-    this.root.setAttribute('aria-label', 'Touch drone controls');
-    this.root.innerHTML = `<nav class="flight-toolbar" aria-label="Flight tools">
+  constructor(private canvas:HTMLElement,private actions:TouchActions) {
+    this.root.id='touch-flight';this.root.hidden=true;
+    this.root.setAttribute('aria-label','Touch drone controls');
+    this.root.innerHTML=`<nav class="flight-toolbar" aria-label="Flight tools">
       <button id="touch-map" type="button">Map</button><button id="touch-view" type="button">View</button>
       <button id="touch-chat" type="button">Chat</button><button id="touch-options" type="button">Pause</button>
       <button id="touch-help" type="button" aria-label="Flight help" aria-expanded="false">?</button></nav>
       <div class="flight-connection" role="status">Solo flight</div>
-      <div class="flight-help" hidden><strong>Tap to fly. Drag to look.</strong><p>Tap the mountain to fly above that spot.<br>Tap the sky to climb toward it.<br>Drag the scenery to look around. Dragging pauses your flight.</p><p>The marker shows your destination.<br>Tap Hold to stop.<br>Pause to recall or teleport to a run or friend.</p><button type="button">Got it</button></div>
-      <div id="flight-marker" hidden aria-hidden="true"><span>◎</span><b>DESTINATION</b></div>
+      <div class="flight-help" hidden><strong>Look. Fly. Explore.</strong>
+        <p>Drag anywhere in the scenery to look.<br>Hold <b>Fly</b> to move where you are looking.<br>Release to slow into a hover.</p>
+        <p>Look up to climb or down to descend.<br>Hold <b>Back</b> for slower reverse corrections.<br>You can look around while holding either button.</p>
+        <p>Pause to recall or travel to a run or friend.</p><button type="button">Got it</button></div>
+      <div class="flight-aim" aria-hidden="true"></div>
       <div class="flight-bottom"><div id="touch-flight-status" role="status">Hovering</div>
-        <div class="flight-actions"><select id="touch-speed" aria-label="Flight speed"><option value="gentle">Gentle</option><option value="cruise">Cruise</option><option value="fast">Fast</option></select><button id="touch-hold" type="button">Hold</button><button id="touch-home" type="button">Return…</button></div>
-        <div class="flight-tip">Tap a destination · Drag to look</div></div>`;
+        <div class="flight-actions"><button id="touch-back" class="flight-move" type="button" aria-label="Hold to fly backward" aria-pressed="false">Back</button>
+        <button id="touch-fly" class="flight-move" type="button" aria-label="Hold to fly forward" aria-pressed="false">Fly</button></div>
+        <div class="flight-tip">Drag to look · Hold to fly · Release to hover</div></div>`;
     document.body.append(this.root);
-    this.status = this.root.querySelector('.flight-connection')!;
-    this.help = this.root.querySelector('.flight-help')!;
-    this.flightStatus = this.root.querySelector('#touch-flight-status')!;
-    this.marker = this.root.querySelector('#flight-marker')!;
-    const bind = (id: string, action: () => void) => {
-      this.root.querySelector<HTMLButtonElement>(id)!.onclick = () => { this.reset(); action(); };
+    this.connection=this.root.querySelector('.flight-connection')!;
+    this.help=this.root.querySelector('.flight-help')!;
+    this.status=this.root.querySelector('#touch-flight-status')!;
+    const bind=(id:string,action:()=>void)=>{
+      this.root.querySelector<HTMLButtonElement>(id)!.onclick=()=>{this.reset();actions.hold();action();};
     };
-    bind('#touch-map', () => { actions.hold(); actions.map(); }); bind('#touch-view', actions.camera);
-    bind('#touch-chat', () => { actions.hold(); actions.chat(); });
-    bind('#touch-options', () => { actions.hold(); actions.options(); }); bind('#touch-home', actions.home); bind('#touch-hold', actions.hold);
-    bind('#touch-help', () => {
-      this.help.hidden = !this.help.hidden;
-      this.root.querySelector('#touch-help')!.setAttribute('aria-expanded', String(!this.help.hidden)); actions.hold();
+    bind('#touch-map',actions.map);bind('#touch-view',actions.camera);bind('#touch-chat',actions.chat);bind('#touch-options',actions.options);
+    bind('#touch-help',()=>{this.help.hidden=!this.help.hidden;this.root.querySelector('#touch-help')!.setAttribute('aria-expanded',String(!this.help.hidden));});
+    this.help.querySelector('button')!.onclick=()=>{this.help.hidden=true;this.root.querySelector('#touch-help')!.setAttribute('aria-expanded','false');};
+
+    for(const [id,direction] of [['#touch-fly',1],['#touch-back',-1]] as const) {
+      const button=this.root.querySelector<HTMLButtonElement>(id)!;
+      const keyId=-100-direction;
+      button.addEventListener('pointerdown',e=>{
+        if(!this.canFly || e.button!==0)return;
+        e.preventDefault();this.held.set(e.pointerId,{element:button,direction});this.paintHeld();
+        try{button.setPointerCapture(e.pointerId);}catch{/* Synthetic test pointer. */}
+      });
+      button.addEventListener('lostpointercapture',e=>{if(this.held.has(e.pointerId)){this.releaseFlight(e.pointerId);actions.hold();}});
+      button.addEventListener('keydown',e=>{
+        if(!['Space','Enter'].includes(e.code))return;
+        e.preventDefault();e.stopPropagation();
+        if(this.canFly){this.held.set(keyId,{element:button,direction});this.paintHeld();}
+      });
+      button.addEventListener('keyup',e=>{if(['Space','Enter'].includes(e.code)){e.preventDefault();e.stopPropagation();this.releaseFlight(keyId);}});
+      button.addEventListener('blur',()=>this.releaseFlight(keyId));
+      button.addEventListener('contextmenu',e=>e.preventDefault());
+    }
+    canvas.addEventListener('pointerdown',e=>{
+      if(!this.canFly || e.button!==0 || this.lookPointer)return;
+      e.preventDefault();this.lookPointer={id:e.pointerId,x:e.clientX,y:e.clientY};
+      try{canvas.setPointerCapture(e.pointerId);}catch{/* Synthetic test pointer. */}
     });
-    this.help.querySelector('button')!.onclick = () => { this.help.hidden = true; this.root.querySelector('#touch-help')!.setAttribute('aria-expanded', 'false'); };
-    this.root.querySelector<HTMLSelectElement>('#touch-speed')!.onchange = e => actions.pace((e.target as HTMLSelectElement).value as FlightPace);
-    canvas.addEventListener('pointerdown', e => {
-      if (!this.canFly || e.button !== 0) return;
-      e.preventDefault();
-      // A second finger cancels a gesture instead of accidentally setting a destination.
-      if (this.pointer) { this.reset(); actions.hold(); return; }
-      this.pointer = {id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,at:performance.now(),dragged:false};
-      try { canvas.setPointerCapture(e.pointerId); } catch { /* Synthetic test pointer. */ }
+    canvas.addEventListener('contextmenu',e=>e.preventDefault());
+    window.addEventListener('pointermove',e=>{
+      const p=this.lookPointer;if(!p || p.id!==e.pointerId || !this.canFly)return;
+      e.preventDefault();this.look.x+=e.clientX-p.x;this.look.y+=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+    },{passive:false});
+    window.addEventListener('pointerup',e=>{this.releaseFlight(e.pointerId);if(this.lookPointer?.id===e.pointerId)this.releaseLook();});
+    window.addEventListener('pointercancel',e=>{
+      if(this.held.has(e.pointerId) || this.lookPointer?.id===e.pointerId){this.reset();actions.hold();}
     });
-    canvas.addEventListener('contextmenu', e => { e.preventDefault(); this.reset(); actions.hold(); });
-    window.addEventListener('pointermove', e => {
-      const p = this.pointer; if (!p || p.id !== e.pointerId || !this.canFly) return;
-      e.preventDefault();
-      if (!p.dragged && Math.hypot(e.clientX-p.startX,e.clientY-p.startY) > 7) { p.dragged = true; actions.hold(); }
-      if (p.dragged) { this.look.x += e.clientX-p.x; this.look.y += e.clientY-p.y; }
-      p.x=e.clientX; p.y=e.clientY;
-    }, {passive:false});
-    window.addEventListener('pointerup', e => {
-      const p = this.pointer; if (!p || p.id !== e.pointerId) return;
-      const tapped = !p.dragged && Math.hypot(e.clientX-p.startX,e.clientY-p.startY) < 8 && performance.now()-p.at < 600;
-      this.release();
-      if (tapped && this.canFly) actions.fly(e.clientX,e.clientY);
-    });
-    for (const event of ['pointercancel','lostpointercapture']) canvas.addEventListener(event, e => {
-      if (this.pointer?.id !== (e as PointerEvent).pointerId) return;
-      this.reset(); actions.hold();
-    });
-    window.addEventListener('blur', () => { this.focused = false; this.reset(); actions.hold(); });
-    window.addEventListener('focus', () => { this.focused = true; });
-    window.addEventListener('pagehide', () => { this.reset(); actions.hold(); });
-    document.addEventListener('visibilitychange', () => { this.reset(); actions.hold(); });
-    window.addEventListener('resize', () => { this.reset(); actions.hold(); });
-    window.visualViewport?.addEventListener('resize', () => { this.reset(); actions.hold(); });
+    canvas.addEventListener('lostpointercapture',e=>{if(this.lookPointer?.id===e.pointerId){this.releaseLook();this.look={x:0,y:0};}});
+    window.addEventListener('blur',()=>{this.focused=false;this.reset();actions.hold();});
+    window.addEventListener('focus',()=>{this.focused=true;});
+    window.addEventListener('pagehide',()=>{this.reset();actions.hold();});
+    document.addEventListener('visibilitychange',()=>{this.reset();actions.hold();});
+    window.addEventListener('resize',()=>{this.reset();actions.hold();});
+    window.visualViewport?.addEventListener('resize',()=>{this.reset();actions.hold();});
   }
 
-  private release() { const p=this.pointer; this.pointer=null; if(p && this.canvas.hasPointerCapture(p.id)) this.canvas.releasePointerCapture(p.id); }
-  reset() { this.release(); this.look = {x:0,y:0}; }
-  update(visible: boolean, enabled: boolean, connection: string, canChat: boolean) {
-    this.root.hidden = !visible;
-    const next = enabled && this.focused && !document.hidden;
-    if (this.enabled && !next) { this.reset(); this.actions.hold(); }
-    this.enabled = next;
-    if (this.status.textContent !== connection) this.status.textContent = connection;
-    this.root.querySelector<HTMLButtonElement>('#touch-chat')!.disabled = !canChat;
-  }
-  get canFly() { return this.focused && !document.hidden && this.help.hidden && this.actions.allowed(); }
-  showDestination(point: {x:number;y:number} | null, status: string) {
-    this.marker.hidden = !point;
-    if (point) {
-      const landscape=innerWidth>innerHeight, top=landscape ? 108 : 164, bottom=innerHeight-(landscape ? 125 : 166);
-      const x=Math.max(52,Math.min(innerWidth-52,point.x)), y=Math.max(top,Math.min(bottom,point.y));
-      this.marker.style.left=`${x}px`; this.marker.style.top=`${y}px`;
-      this.marker.querySelector('b')!.textContent=point.y<top ? 'DESTINATION ↑' : point.y>bottom ? 'DESTINATION ↓' : point.x<52 ? '← DESTINATION' : point.x>innerWidth-52 ? 'DESTINATION →' : 'DESTINATION';
+  private paintHeld(){
+    for(const id of ['#touch-fly','#touch-back']){
+      const button=this.root.querySelector<HTMLButtonElement>(id)!;
+      const active=[...this.held.values()].some(p=>p.element===button);
+      button.setAttribute('aria-pressed',String(active));button.classList.toggle('engaged',active);
     }
-    if (this.flightStatus.textContent !== status) this.flightStatus.textContent=status;
   }
-  consumeLook(dt: number) {
-    const k=1-Math.exp(-Math.min(.1,dt)/.045), delta={x:this.look.x*k,y:this.look.y*k};
-    this.look.x-=delta.x; this.look.y-=delta.y; return delta;
+  private releaseFlight(id:number){
+    const p=this.held.get(id);if(!p)return;this.held.delete(id);
+    if(id>=0 && p.element.hasPointerCapture(id))p.element.releasePointerCapture(id);
+    this.paintHeld();
+  }
+  private releaseLook(){const p=this.lookPointer;this.lookPointer=null;if(p && this.canvas.hasPointerCapture(p.id))this.canvas.releasePointerCapture(p.id);}
+  reset(){this.releaseLook();for(const id of [...this.held.keys()])this.releaseFlight(id);this.look={x:0,y:0};}
+  get canFly(){return this.focused && !document.hidden && this.help.hidden && this.actions.allowed();}
+  get direction(){const directions=new Set([...this.held.values()].map(p=>p.direction));return this.canFly && directions.size===1 ? [...directions][0] : 0;}
+  input(pitch:number){return directFlightInput(this.direction,pitch);}
+  update(visible:boolean,enabled:boolean,connection:string,canChat:boolean){
+    this.root.hidden=!visible;
+    const next=enabled && this.focused && !document.hidden;
+    if(this.enabled && !next){this.reset();this.actions.hold();}this.enabled=next;
+    if(this.connection.textContent!==connection)this.connection.textContent=connection;
+    this.root.querySelector<HTMLButtonElement>('#touch-chat')!.disabled=!canChat;
+  }
+  showStatus(speed:number,warning:string){
+    const warnings:Record<string,string>={boundary:'Mountain boundary',ceiling:'Altitude limit',ground:'Ground clearance',obstacle:'Obstacle ahead',loading:'Waiting for terrain'};
+    const text=warnings[warning] || (this.direction>0 ? 'Flying' : this.direction<0 ? 'Reversing' : speed>.15 ? 'Slowing to hover' : 'Hovering');
+    if(this.status.textContent!==text)this.status.textContent=text;
+  }
+  consumeLook(dt:number){
+    const k=1-Math.exp(-Math.min(.1,dt)/.045),delta={x:this.look.x*k,y:this.look.y*k};
+    this.look.x-=delta.x;this.look.y-=delta.y;return delta;
   }
 }

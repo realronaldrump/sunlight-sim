@@ -44,12 +44,13 @@ export class DroneSystem {
     });
   }
   get active() { return !!this.state; }
+  get launchHeight() { return this.droneOnly ? 18 : 7; }
   enter(pos: Vec3,yaw: number) {
     this.oldFov=this.camera.fov; this.oldNear=this.camera.near;
     this.recall(pos,yaw); this.camera.fov=68;this.camera.near=.08;this.camera.updateProjectionMatrix();
   }
   recall(pos: Vec3,yaw: number) {
-    this.state=createDrone({x:pos.x,y:pos.y+7,z:pos.z},yaw,this.world,this.area);
+    this.state=createDrone({x:pos.x,y:pos.y+this.launchHeight,z:pos.z},yaw,this.world,this.area);
     // Take off above nearby station roofs rather than inside their collision volumes.
     const tops = this.world.obstacles?.(this.state.pos.x,this.state.pos.z) ?? [];
     for(const c of tops) if(Math.hypot(c.x-this.state.pos.x,c.z-this.state.pos.z)<(c.r ?? Math.hypot(c.hx ?? 0,c.hz ?? 0))+1) this.state.pos.y=Math.max(this.state.pos.y,c.top+2);
