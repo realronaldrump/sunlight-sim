@@ -44,7 +44,7 @@ All game-ready world data is committed under `client/public/world`, so no data d
 
 Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, RB skip lift, Start back to base.
 
-To ride a lift, approach the red load line slowly, face uphill, release the push/turn controls, and wait. A short alignment assist places you in a seat lane. The next chair picks you up at its actual arrival; rides take about 11:34 on Primo, 9:00 on Segundo and 9:34 on Tercero at the published line speeds. You automatically stand onto the snow exit ramp at the top and ski clear. Press F only if you want to skip the ride. See ACCURACY.md for geometry and operating-speed limitations.
+To ride a lift, approach the red load line slowly, face uphill, release the push/turn controls, and wait. A short alignment assist places you in a seat lane. The next chair picks you up at its actual arrival; rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds. You automatically stand onto the snow exit ramp at the top and ski clear. Press F only if you want to skip the ride. See ACCURACY.md for geometry and operating-speed limitations.
 
 ## Ski with a friend (share a link)
 

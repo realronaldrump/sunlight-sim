@@ -7,7 +7,10 @@
 - Added physical/rendered snow loading pads and exit ramps, shared seat transforms, actual swept chair pickup, upright/slow/uphill eligibility, same-lane unloading at chair speed, suspension recovery and cable-distance countdowns.
 - Server now validates the skier as well as the chair, assigns distinct seats, rejects full/invalid requests without losing reservations, and releases seats at the unload line. Removed optimistic boarding and prevented ambient riders overlapping player chairs.
 - Current working-tree validation: 53 unit tests and production build passed. New tests simulate complete real-time rides on all three lifts, slow frames, a full-loop suspension, snow-grid consistency, bad boarding requests, full-chair behavior, shared seat coordinates and natural unloading. No live deploy has been made for this lift change yet.
-- Next: browser boarding/riding/unloading and close-up visual review on each lift, regenerate ACCURACY.md from the shared path, finish release validation, deploy, verify the public alias, and record the result here.
+- Follow-up browser review caught a genuine Segundo outer-seat runout stall on the DEM ridge. Reproduced it in the real Player/terrain test, then raised only estimated cable/terminal clearance and added a downhill snow exit above the unchanged DEM. All 27 lift/ride/room tests now pass, including every seat lane clearing the next chair.
+- Primo and Tercero browser loading, seating, midpoint timing, ambient-chair occupancy and natural unloading passed. The full gameplay scenario also passed; repeat Segundo and the two-client case on the final fixed snapshot after the ramp change. An initial gameplay attempt was transiently slow during concurrent GPU tests; a focused replay reproduced normal skiing.
+- Owner expanded scope to detailed, realistic chair graphics. Close-up Primo/Segundo March 2026 and Tercero 2016 references are cached in data/raw/reference/lifts. Original curved-frame, grip, upholstery, numbering and restraint models are being built; no external photos ship.
+- Next: finish chair graphics and close-up reviews, run the full release checks from a fixed source snapshot, deploy, verify the public alias, and record the result here.
 
 ## U.S. units update (November 8, 2026)
 - Owner requested U.S. units throughout the game and deployment when complete.

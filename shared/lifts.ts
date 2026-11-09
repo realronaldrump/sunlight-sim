@@ -221,7 +221,7 @@ export class LiftPath {
   restraintAngle(h: number, uphill: boolean) {
     const smooth = (v: number) => { const x = Math.max(0, Math.min(1, v)); return x * x * (3 - 2 * x); };
     const closed = uphill ? smooth((h - LOAD_OFFSET - 4) / 10) * smooth((this.horiz - UNLOAD_OFFSET - h - 6) / 14) : 0;
-    return (1 - closed) * Math.PI * 0.48;
+    return (1 - closed) * Math.PI * 0.96;
   }
 
   /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
