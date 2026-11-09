@@ -1,6 +1,7 @@
 // Field-recorded snow, winter air and machinery, with contact-driven Foley.
 // Provenance: public/audio/sources.json. Rebuild: pipeline/build_audio.py.
-import { clamp, snowWindMix, terminalMix, nearbySkierMix, chairStrainMix, type AudioState } from './audioModel';
+import { clamp, snowWindMix, terminalMix, nearbySkierMix, chairStrainMix, environmentMix, type AudioState } from './audioModel';
+import { babble, bootOnWood, branchKnock, clink, grinder, registerBeep, roomTone, steam } from './ambienceSynth';
 export type { AudioState } from './audioModel';
 
 const FILES = ['ski-glide', 'ski-edge', 'snow-soft', 'lift-motor', 'lift-cable', 'winter-air',
@@ -8,7 +9,7 @@ const FILES = ['ski-glide', 'ski-edge', 'snow-soft', 'lift-motor', 'lift-cable',
   'chair-contact-1', 'chair-contact-2', 'chair-contact-3', 'chair-creak'] as const;
 type Sample = typeof FILES[number];
 interface Layer { gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; sources: AudioBufferSourceNode[]; feeds: GainNode[] }
-interface Voice { source: AudioBufferSourceNode; gain: GainNode; nodes: AudioNode[]; group: 'snow' | 'chair'; end: number }
+interface Voice { source: AudioBufferSourceNode; gain: GainNode; nodes: AudioNode[]; group: 'snow' | 'chair' | 'place'; end: number }
 
 /** Long, independently seeded noise for airflow and the missing-sample fallback. */
 function noise(ctx: BaseAudioContext, seconds: number, seed: number, brown = false, channels = 1) {
@@ -47,6 +48,9 @@ export class SkiAudio {
   private powder!: Layer;
   private slide!: Layer;
   private chairStrain!: Layer;
+  /** Places: lodge room tone and conversation, wind whistling over a ridge. Built on first need. */
+  private place: { room: Layer; babble: Layer; whistle: Layer; buffers: Record<string, AudioBuffer[]> } | null = null;
+  private placeTimers = { clink: 2, coffee: 12, beep: 8, knock: 4 };
   private terminals = new Map<string, { motor: Layer; cable: Layer }>();
   private skiers: { hard: Layer; soft: Layer }[] = [];
   private layers: Layer[] = [];
@@ -182,12 +186,12 @@ export class SkiAudio {
     if (pan !== undefined) this.set(layer.pan.pan, clamp(pan, -1, 1), at, .1);
   }
 
-  private oneShot(sample: Sample, gain: number, rate: number, pan: number, at: number, group: Voice['group'], length?: number) {
+  private oneShot(sample: Sample | AudioBuffer, gain: number, rate: number, pan: number, at: number, group: Voice['group'], length?: number) {
     if (!this.audible || [...this.voices].filter(v => v.end > at).length >= 24) return;
-    const ctx = this.ctx!, buffer = this.buffers.get(sample) ?? this.fallback;
+    const ctx = this.ctx!, buffer = typeof sample === 'string' ? this.buffers.get(sample) ?? this.fallback : sample;
     const source = ctx.createBufferSource(); source.buffer = buffer; source.playbackRate.value = rate;
     const amp = ctx.createGain(), filter = ctx.createBiquadFilter(), panner = ctx.createStereoPanner();
-    filter.type = 'lowpass'; filter.frequency.value = group === 'chair' ? 4300 : 6500; filter.Q.value = .55;
+    filter.type = 'lowpass'; filter.frequency.value = group === 'chair' ? 4300 : group === 'place' ? 9000 : 6500; filter.Q.value = .55;
     panner.pan.value = clamp(pan, -1, 1);
     const duration = Math.min(length ?? .85, buffer.duration/rate);
     amp.gain.setValueAtTime(0, at);
@@ -219,10 +223,13 @@ export class SkiAudio {
     if (!s.riding && this.previousRiding) this.cancelVoices(at, 'chair');
     this.previousRiding = s.riding;
     const m = snowWindMix(s, this.time);
+    const env = s.env ?? { indoor: 0, shelter: 0, exposure: 0, chatter: 0 };
+    const e = environmentMix(env, this.time);
     const strain = chairStrainMix(s);
     this.control(this.chairStrain, strain.gain, at, strain.cutoff, strain.rate, strain.pan);
-    this.control(this.wind, m.wind, at, m.windCutoff);
-    this.control(this.breeze, m.breeze, at);
+    this.control(this.wind, m.wind * e.wind, at, Math.max(120, m.windCutoff * e.cutoff));
+    this.control(this.breeze, m.breeze * e.breeze, at, Math.max(300, 3700 * e.cutoff));
+    this.updatePlace(e, env, s, at, dt);
     this.control(this.glide, m.glide, at, m.snowCutoff, m.rate, -.14+m.pan);
     this.control(this.edge, m.edge, at, m.snowCutoff, m.rate*1.007, .13+m.pan);
     this.control(this.skid, m.scrape, at, m.snowCutoff*.87, m.rate*.97, -.08+m.pan*.5);
@@ -242,8 +249,8 @@ export class SkiAudio {
       }
       present.add(terminal.id);
       const rate = clamp(.87+terminal.speed*.055+terminal.variant*.012, .85, 1.12);
-      this.control(sound.motor, .46*mix.gain, at, mix.cutoff, rate, terminal.pan);
-      this.control(sound.cable, .14*mix.gain, at, mix.cutoff*.8, rate*.98, terminal.pan);
+      this.control(sound.motor, .46*mix.gain*e.distant, at, mix.cutoff*e.cutoff, rate, terminal.pan);
+      this.control(sound.cable, .14*mix.gain*e.distant, at, mix.cutoff*.8*e.cutoff, rate*.98, terminal.pan);
     }
     for (const [id, sound] of this.terminals) if (!present.has(id)) {
       this.control(sound.motor, 0, at); this.control(sound.cable, 0, at);
@@ -262,6 +269,7 @@ export class SkiAudio {
       }
       if (!skier) { this.control(sound.hard, 0, at); this.control(sound.soft, 0, at); continue; }
       const mix = nearbySkierMix(skier), hard = clamp(skier.groomed), rate = .85+.25*clamp(skier.speed/20);
+      mix.gain *= 1 - .9 * clamp(env.indoor);
       this.control(sound.hard, mix.gain*(.25+.75*hard), at, mix.cutoff, rate, skier.pan);
       this.control(sound.soft, mix.gain*(1-hard), at, Math.min(2300,mix.cutoff), rate, skier.pan);
     }
@@ -301,6 +309,44 @@ export class SkiAudio {
         this.oneShot('chair-creak', .055, .86+(n%4)*.07, Math.sin(n)*.23, at, 'chair');
       }
     } else this.creakIn = 6;
+  }
+
+  /** Lodge room tone and conversation, cups and the espresso machine, boots on wood, branches knocking,
+   * and the ridge whistle. Synthesized buffers are built the first time a place needs them. */
+  private updatePlace(e: ReturnType<typeof environmentMix>, env: NonNullable<AudioState['env']>, s: AudioState, at: number, dt: number) {
+    const ctx = this.ctx!;
+    const needed = env.indoor > .01 || env.chatter > .01 || e.whistle > .002 || e.knockEvery < Infinity || !!s.step;
+    if (!this.place && !needed) return;
+    if (!this.place) {
+      const room = this.layer(roomTone(ctx), 700, 0), talk = this.layer(babble(ctx), 3400, 0);
+      const whistle = this.layer(noise(ctx, 11.3, 517), 1100, 0);
+      whistle.filter.type = 'bandpass'; whistle.filter.Q.value = 9;
+      this.place = { room, babble: talk, whistle, buffers: {
+        clink: [clink(ctx, 3), clink(ctx, 8), clink(ctx, 19)], steam: [steam(ctx)], grinder: [grinder(ctx)], beep: [registerBeep(ctx)],
+        boot: [bootOnWood(ctx, 21), bootOnWood(ctx, 22), bootOnWood(ctx, 25)], knock: [branchKnock(ctx, 31), branchKnock(ctx, 37), branchKnock(ctx, 43)] } };
+    }
+    const P = this.place, B = P.buffers, T = this.placeTimers, indoor = clamp(env.indoor);
+    this.control(P.room, e.room, at, 700);
+    this.control(P.babble, e.babble, at, 2600 + 1400 * indoor);
+    this.control(P.whistle, e.whistle, at, e.whistleFreq);
+    if (!this.audible || s.discontinuity) return;
+    const pick = (list: AudioBuffer[]) => list[++this.serial % list.length];
+    if (s.step === 'wood') this.oneShot(pick(B.boot), .14 + .06 * indoor, .92 + (this.serial % 3) * .06, (this.serial % 2 ? .08 : -.08), at, 'place', .3);
+    if (s.step === 'snow') this.oneShot(`snow-compress-${this.serial % 4 + 1}` as Sample, .05, 1.35, (this.serial % 2 ? .1 : -.1), at, 'snow', .25);
+    if (indoor > .5) {
+      // the lodge at work: cups set down, an order rung up, the grinder and the steam wand
+      if ((T.clink -= dt) <= 0) { T.clink = 1.4 + (this.serial * 1.7 % 3.3); this.oneShot(pick(B.clink), .035 + .02 * (this.serial % 3) / 2, .9 + (this.serial % 5) * .05, Math.sin(this.serial) * .6, at, 'place', .45); }
+      if ((T.beep -= dt) <= 0) { T.beep = 14 + (this.serial * 3.1 % 17); this.oneShot(B.beep[0], .025, 1, .35, at, 'place', .32); }
+      if ((T.coffee -= dt) <= 0) {
+        T.coffee = 26 + (this.serial * 5.3 % 20);
+        this.oneShot(B.grinder[0], .05, 1, -.3, at, 'place', 2.2);
+        this.oneShot(B.steam[0], .045, 1, -.25, at + 3.2, 'place', 3.6);
+      }
+    }
+    if (e.knockEvery < Infinity && (T.knock -= dt) <= 0) {
+      T.knock = e.knockEvery * (.4 + (this.serial * .37 % 1.2));
+      this.oneShot(pick(B.knock), e.knock, .85 + (this.serial % 4) * .08, Math.sin(this.serial * 1.9) * .8, at, 'place', .25);
+    }
   }
 
   dispose() {

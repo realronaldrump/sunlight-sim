@@ -12,6 +12,45 @@ export interface AudioState {
   skiers?: NearbySkier[];
   rocking?: { angle: number; velocity: number; slip: number; pan: number };
   liftDrop?: boolean;
+  /** Where the listener is: inside the lodge, sheltered among trees, out on an exposed ridge. */
+  env?: AudioEnvironment;
+  /** A ski boot just came down on wood (lodge floor, deck) or snow, while walking. */
+  step?: 'wood' | 'snow';
+}
+
+export interface AudioEnvironment {
+  /** 0..1 inside a building (smoothed through the doorway). */
+  indoor: number;
+  /** 0..1 tree cover around you: aspen groves and spruce stands soften and hush the wind. */
+  shelter: number;
+  /** 0..1 open, high ground standing above its surroundings: ridges and summits. */
+  exposure: number;
+  /** 0..1 how many people are talking nearby (diners, groups, lift lines). */
+  chatter: number;
+}
+
+/** How a place colours the sound: walls and glass, trees, and open ridges. */
+export function environmentMix(e: AudioEnvironment, time: number) {
+  const indoor = clamp(e.indoor), shelter = clamp(e.shelter), exposure = clamp(e.exposure);
+  const outside = 1 - .93 * indoor;
+  // ridge gusts: slow surges with sharper peaks, absent among the trees and indoors
+  const surge = .5 + .5 * Math.sin(time * .31 + 1.3) * Math.sin(time * .083 + .4);
+  const gust = 1 + exposure * (1 - shelter) * (.7 * surge ** 2);
+  return {
+    wind: outside * (1 - .55 * shelter) * (1 + 1.1 * exposure) * gust,
+    breeze: outside * (1 - .6 * shelter) * (1 + 1.7 * exposure) * gust,
+    /** Multiplies outdoor cutoffs: muffled by walls, softened by trees, brightened on the ridge. */
+    cutoff: (1 - .82 * indoor) * (1 - .35 * shelter) * (1 + .5 * exposure),
+    whistle: outside * exposure ** 1.5 * (1 - shelter) * .05 * (.4 + .6 * surge),
+    whistleFreq: 950 + 520 * surge,
+    room: .05 * indoor,
+    babble: (.014 * (1 - indoor) + .085 * indoor) * clamp(e.chatter),
+    /** Seconds between branch knocks in a grove, or Infinity in the open. */
+    knockEvery: shelter > .35 && outside > .5 ? 2.5 + 9 * (1 - shelter) : Infinity,
+    knock: .05 * shelter * outside,
+    /** Distant machinery is absorbed by forest and walls. */
+    distant: (1 - .85 * indoor) * (1 - .4 * shelter),
+  };
 }
 
 export const clamp = (x: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number.isFinite(x) ? x : lo));

@@ -1231,6 +1231,44 @@ export class Game {
     T.update(dt);
   }
 
+  /** Where the listener is, for the sound of the place: smoothed through doorways and between groves. */
+  private soundPlace = { indoor: 0, shelter: 0, exposure: 0, chatter: 0, timer: 0, target: { shelter: 0, exposure: 0, chatter: 0 }, stride: 0 };
+  private placeSound(dt: number) {
+    const P = this.soundPlace, walking = this.onFoot.active;
+    const pos = walking ? this.onFoot.st.pos : this.drone.state ? this.camera.position : this.player.st.pos;
+    P.indoor += ((walking && this.onFoot.st.indoor ? 1 : 0) - P.indoor) * Math.min(1, dt * 2.2);
+    if ((P.timer -= dt) <= 0 && this.surface) {
+      P.timer = 0.3;
+      const s = this.surface;
+      // tree cover around you, nearest trees counting most
+      let cover = s.canopy(pos.x, pos.z) * 2, w = 2;
+      for (const [r, k] of [[10, 1], [22, .6]] as const) for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4; cover += s.canopy(pos.x + Math.cos(a) * r, pos.z + Math.sin(a) * r) * k; w += k;
+      }
+      const shelter = Math.min(1, (cover / w) * 1.6);
+      // open high ground standing above its surroundings: ridges, the summit, a chair high over the snow
+      const h0 = this.hf.heightAt(pos.x, pos.z);
+      let ring = 0;
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ring += this.hf.heightAt(pos.x + Math.cos(a) * 70, pos.z + Math.sin(a) * 70); }
+      const prominence = h0 - ring / 8, high = Math.max(0, Math.min(1, (h0 - 2550) / 450));
+      const aloft = this.player.ride && !this.drone.active ? Math.min(1, (this.player.st.pos.y - h0) / 12) * 0.4 : 0;
+      const exposure = Math.min(1, Math.max(0, prominence / 14) * (0.4 + 0.6 * high) + aloft) * (1 - shelter);
+      // people talking nearby, and the kids of the lesson group
+      let talkers = this.baseLife?.talkersNear(pos.x, pos.y, pos.z, 16) ?? 0;
+      if (this.lesson?.out) for (const p of this.lesson.positions()) if (p.distanceTo(new THREE.Vector3(pos.x, pos.y, pos.z)) < 14) talkers += 0.6;
+      P.target = { shelter, exposure, chatter: Math.min(1, talkers / 6) };
+    }
+    for (const k of ['shelter', 'exposure', 'chatter'] as const) P[k] += (P.target[k] - P[k]) * Math.min(1, dt * 0.9);
+    // boots on the lodge floor, the deck or the snow
+    let step: 'wood' | 'snow' | undefined;
+    if (walking && !this.onFoot.seat) {
+      const stride = this.onFoot.st.stride;
+      if (Math.floor(stride) !== Math.floor(P.stride) && this.onFoot.st.speed > 0.2) step = this.onFoot.st.onSnow ? 'snow' : 'wood';
+      P.stride = stride;
+    }
+    return { env: { indoor: P.indoor, shelter: P.shelter, exposure: P.exposure, chatter: P.chatter }, step };
+  }
+
   private updateAudio(dt: number) {
     const flight = this.drone.state;
     const st = flight ? { ...this.player.st, pos:{x:this.camera.position.x,y:this.camera.position.y-1.6,z:this.camera.position.z},
@@ -1247,6 +1285,17 @@ export class Game {
     }
     const sound = this.audioScene.sample(dt, st, flight ? null : this.player.ride,
       this.lifts.paths, surface, forward, this.env.snowing, neighbors);
+    const place = this.placeSound(dt);
+    sound.env = place.env; sound.step = place.step;
+    // working groomers rumble like the lift machinery, a little lower and rougher
+    const listener = this.camera.position;
+    for (const c of this.snowcats?.cats ?? []) {
+      if (!c.active) continue;
+      const d = Math.hypot(c.x - listener.x, c.root.position.y - listener.y, c.z - listener.z);
+      if (d > 160) continue;
+      const fx = forward.x, fz = forward.z, dx = c.x - listener.x, dz = c.z - listener.z, n = Math.hypot(dx, dz) * Math.hypot(fx, fz) || 1;
+      sound.terminals = [...(sound.terminals ?? []), { id: `cat:${c.name}`, distance: d * 0.8, pan: Math.max(-1, Math.min(1, (-fz * dx + fx * dz) / n)) * 0.9, speed: 0.4, variant: 2.6 }];
+    }
     if (this.player.ride && !flight) {
       const s = this.player.rideSwing;
       sound.rocking = { angle: Math.hypot(s.roll, s.pitch), velocity: Math.hypot(s.rollV, s.pitchV), slip: s.slip, pan: Math.sin(s.roll) };

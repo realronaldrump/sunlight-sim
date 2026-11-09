@@ -579,6 +579,16 @@ export class BaseLife {
     this.gear.end();
   }
 
+  /** How many people are talking within `r` meters (diners, groups, lift lines), for the sound of a place. */
+  talkersNear(x: number, y: number, z: number, r: number) {
+    let n = 0;
+    for (const p of this.people) {
+      if (!p.visible || p.kind === 'walker' || p.kind === 'staff' || Math.abs(p.st.pos.y - y) > 6) continue;
+      if (Math.abs(p.st.pos.x - x) < r && Math.abs(p.st.pos.z - z) < r && Math.hypot(p.st.pos.x - x, p.st.pos.z - z) < r) n++;
+    }
+    return n;
+  }
+
   /** Whether a guest is sitting at (or next to) this seat right now. */
   seatTaken(x: number, z: number) {
     return this.people.some((p) => p.kind === 'seated' && p.presence < this.level && Math.hypot(p.st.pos.x - x, p.st.pos.z - z) < 0.35);
