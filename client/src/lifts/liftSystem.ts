@@ -9,34 +9,10 @@ import type { TerrainProbe } from '../../../shared/skiPhysics';
 import { attribute, mix, vec3 } from 'three/tsl';
 import { seatedSkierGeometry } from '../skier/seatedGeometry';
 import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion } from './chairModel';
+import { buildHut, buildTerminal, buildTower, liftStyle } from './liftStructures';
 
 
-const steel = new THREE.MeshStandardNodeMaterial({ color: 0x6f7780, roughness: 0.45, metalness: 0.7 });
-const darkSteel = new THREE.MeshStandardNodeMaterial({ color: 0x3a3f45, roughness: 0.5, metalness: 0.6 });
 const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
-const wood = new THREE.MeshStandardNodeMaterial({ color: 0x7a5a3a, roughness: 0.9 });
-const roofMat = new THREE.MeshStandardNodeMaterial({ color: 0x4a2f22, roughness: 0.8 });
-const terminalPaint = new THREE.MeshStandardNodeMaterial({ color: 0x24527a, roughness: 0.5, metalness: 0.3 });
-const concrete = new THREE.MeshStandardNodeMaterial({ color: 0x77736c, roughness: 0.95 });
-let hutMats: THREE.Material[] | null = null;
-/** Operator hut walls: wood siding with a window on every side and a door on one. */
-function hutMaterials() {
-  if (hutMats) return hutMats;
-  const make = (door: boolean) => {
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
-    const g = cv.getContext('2d')!;
-    g.fillStyle = '#7a5536'; g.fillRect(0, 0, 256, 256);
-    for (let x = 0; x < 256; x += 10) { g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(x, 0, 2, 256); }
-    g.fillStyle = '#efe9dc'; g.fillRect(door ? 128 : 60, 60, 100, 80);
-    g.fillStyle = '#26323d'; g.fillRect(door ? 134 : 66, 66, 88, 68);
-    if (door) { g.fillStyle = '#3b2a1e'; g.fillRect(28, 70, 70, 186); g.fillStyle = '#c9a54a'; g.fillRect(84, 160, 8, 8); }
-    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
-  };
-  const side = new THREE.MeshStandardNodeMaterial({ map: make(false), roughness: 0.85 });
-  const front = new THREE.MeshStandardNodeMaterial({ map: make(true), roughness: 0.85 });
-  hutMats = [side, side, wood, wood, front, side];
-  return hutMats;
-}
 
 const riderMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.8 });
 riderMat.colorNode = attribute('color', 'vec3').mul(mix(vec3(1), attribute('riderColor', 'vec3'), attribute('jacket', 'float')));
@@ -119,7 +95,8 @@ export class LiftSystem {
       if (!kind) return;
       let gmax = -Infinity;
       for (const [dx, dz] of [[-1.6, -1.8], [1.6, -1.8], [-1.6, 1.8], [1.6, 1.8], [0, 0]]) gmax = Math.max(gmax, height(o.position.x + dx, o.position.z + dz));
-      if (kind === 'hut') o.position.y = gmax + 1.3;
+      if (kind === 'floor') o.position.y = gmax + 0.12;
+      else if (kind === 'hut') o.position.y = gmax + 1.3;
       else if (kind === 'footing') o.position.y = gmax - 1.6;
       else o.position.y = gmax + 3.2;
     });
@@ -130,67 +107,34 @@ export class LiftSystem {
     const g = new THREE.Group();
     g.name = def.name;
     const yaw = Math.atan2(-path.ax, -path.az); // heading facing uphill
-    // towers
+    // towers and terminals: per-lift reconstructions from photo surveys (liftStructures.ts)
+    const style = liftStyle(def.name);
+    let towerIndex = 0;
+    const place = (obj: THREE.Object3D, x: number, y: number, z: number, dx: number, dz: number, local: { x: number; z: number; r: number }[], top: number) => {
+      const th = Math.atan2(dx, dz), c = Math.cos(th), sn = Math.sin(th);
+      obj.position.set(x, y, z); obj.rotation.y = th; g.add(obj);
+      for (const l of local) this.colliders.push({ type: 'cyl', x: x + l.x * c + l.z * sn, z: z - l.x * sn + l.z * c, r: l.r, top });
+    };
     for (const s of def.supports) {
       const p = path.ropePoint(s.s, 0);
       if (s.kind === 'tower') {
-        const h = s.cable - s.ground + 0.4;
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.4, h, 10), steel);
-        pole.position.set(p.x, s.ground + h / 2 - 0.3, p.z);
-        pole.castShadow = true;
-        g.add(pole);
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(GAUGE + 1.4, 0.35, 0.35), steel);
-        arm.position.set(p.x, s.cable + 0.55, p.z); arm.rotation.y = yaw; arm.castShadow = true;
-        g.add(arm);
-        for (const side of [-1, 1]) {
-          const sheave = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 2.4), darkSteel);
-          sheave.position.set(p.x + path.rx * side * GAUGE / 2, s.cable + 0.2, p.z + path.rz * side * GAUGE / 2);
-          sheave.rotation.y = yaw; sheave.castShadow = true; g.add(sheave);
-        }
-        // service ladder hint
-        const ladder = new THREE.Mesh(new THREE.BoxGeometry(0.3, h * 0.9, 0.05), darkSteel);
-        ladder.position.set(p.x - path.ax * 0.42, s.ground + h * 0.45, p.z - path.az * 0.42); ladder.rotation.y = yaw; g.add(ladder);
-        this.colliders.push({ type: 'cyl', x: p.x, z: p.z, r: 0.45, top: s.cable });
+        const t = buildTower(style, s.cable - s.ground, towerIndex++, 1.5);
+        place(t.object, p.x, s.ground, p.z, path.ax, path.az, t.colliders, s.cable);
       } else {
-        // terminal: bull wheel on a frame + operator hut + ramp
         const top = s.kind === 'top';
-        const wheel = new THREE.Mesh(new THREE.TorusGeometry(GAUGE / 2, 0.12, 8, 40), darkSteel);
-        wheel.rotation.x = Math.PI / 2;
-        wheel.position.set(p.x, s.cable, p.z);
-        g.add(wheel);
-        // bull wheel cover (a flat rounded hood) and, at the top drive terminal, the gearbox/motor house
-        const hood = new THREE.Mesh(new THREE.CylinderGeometry(GAUGE / 2 + 0.5, GAUGE / 2 + 0.8, 0.7, 28), terminalPaint);
-        hood.position.set(p.x, s.cable + 0.75, p.z); hood.castShadow = true; g.add(hood);
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.0, 12), darkSteel);
-        hub.position.set(p.x, s.cable + 0.2, p.z); g.add(hub);
-        if (top) {
-          const drive = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.6, 2.6), terminalPaint);
-          drive.position.set(p.x + path.ax * 1.8, s.cable + 1.6, p.z + path.az * 1.8); drive.rotation.y = yaw; drive.castShadow = true; g.add(drive);
-        }
-        // boom from the column frame to the wheel
-        const boom = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 3.4), steel);
-        boom.position.set(p.x + path.ax * (top ? 1.2 : -1.2), s.cable + 0.25, p.z + path.az * (top ? 1.2 : -1.2)); boom.rotation.y = yaw; g.add(boom);
-        for (const side of [-1, 1]) {
-          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, s.cable - s.ground + 0.2, 0.4), steel);
-          const off = top ? 2.4 : -2.4;
-          leg.position.set(p.x + path.ax * off + path.rx * side * 0.9, (s.cable + s.ground) / 2, p.z + path.az * off + path.rz * side * 0.9);
-          leg.castShadow = true; g.add(leg);
-          this.colliders.push({ type: 'cyl', x: leg.position.x, z: leg.position.z, r: 0.35, top: s.cable });
-        }
-        // operator hut beside the terminal (left side, away from the loading side)
+        const t = buildTerminal(style, top, s.cable - s.ground, 2.5);
+        t.object.name = `${def.name}-${top ? 'top' : 'bottom'}-${t.kind}-terminal`;
+        place(t.object, p.x, s.ground, p.z, top ? -path.ax : path.ax, top ? -path.az : path.az, t.colliders, s.cable + 2);
+        // operator hut beside the terminal (left side, away from the loading side), door facing the line
         const hutX = p.x - path.rx * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
         const hutZ = p.z - path.rz * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
-        const hut = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 3.6), hutMaterials());
-        hut.position.set(hutX, s.ground + 1.3, hutZ);
-        hut.userData.settle = 'hut';
-        const footing = new THREE.Mesh(new THREE.BoxGeometry(3.3, 3.2, 3.7), concrete);
-        footing.position.set(hutX, s.ground - 1.6, hutZ); footing.rotation.y = yaw; footing.userData.settle = 'footing';
-        g.add(footing); hut.rotation.y = yaw; hut.castShadow = true; hut.receiveShadow = true;
-        g.add(hut);
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.2, 4), roofMat);
-        roof.position.set(hutX, s.ground + 3.2, hutZ); roof.rotation.y = yaw + Math.PI / 4; roof.castShadow = true; g.add(roof);
-        roof.userData.settle = 'roof';
-        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: 1.7, hz: 1.9, yaw, top: s.ground + 3 });
+        const hut = buildHut(style, top);
+        hut.object.position.set(hutX, s.ground, hutZ);
+        hut.object.rotation.y = Math.atan2(path.rx, path.rz);
+        hut.object.userData.settle = 'floor';
+        g.add(hut.object);
+        const e = Math.max(hut.hx, hut.hz);
+        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: e, hz: e, yaw, top: s.ground + hut.height });
       }
     }
     // haul rope: two lines + bull wheel arcs, as thin tubes
