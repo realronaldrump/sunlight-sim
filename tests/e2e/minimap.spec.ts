@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test('minimap follows skiing and lift rides, zooms, collapses and opens the trail map', async ({ page, browserName }) => {
   const errors: string[] = [];
-  page.on('pageerror', e => errors.push(e.message));
+  const failedRequests: string[] = [];
+  page.on('requestfailed', r => failedRequests.push(`${r.url()}: ${r.failure()?.errorText}`));
+  page.on('pageerror', e => errors.push(`pageerror: ${e.stack ?? e.message}`));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/?autostart=1&name=Navigator&mute=1&ambient=0');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
@@ -68,7 +70,7 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   await page.screenshot({ path: `screenshots/minimap_lift_${browserName}.png` });
   await page.keyboard.press('KeyF');
   await expect(minimap.locator('.mm-run')).not.toHaveText('Tercero lift');
-  expect(errors).toEqual([]);
+  expect(errors, failedRequests.join('\n')).toEqual([]);
 });
 
 test('minimap stays usable without the terrain image or saved settings', async ({ page }) => {

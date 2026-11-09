@@ -81,7 +81,7 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Preserve DEM heights and ski physics. Snow detail changes material normals only; ski grooves sit 8 to 20 mm above the heightfield to avoid z-fighting and represent compacted trough shading and displaced shoulders. Powder spray is transient visual geometry and has no collision.
 - Keep this pass scoped to terrain material, snow weather, ski tracks and spray. Other agents concurrently own character, lift, building and interface changes.
 
-## D15. Skiing minimap (owner request, November 8, 2026)
+## D16. Skiing minimap (owner request, November 8, 2026)
 - Add a persistent, player-centered minimap alongside the existing full trail map. It stays north-up so the terrain does not rotate during turns; the cyan skier arrow follows the physics heading, including while riding a lift. The full map keeps its independent orientation, pan, zoom and teleport behavior.
 - Reuse the game's DEM/lidar hillshade, run geometry and official difficulty metadata. Cache the static terrain/trails in a canvas, then update nearby labels, lift lines and multiplayer markers at 12 Hz. No new map service, account, dependency, copyrighted trail-map image or world-data download is needed.
 - Default to a 3,000 ft map width, with 1,500 ft and 6,000 ft zoom options, a ground-distance scale and north indicator. Format all measurements through the shared U.S. units helpers, following D14; projection coordinates remain in meters. Show the current run or lift persistently; avoid overlapping labels and limit nearby run names to five. Remote players use jacket colors; the local arrow remains cyan for visibility.
