@@ -42,7 +42,7 @@ export class DroneModel {
     for (let i = 0; i < 4; i++) {
       const [x,z] = positions[i], sx = Math.sign(x)*.047, sz = Math.sign(z)*.052;
       const a = new THREE.Vector3(sx,.005,sz), b = new THREE.Vector3(x,.002,z);
-      const arm = mesh(box(.018,.017,a.distanceTo(b),.004),shell,a.clone().lerp(b,.5).toArray());
+      const arm = mesh(box(.018,.017,a.distanceTo(b),.004),dark,a.clone().lerp(b,.5).toArray());
       arm.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),b.clone().sub(a).normalize());
       mesh(new THREE.CylinderGeometry(.014,.015,.026,18),dark,[x,.014,z]);
       mesh(new THREE.CylinderGeometry(.012,.012,.004,18),metal,[x,.029,z]);

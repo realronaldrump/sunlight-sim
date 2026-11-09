@@ -42,7 +42,7 @@ export class DroneHud {
     this.panel.id = 'drone-panel'; this.panel.hidden = true; this.panel.setAttribute('aria-label','Drone flight controls');
     this.panel.innerHTML = `<header><strong>DRONE FLIGHT</strong><span id="drone-view-label">CHASE</span></header>
       <p>Explore Sunlight from above.<br>Your skier stays on the mountain.</p>
-      <div class="drone-buttons"><button type="button" class="drone-button" id="drone-camera">FPV / chase · C</button><button type="button" class="drone-button" id="drone-recall">Recall · R</button></div>
+      <div class="drone-buttons"><button type="button" class="drone-button" id="drone-camera" aria-label="Switch FPV and chase view (C)">View · C</button><button type="button" class="drone-button" id="drone-recall">Recall · R</button></div>
       <p id="drone-status" role="status">Stabilized hover</p>
       <details open><summary>Flight controls</summary><kbd>W A S D</kbd> Move · <kbd>E / Q</kbd> Up / down<br>
       Drag to look · Double-click for mouse look<br><kbd>← → ↑ ↓</kbd> Look · <kbd>Space</kbd> Brake<br>

@@ -41,6 +41,7 @@ interface MinimapState {
   run: RunInfo | null;
   lift: string | null;
   active: boolean;
+  drone?: boolean;
 }
 
 type Box = [number, number, number, number];
@@ -140,9 +141,10 @@ export class Minimap {
     this.elapsed = 0; this.dirty = false;
     const atBase = this.resort.lifts.some(lift => Math.hypot(lift.bottom[0] - state.self.x, lift.bottom[2] - state.self.z) < 120);
     const label = state.lift ? `${state.lift} lift` : state.run?.name ?? (atBase ? 'Base area' : 'Off piste');
-    this.location.textContent = label;
+    this.location.textContent = state.drone ? `Above ${label}` : label;
     this.location.title = state.run && !state.lift ? `${label} · ${DIFF_LABEL[state.run.difficulty] ?? ''}` : label;
-    this.canvas.setAttribute('aria-label', `North-up map. You are ${state.lift ? 'riding ' : 'at '}${label}. ${state.others.length} other skier${state.others.length === 1 ? '' : 's'} in the room.`);
+    this.root.setAttribute('aria-label',state.drone ? 'Drone minimap' : 'Skiing minimap');
+    this.canvas.setAttribute('aria-label',state.drone ? `North-up map. Your drone is above ${label}; your skier is marked separately.` : `North-up map. You are ${state.lift ? 'riding ' : 'at '}${label}. ${state.others.length} other skier${state.others.length === 1 ? '' : 's'} in the room.`);
     this.draw(state);
   }
 

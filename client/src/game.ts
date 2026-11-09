@@ -69,6 +69,7 @@ export class Game {
   camRig!: CameraRig;
   hud!: Hud;
   drone!: DroneSystem;
+  private launchingDrone = false;
   params = new URLSearchParams(location.search);
   timer = new THREE.Timer();
   fps = 60;
@@ -276,13 +277,25 @@ export class Game {
     this.hud.toast('Back at the base area');
   }
 
-  toggleDrone() {
-    if (!this.ready || this.chat?.open) return;
+  async toggleDrone() {
+    if (!this.ready || this.chat?.open || this.launchingDrone) return;
     if (this.drone.active) {
       this.drone.exit(); this.camRig.enabled = true; this.camRig.reset();
       this.audioScene = new AudioScene();
       this.hud.toast('Back on skis');
     } else {
+      // A skier may have travelled outside the flight area. Load the clamped launch
+      // point before sampling its height, rather than launching in coarse/missing terrain.
+      const launch = {...this.player.st.pos}; this.drone.area.constrain(launch);
+      const level = this.hf.bestLevel(launch.x,-launch.z);
+      if (level < 0 || level > 1) {
+        this.launchingDrone = true;
+        this.hud.toast('Preparing drone launch');
+        try { await this.hf.ensureArea(0,launch.x,-launch.z,200); }
+        finally { this.launchingDrone = false; }
+        const loaded = this.hf.bestLevel(launch.x,-launch.z);
+        if (loaded < 0 || loaded > 1) { this.hud.toast('Drone terrain is not ready. Try again shortly.'); return; }
+      }
       this.flyMode = false;
       const st = this.player.st;
       if (!this.player.ride) { this.player.teleport(st.pos.x,st.pos.z,st.heading); this.net?.markTeleport(); }
@@ -291,6 +304,7 @@ export class Game {
       this.audioScene = new AudioScene();
       this.hud.toast('Drone ready. WASD to fly, E / Q up and down.',4);
     }
+    this.env.csm?.updateFrustums();
     this.input.clear(); this.tracks.break();
   }
 
@@ -389,7 +403,8 @@ export class Game {
     if (actions.options) this.options.toggle();
     if (this.trailMap.visible) {
       const st2 = this.drone.state ? {pos:this.drone.state.pos,heading:this.drone.state.yaw} : this.player.st;
-      this.trailMap.players = [{ name: this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true }, ...this.remoteMapPlayers()];
+      this.trailMap.players = [{ name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true },
+        ...this.remoteMapPlayers(), ...(this.drone.active ? [{name:'Your skier',color:this.playerColor,x:this.player.st.pos.x,z:this.player.st.pos.z,heading:this.player.st.heading}] : [])];
       if (Math.random() < 0.2) this.trailMap.draw();
     }
     if (actions.slope) {
@@ -406,7 +421,10 @@ export class Game {
     for (const f of this.onFrame) f(dt);
     const p = this.drone.state?.pos ?? (this.flyMode ? this.camera.position : this.player.position);
     void this.hf.ensureArea(0, p.x, -p.z, 160);
-    if (Math.random() < 0.01) this.hf.evict(p.x, -p.z, 900);
+    if (this.drone.active) void this.hf.ensureArea(0,this.player.st.pos.x,-this.player.st.pos.z,80);
+    // Keep the parked skier or occupied chair's precise snow surface resident too.
+    const keepRadius = this.drone.active ? Math.max(900,Math.hypot(p.x-this.player.st.pos.x,p.z-this.player.st.pos.z)+100) : 900;
+    if (Math.random() < 0.01) this.hf.evict(p.x, -p.z, keepRadius);
     this.trees.update(this.camera.position);
     if (this.snowfall.mesh.visible) this.snowfall.update(this.camera.position);
     this.terrainMat.viewer.value.copy(this.camera.position);
@@ -420,7 +438,7 @@ export class Game {
       self: { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true },
       others: [...this.remoteMapPlayers(), ...(this.drone.active ? [{name:'Your skier',color:this.playerColor,x:st.pos.x,z:st.pos.z,heading:st.heading}] : [])], run,
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
-      active: this.ready && !this.trailMap.visible,
+      active: this.ready && !this.trailMap.visible, drone: this.drone.active,
     });
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.drone.hud.update(dt,this.drone.state,this.drone.fpv,Math.hypot(mapPos.x-st.pos.x,mapPos.z-st.pos.z),

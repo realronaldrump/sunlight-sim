@@ -55,11 +55,11 @@ export function createDrone(pos: Vec3, yaw: number, world: FlightWorld, area: Fl
 }
 
 /** Sphere against the existing tree/tower/building volumes. Small integration steps prevent tunneling. */
-function obstacle(p: Vec3, c: Collider): boolean {
-  if (p.y-DRONE.radius > c.top) return false;
-  if (c.type === 'cyl') return Math.hypot(p.x-c.x,p.z-c.z) < (c.r ?? 0)+DRONE.radius;
+export function droneObstacle(p: Vec3, c: Collider, radius: number = DRONE.radius): boolean {
+  if (p.y-radius > c.top) return false;
+  if (c.type === 'cyl') return Math.hypot(p.x-c.x,p.z-c.z) < (c.r ?? 0)+radius;
   const co = Math.cos(c.yaw ?? 0), si = Math.sin(c.yaw ?? 0), dx = p.x-c.x, dz = p.z-c.z;
-  return Math.abs(dx*co-dz*si) < (c.hx ?? 0)+DRONE.radius && Math.abs(dx*si+dz*co) < (c.hz ?? 0)+DRONE.radius;
+  return Math.abs(dx*co-dz*si) < (c.hx ?? 0)+radius && Math.abs(dx*si+dz*co) < (c.hz ?? 0)+radius;
 }
 
 export function stepDrone(s: DroneState, input: DroneInput, world: FlightWorld, area: FlightArea, elapsed: number) {
@@ -89,7 +89,7 @@ export function stepDrone(s: DroneState, input: DroneInput, world: FlightWorld, 
     if (next.y < ground+DRONE.clearance) { next.y = ground+DRONE.clearance; s.vel.y = Math.max(0,s.vel.y); s.warning = 'ground'; }
     if (next.y > ground+DRONE.ceiling) { next.y = ground+DRONE.ceiling; s.vel.y = Math.min(0,s.vel.y); s.warning = 'ceiling'; }
     const obstacles = world.obstacles?.(next.x,next.z) ?? [];
-    if (obstacles.some(c => obstacle(next,c))) {
+    if (obstacles.some(c => droneObstacle(next,c))) {
       // Stop before contact; upward movement can clear a trunk, roof or tower.
       next.x = s.pos.x; next.z = s.pos.z;
       if (next.y < s.pos.y) next.y = s.pos.y;

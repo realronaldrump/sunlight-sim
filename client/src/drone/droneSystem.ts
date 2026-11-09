@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { createDrone, FlightArea, stepDrone, type DroneInput, type DroneState, type FlightWorld } from '../../../shared/dronePhysics';
+import { createDrone, droneObstacle, FlightArea, stepDrone, type DroneInput, type DroneState, type FlightWorld } from '../../../shared/dronePhysics';
 import type { Vec3 } from '../../../shared/skiPhysics';
 import { DroneModel } from './droneModel';
 import { DroneAudio } from './droneAudio';
@@ -74,10 +74,18 @@ export class DroneSystem {
       const desired=p.clone().addScaledVector(dir,-1.65).add(new THREE.Vector3(0,.55,0));
       desired.y=Math.max(desired.y,this.world.height(desired.x,desired.z)+.7);
       this.area.constrain(desired);
+      const safe=p.clone();
+      for(let i=1;i<=12;i++) {
+        const point=p.clone().lerp(desired,i/12);
+        if(point.y<this.world.height(point.x,point.z)+.35 || this.world.obstacles?.(point.x,point.z).some(c=>droneObstacle(point,c,.12)))break;
+        safe.copy(point);
+      }
+      desired.copy(safe);
       if(!this.cameraReady)this.cameraPosition.copy(desired);
       this.cameraPosition.lerp(desired,1-Math.exp(-10*dt));
       this.cameraPosition.y=Math.max(this.cameraPosition.y,this.world.height(this.cameraPosition.x,this.cameraPosition.z)+.7);
       this.camera.position.copy(this.cameraPosition);this.camera.lookAt(p.clone().addScaledVector(dir,2));
+      this.model.root.visible=this.camera.position.distanceTo(p)>.55;
     }
     this.cameraReady=true;
     const near=this.area.nearest(s.pos.x,s.pos.z);
