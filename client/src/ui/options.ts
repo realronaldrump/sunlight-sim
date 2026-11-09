@@ -23,6 +23,7 @@ const css = `
 #pause-toggle { position:fixed; top:16px; right:340px; z-index:12; padding:8px 12px; color:#fff; background:rgba(10,20,35,.85); border:1px solid #97c5cf70; border-radius:8px; cursor:pointer; }
 #pause-toggle[hidden] { display:none; }
 body.iphone #pause-toggle { display:none; }
+body.pause-menu-open #help { display:none; }
 `;
 
 function fmtHour(h: number) {
@@ -66,7 +67,7 @@ export class OptionsPanel {
     q.value = savedQuality();
     q.onchange = () => { saveQuality(q.value as QualityName | 'auto'); location.reload(); };
   }
-  toggle(force?: boolean) { this.el.classList.toggle('show', force ?? !this.visible); this.onChange?.(); }
+  toggle(force?: boolean) { this.el.classList.toggle('show', force ?? !this.visible); document.body.classList.toggle('pause-menu-open', this.visible); this.onChange?.(); }
   update(ready: boolean, drone: boolean, map: boolean) {
     this.button.hidden = !ready || map || this.visible;
     (this.el.querySelector('#pause-recall') as HTMLElement).hidden = !drone;
