@@ -2,7 +2,8 @@
 import { test, expect, Page } from '@playwright/test';
 
 async function boot(page: Page, name: string, color: string, room: string) {
-  await page.goto(`/?autostart=1&name=${name}&color=${color}&room=${room}`);
+  const server = encodeURIComponent(process.env.TEST_SERVER_URL ?? 'ws://localhost:8787');
+  await page.goto(`/?autostart=1&name=${name}&color=${color}&room=${room}&server=${server}`);
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
 }
 
@@ -29,6 +30,10 @@ test('two players in one room', async ({ browser }) => {
   }, { timeout: 10_000 }).toBeLessThan(6);
 
   // both stand in the Segundo load zone and get scooped by the same chair
+  await expect.poll(() => a.evaluate(() => {
+    const p = (window as any).game.lifts.paths.find((p: any) => p.def.name === 'Segundo'), t = (window as any).game.lifts.now();
+    return p.nextChairAt(p.loadU, t).arrive - t;
+  }), { timeout: 15_000 }).toBeGreaterThan(3);
   for (const [page, off] of [[a, -0.6], [b, 0.6]] as const) {
     await page.evaluate((o) => {
       const g = (window as any).game; const path = g.lifts.paths.find((p: any) => p.def.name === 'Segundo');
@@ -42,7 +47,8 @@ test('two players in one room', async ({ browser }) => {
   const ra = await a.evaluate(() => (window as any).game.player.ride);
   const rb = await b.evaluate(() => (window as any).game.player.ride);
   expect(ra.lift).toBe(rb.lift);
-  expect(Math.abs(ra.chair - rb.chair)).toBeLessThanOrEqual(1);
+  expect(ra.chair).toBe(rb.chair);
+  expect(ra.seat).not.toBe(rb.seat);
   // Bob sees Alice riding
   await expect.poll(() => b.evaluate(() => { const rem = [...(window as any).game.net.remotes.values()][0]; return !!rem.ride; }), { timeout: 5_000 }).toBe(true);
   await b.waitForTimeout(4000);
@@ -60,6 +66,16 @@ test('two players in one room', async ({ browser }) => {
   await b.keyboard.press('KeyM');
   await b.evaluate(() => (window as any).game.player.skipRide());
   await a.evaluate(() => (window as any).game.player.skipRide());
+  await a.waitForTimeout(1000);
+  for (const page of [a, b]) {
+    const result = await page.evaluate(() => {
+      const g = (window as any).game, p = g.lifts.paths.find((p: any) => p.def.name === 'Segundo');
+      return { ride: g.player.ride, mode: g.player.st.mode, distance: Math.hypot(g.player.st.pos.x - p.def.top[0], g.player.st.pos.z - p.def.top[2]) };
+    });
+    expect(result.ride).toBeNull();
+    expect(result.mode).not.toBe('fallen');
+    expect(result.distance).toBeLessThan(30);
+  }
   await a.evaluate(() => (window as any).game.teleportToRun('Sun King'));
   await b.waitForTimeout(1500);
   await b.evaluate(() => (window as any).game.joinFriend('Alice'));

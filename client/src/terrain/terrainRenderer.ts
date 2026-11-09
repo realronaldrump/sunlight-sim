@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { Heightfield, HeightTile } from './heightfield';
 import { GroomingField, type GroomingRun } from './grooming';
+import { needsLandmarkDetail } from './landmarkDetail';
 
 const CELLS = 64;
 const VERTS = CELLS + 1;
@@ -61,6 +62,7 @@ export class TerrainRenderer {
   triangles = 0;
   private roots: [number, number][] = [];
   private buildQueue: Chunk[] = [];
+  private waitingForTiles = false;
   private grooming: GroomingField;
 
   constructor(private hf: Heightfield, private material: THREE.Material, runs: GroomingRun[] = []) {
@@ -96,7 +98,11 @@ export class TerrainRenderer {
   private ready(c: Chunk): boolean {
     if (c.mesh) return true;
     const t = this.tileFor(c.L, c.cx, c.cn);
-    if (!t) { void this.hf.ensureTile(c.L, Math.floor(c.cx / 4), Math.floor(c.cn / 4)); return false; }
+    if (!t) {
+      this.waitingForTiles = true;
+      void this.hf.ensureTile(c.L, Math.floor(c.cx / 4), Math.floor(c.cn / 4));
+      return false;
+    }
     if (!c.building) { c.building = true; this.buildQueue.push(c); }
     return false;
   }
@@ -183,12 +189,14 @@ export class TerrainRenderer {
   /** Select and attach the visible set of chunks for a viewer at game position p. */
   update(p: THREE.Vector3) {
     this.frame++;
+    this.waitingForTiles = false;
     const px = p.x, pn = -p.z, py = p.y;
     const visible: Chunk[] = [];
     const visit = (c: Chunk): boolean => {
       // returns true if this subtree drew something covering the chunk
       const C = CELLS * 2 ** c.L;
-      const wantSplit = c.L > 0 && this.dist(c, px, py, pn) < this.splitFactor * C;
+      const wantSplit = c.L > 0 && (this.dist(c, px, py, pn) < this.splitFactor * C ||
+        needsLandmarkDetail(this.hf.index.detailRegions ?? [], c.L, c.cx * C, c.cn * C, C));
       if (wantSplit) {
         const kids: Chunk[] = [];
         let allExist = true;
@@ -238,5 +246,5 @@ export class TerrainRenderer {
   }
 
   /** True when every chunk needed for the current view is built (used by tests/screenshots). */
-  get idle() { return this.buildQueue.length === 0; }
+  get idle() { return !this.waitingForTiles && this.buildQueue.length === 0; }
 }

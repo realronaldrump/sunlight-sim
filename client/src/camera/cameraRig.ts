@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu';
 export type CamMode = 'chase' | 'first' | 'side';
 
 export class CameraRig {
+  enabled = true;
   mode: CamMode = 'chase';
   private yawOffset = 0;
   private pitchOffset = 0;
@@ -17,18 +18,21 @@ export class CameraRig {
 
   constructor(public camera: THREE.PerspectiveCamera, dom: HTMLElement, private ground: (x: number, z: number) => number) {
     let lx = 0, ly = 0;
-    dom.addEventListener('mousedown', (e) => { this.dragging = true; lx = e.clientX; ly = e.clientY; });
+    dom.addEventListener('mousedown', (e) => { if (!this.enabled) return; this.dragging = true; lx = e.clientX; ly = e.clientY; });
     window.addEventListener('mouseup', () => (this.dragging = false));
     window.addEventListener('mousemove', (e) => {
-      if (!this.dragging) return;
+      if (!this.dragging || !this.enabled) return;
       this.yawOffset -= (e.clientX - lx) * 0.005;
       this.pitchOffset = THREE.MathUtils.clamp(this.pitchOffset + (e.clientY - ly) * 0.004, -0.6, 1.0);
       lx = e.clientX; ly = e.clientY;
     });
     dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
       this.distance = THREE.MathUtils.clamp(this.distance * (1 + Math.sign(e.deltaY) * 0.1), 2.5, 40);
     }, { passive: true });
   }
+
+  reset() { this.initialized = false; this.dragging = false; this.yawOffset = 0; this.pitchOffset = 0; }
 
   cycle() {
     this.mode = this.mode === 'chase' ? 'first' : this.mode === 'first' ? 'side' : 'chase';

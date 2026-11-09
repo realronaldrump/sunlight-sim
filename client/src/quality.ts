@@ -28,13 +28,14 @@ export function saveQuality(q: QualityName | 'auto') {
 }
 
 /** Pick a preset from the device: WebGPU on a desktop GPU -> high; WebGL2 fallback -> medium; small/mobile -> low. */
-export async function detectQuality(): Promise<QualityName> {
+export async function detectQuality(forceWebGL = false): Promise<QualityName> {
   const url = new URLSearchParams(location.search).get('quality') as QualityName | null;
   if (url && url in PRESETS) return url;
   const saved = savedQuality();
   if (saved !== 'auto' && saved in PRESETS) return saved;
   const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || Math.min(screen.width, screen.height) < 600;
   if (mobile) return 'low';
+  if (forceWebGL) return 'medium';
   const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<{ info?: { vendor?: string; architecture?: string } } | null> } }).gpu;
   if (!gpu) return 'medium';
   try {
@@ -43,6 +44,18 @@ export async function detectQuality(): Promise<QualityName> {
     const cores = navigator.hardwareConcurrency ?? 4;
     return cores >= 8 ? 'high' : 'medium';
   } catch { return 'medium'; }
+}
+
+/** A busy or suspended GPU process can leave requestAdapter pending forever in another tab. */
+export async function detectGraphics(forceWebGL = false) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const quality = await Promise.race([
+      detectQuality(forceWebGL),
+      new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 4000); }),
+    ]);
+    return { quality: quality ?? 'medium' as QualityName, forceWebGL: forceWebGL || quality === null };
+  } finally { clearTimeout(timer); }
 }
 
 /** Pixel ratio that keeps the render target within the preset's megapixel budget. */

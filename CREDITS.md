@@ -31,6 +31,12 @@ Every data source and asset used by Sunlight Mountain Simulator. Official resort
 - Sky: three.js SkyMesh (Preetham analytic daylight model), MIT.
 - Audio: CC0 field-recorded textures and original procedural airflow/contact Foley, detailed below.
 
+## Building reference material
+
+- Main lodge roof outline: USDA NAIP 2023 (public domain), traced in the local resort coordinate system. Roof elevation comes from the existing public-domain USGS lidar canopy-plus-ground surface. The trace and sampling bounds are in `pipeline/build_structures.py`.
+- Main lodge facade and deck: [Sunlight Mountain Resort venue photographs](https://www.eventective.com/glenwood-springs-co/sunlight-mountain-resort-117597.html), [Sunlight Mountain exterior](https://www.lugaresdenieve.com/?q=es/estacion/sunlight-mountain), and the [resort's dining page](https://sunlightmtn.com/explore/glenwood-springs-dining/). Copyright remains with the photographers/publishers. Reference only; no photographs are distributed.
+- Brettelberg facade and galleries: [Brettelberg's property history and photos](https://www.brettelberg.com/about), cross-checked with [Colorado Ski Authority's lodging photos](https://coloradoskiauthority.com/sunlight-mountain/lodging/). Copyright remains with the owners. Reference only; geometry and materials are authored in code.
+
 ## Snow surface assets
 
 - Snow 02 by Rob Tuytel, [Poly Haven](https://polyhaven.com/a/snow_02), [CC0 1.0](https://polyhaven.com/license). The 2 m scan supplies displacement, bump, roughness and ambient-occlusion data. `pipeline/build_snow.py` losslessly packs the four 2K source maps into `client/public/textures/snow/snow-detail.webp`; provenance and SHA-256 hashes are in `source.json` alongside it. Rebuild with `npm run data:snow`. The terrain uses these as shading detail only.

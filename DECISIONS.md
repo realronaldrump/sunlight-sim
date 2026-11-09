@@ -73,6 +73,19 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - All player-facing measurement conversions are centralized in `client/src/ui/units.ts`. Slope angles remain in degrees.
 - Terrain data, physics, lift movement and multiplayer coordinates retain their existing SI units for accuracy and compatibility. Convert only at the display boundary; do not retune movement or relabel metric values as U.S. values.
 
+## Anatomical skier art (November 8, 2026)
+- Use the CC0 MakeHuman/MPFB human and 53-bone skeleton repackaged by Innerscene. Pin the source hash and record the license in `client/public/models/LICENSE.txt`. `npm run data:skier` downloads it without an account and rebuilds the 1.9 MB compressed winter-clothed body.
+- Preserve anatomical face, hands and articulated body topology; dress it in a custom shell jacket, insulated trousers and gloves. Original procedural gear includes vented helmets, curved goggles, four-buckle boots, sidecut skis, bindings and poles. No resort photos are used as textures.
+- The existing ski input/physics drives two-bone limb IK and the human skeleton. Fingers curl around pole grips, seated hips line up with the chair, and ski/boot orientation follows the sampled terrain normal. Remote headings remain separate from the slope-aligned render quaternion so map arrows remain correct.
+- Ambient chair passengers are a welded, seated instance of the same human and gear, not capsule placeholders. The 15 mm weld is only for those static distant characters.
+
+## Sunlight base architecture (November 8, 2026)
+- The OSM import omitted the main lodge. Add an approximately 1-2 m accurate roof outline traced from 2023 NAIP, local center near x=112.5, z=-960.5. This is an explicitly labeled derived footprint, not an invented OSM record.
+- The lodge's central flat roof is 2493.065 m NAVD88 from the median of 78 canopy-plus-DEM samples in the existing 2016 lidar data, bounded by local x=112..118 m, north=956..969 m. Its 10th-to-90th percentile range is 2493.053..2493.075 m; this consistency does not establish absolute survey accuracy. Place the main metal roof surface at that height and add a thin winter snow cap.
+- The cream facade, red-brown posts, tall window wall, wooden sun deck, lower service level, roof plant and stairs come from lodge reference photos. Their dimensions and module counts are estimates. Brettelberg uses its actual OSM footprint (789090241) with the timber framing, gable roof and exterior galleries seen in property photos.
+- Correct three nearby support buildings to low, single-story modular structures. Other distant houses still have generic footprint-based treatment; do not claim every resort building is a measured replica.
+- Suppress lidar vegetation candidates whose centers fall inside building footprints, including the newly recovered lodge. Keep measured terrain and genuine trees outside those polygons unchanged.
+
 ## Snow surface realism (November 8, 2026)
 
 - Use the CC0 Poly Haven Snow 02 scan as linear height/grain/roughness/occlusion data. Two world-anchored projections at 2 m and about 7.3 m prevent a single obvious repeat; macro variation is procedural. The enlarged layer is an artistic wind-deposition approximation, not a surveyed snow depth.

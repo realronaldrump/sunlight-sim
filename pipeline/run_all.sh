@@ -15,8 +15,10 @@ echo "== 3. Regional/far elevation (3DEP)";      $PY fetch_regional.py
 echo "== 4. Lidar point cloud (USGS EPT on AWS)"; $PY fetch_ept.py
 echo "== 5. NAIP imagery (Planetary Computer)";  $PY fetch_naip.py
 echo "== 6. Terrain tile pyramid";               $PY build_terrain.py
+echo "== Mount Sopris 1 m elevation detail";       $PY build_sopris.py
 echo "== 7. Runs, lifts, buildings";             $PY build_osm.py
 echo "== 8. Canopy height model";                $PY build_chm.py
+$PY build_structures.py
 echo "== 9. Trees + species";                    $PY build_trees.py
 echo "== 10. Surface masks + run boundaries";    $PY build_surface.py
 echo "== 11. Trail map + boundary";              $PY build_map.py

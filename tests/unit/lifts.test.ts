@@ -82,6 +82,14 @@ describe('lifts', () => {
     }
   });
 
+  it('raises the restraint before unloading and lowers it only after leaving the load area', () => {
+    for (const p of paths) {
+      expect(p.restraintAngle(LOAD_OFFSET, true)).toBeGreaterThan(1.4);
+      expect(p.restraintAngle(p.horiz / 2, true)).toBe(0);
+      expect(p.restraintAngle(p.horiz - 6.5, true)).toBeGreaterThan(1.4);
+    }
+  });
+
   it('the rope keeps riders clear of the ground between towers', async () => {
     for (const p of paths) {
       await world.hf.ensureArea(0, (p.def.bottom[0] + p.def.top[0]) / 2, -(p.def.bottom[2] + p.def.top[2]) / 2, p.horiz / 2 + 100);

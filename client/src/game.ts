@@ -15,7 +15,8 @@ import { TrailMap } from './ui/trailMap';
 import { Minimap } from './ui/minimap';
 import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
-import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
+import { detectGraphics, PRESETS, QualityPreset, pixelRatioFor } from './quality';
+import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
@@ -89,22 +90,21 @@ export class Game {
 
   async start() {
     this.setLoading(0.05, 'Starting renderer');
-    const forceWebGL = this.params.get('webgl') === '1';
-    this.quality = PRESETS[await detectQuality()];
+    const graphics = await detectGraphics(this.params.get('webgl') === '1');
+    this.quality = PRESETS[graphics.quality];
     const Q = this.quality;
-    this.renderer = new THREE.WebGPURenderer({ antialias: Q.antialias, forceWebGL });
+    this.renderer = await initializeRenderer(Q.antialias, graphics.forceWebGL);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
     this.renderer.shadowMap.enabled = Q.shadows;
     this.container.appendChild(this.renderer.domElement);
-    await this.renderer.init();
     this.onResize();
     window.addEventListener('resize', () => this.onResize());
 
     this.setLoading(0.12, 'Loading resort data');
     const [_, resort, surface] = await Promise.all([
       this.hf.init(),
-      fetch(`${WORLD_BASE}/resort.json`).then((r) => r.json()),
+      fetch(`${WORLD_BASE}/resort.json`, { cache: 'no-cache' }).then((r) => r.json()),
       SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
       loadHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')),
     ]);
@@ -141,7 +141,7 @@ export class Game {
     this.probe = this.lifts.buildStationSurfaces(this.probe);
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
-    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar);
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, this.resort.buildings);
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.hf.heightAt(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);

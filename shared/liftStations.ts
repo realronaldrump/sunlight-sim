@@ -30,7 +30,7 @@ export class StationRamp {
       const lateral = 1 - smooth((Math.abs(across) - width) / (this.halfWidth - width));
       const longitudinal = smooth((h - this.start) / (line - 2 - this.start)) * (1 - smooth((h - line - 2) / (this.end - line - 2)));
       // Follow the gently descending rope at unload, then continue down an exit ramp.
-      const target = path.stationHeight(top, h) - (top ? Math.max(0, h - path.horiz) * 0.12 : 0);
+      const target = top && h > line ? path.stationHeight(true) - (h - line) * 0.08 : path.stationHeight(top, h);
       const y = base + Math.max(0, target - base) * lateral * longitudinal + 0.015;
       this.heights.push(y); this.positions.push(x, y, z);
       if (i < this.rows - 1 && j < this.cols - 1) {

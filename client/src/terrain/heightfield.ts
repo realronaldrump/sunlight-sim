@@ -1,6 +1,7 @@
 // Terrain height tile cache and sampling. Shared by the renderer and the ski physics so that
 // "what you see is what you ski": heights are interpolated on the same triangles the mesh uses.
 import { decodeTile } from './codec';
+import type { TerrainDetailRegion } from './landmarkDetail';
 
 export interface LevelInfo { spacing: number; tileSize: number; tiles: [number, number, number, number][] }
 export interface TerrainIndex {
@@ -10,6 +11,7 @@ export interface TerrainIndex {
   levels: Record<string, LevelInfo>;
   hiExtent: [number, number, number, number];
   maxLevel: number;
+  detailRegions?: TerrainDetailRegion[];
 }
 
 export interface HeightTile {
@@ -113,6 +115,11 @@ export class Heightfield {
   evict(x: number, n: number, keepRadius: number, maxLevel = 2) {
     for (const [k, t] of this.tiles) {
       if (t.level > maxLevel) continue;
+      // Landmark tiles are intentionally visible from the resort, far outside
+      // the skier's normal fine-terrain cache radius.
+      if (this.index.detailRegions?.some(({ extent: [x0, x1, n0, n1], maxLevel: L }) =>
+        t.level >= L && t.tx * t.S < x1 && (t.tx + 1) * t.S > x0 &&
+        t.tn * t.S < n1 && (t.tn + 1) * t.S > n0)) continue;
       const cx = (t.tx + 0.5) * t.S, cn = (t.tn + 0.5) * t.S;
       if (Math.max(Math.abs(cx - x), Math.abs(cn - n)) > keepRadius + t.S) this.tiles.delete(k);
     }

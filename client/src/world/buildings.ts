@@ -2,8 +2,7 @@
 // (gable roofs on rectangular footprints, flat snowy roofs otherwise), plus box colliders.
 import * as THREE from 'three/webgpu';
 import type { ColliderGrid } from '../../../shared/collision';
-
-interface BuildingDef { id: number; name: string; levels: number; base: number; points: number[][] }
+import { buildSunlightStructure, type BuildingDef } from './sunlightBuildings';
 
 function facadeTexture(seed: number) {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
@@ -31,6 +30,8 @@ export function buildBuildings(defs: BuildingDef[], height: (x: number, z: numbe
   const roofMat = new THREE.MeshStandardNodeMaterial({ color: 0xf1f4f8, roughness: 0.8 });
   const trimMat = new THREE.MeshStandardNodeMaterial({ color: 0x3b2a1e, roughness: 0.9 });
   defs.forEach((b, idx) => {
+    const specific = buildSunlightStructure(b, height, colliders);
+    if (specific) { group.add(specific); return; }
     const pts = b.points;
     if (pts.length < 3) return;
     // ground under the footprint

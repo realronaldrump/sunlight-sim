@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { SkierModel } from './skierModel';
+import { RIDER_ROOT_BELOW_SEAT, RIDER_ROOT_FORWARD } from '../../../shared/lifts';
 
 let cached: THREE.BufferGeometry | null = null;
 /** Bake the same human and equipment into a seated instancing mesh for non-player chair riders.
@@ -9,7 +10,7 @@ export function seatedSkierGeometry() {
   if (cached) return cached.clone();
   const model=new SkierModel(new THREE.Color(1,1,1));
   model.update({speed:0,edge:0,plow:0,tuck:0,skid:0,fallen:0,sitting:1,time:0,pushing:false});
-  model.root.position.y=-.45;model.root.updateMatrixWorld(true);
+  model.root.position.set(0, -RIDER_ROOT_BELOW_SEAT, -RIDER_ROOT_FORWARD);model.root.updateMatrixWorld(true);
   const positions:number[]=[],colors:number[]=[],jackets:number[]=[],indices:number[]=[];
   const welded=new Map<string,number>(),p=new THREE.Vector3(),c=new THREE.Color();
   model.root.traverse(o=>{

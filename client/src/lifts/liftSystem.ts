@@ -4,10 +4,10 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
-import { attribute, mix, vec3 } from 'three/tsl';
-import { seatedSkierGeometry } from '../skier/seatedGeometry';
 import { LiftStations } from '../../../shared/liftStations';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
+import { attribute, mix, vec3 } from 'three/tsl';
+import { seatedSkierGeometry } from '../skier/seatedGeometry';
 
 
 const steel = new THREE.MeshStandardNodeMaterial({ color: 0x6f7780, roughness: 0.45, metalness: 0.7 });
@@ -45,25 +45,33 @@ riderMat.colorNode = attribute('color', 'vec3').mul(mix(vec3(1), attribute('ride
 function chairGeometry(seats: number) {
   const w = seats * 0.6 + 0.1;
   const parts: THREE.BufferGeometry[] = [];
-  // hanger: vertical bar from grip (y=0) to seat (y=-HANGER), slightly offset back
-  const hanger = new THREE.BoxGeometry(0.07, HANGER, 0.07); hanger.translate(0, -HANGER / 2, 0.1); parts.push(hanger);
+  // The hanger bends behind the backrest; a straight central rod would pass through
+  // the middle passenger's torso on a triple chair.
+  const hanger = new THREE.BoxGeometry(0.07, HANGER - 0.6, 0.07); hanger.translate(0, -(HANGER - 0.6) / 2, 0.5); parts.push(hanger);
+  const grip = new THREE.BoxGeometry(0.07, 0.07, 0.5); grip.translate(0, -0.035, 0.25); parts.push(grip);
   const frame = new THREE.BoxGeometry(w, 0.06, 0.06); frame.translate(0, -HANGER + 0.55, 0.38); parts.push(frame);
   const back = new THREE.BoxGeometry(w, 0.5, 0.06); back.translate(0, -HANGER + 0.3, 0.38); parts.push(back);
   const sideL = new THREE.BoxGeometry(0.05, 0.6, 0.55); sideL.translate(-w / 2, -HANGER + 0.15, 0.12); parts.push(sideL);
   const sideR = sideL.clone(); sideR.translate(w, 0, 0); parts.push(sideR);
-  // restraint bar (raised) and footrest
-  const bar = new THREE.BoxGeometry(w, 0.04, 0.04); bar.translate(0, -HANGER + 0.9, 0.05); parts.push(bar);
-  const foot = new THREE.BoxGeometry(w * 0.8, 0.04, 0.12); foot.translate(0, -HANGER - 0.42, -0.35); parts.push(foot);
   const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
   const seat = new THREE.BoxGeometry(w, 0.07, 0.48); seat.translate(0, -HANGER, 0.12);
-  return { frame: g, seat };
+  // Pivot relative to (-HANGER + 0.65, z=0.35); lift the entire bar and footrest
+  // above the skier at stations, lower them in transit. Dimensions are estimates.
+  const restraint: THREE.BufferGeometry[] = [];
+  const bar = new THREE.BoxGeometry(w, 0.045, 0.045); bar.translate(0, -0.22, -0.85); restraint.push(bar);
+  for (const side of [-1, 1]) {
+    const arm = new THREE.BoxGeometry(0.04, 0.04, 0.88); arm.rotateX(-0.25); arm.translate(side * w / 2, -0.11, -0.425); restraint.push(arm);
+    const stem = new THREE.BoxGeometry(0.035, 0.83, 0.035); stem.translate(side * w * 0.28, -0.635, -0.85); restraint.push(stem);
+  }
+  const foot = new THREE.BoxGeometry(w * 0.8, 0.04, 0.13); foot.translate(0, -1.05, -0.85); restraint.push(foot);
+  return { frame: g, seat, restraint: mergeGeometries(restraint.map(p => p.toNonIndexed()))! };
 }
 
 export class LiftSystem {
   readonly group = new THREE.Group();
   readonly paths: LiftPath[] = [];
   readonly colliders: Collider[] = [];
-  private chairMeshes: { frame: THREE.InstancedMesh; seat: THREE.InstancedMesh }[] = [];
+  private chairMeshes: { frame: THREE.InstancedMesh; seat: THREE.InstancedMesh; restraint: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
   private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[] }[] = [];
   clockOffset = 0; // seconds added to Date.now()/1000 to get the shared lift clock
@@ -77,11 +85,12 @@ export class LiftSystem {
       const path = new LiftPath(def);
       this.paths.push(path);
       this.buildStatic(path);
-      const { frame, seat } = chairGeometry(def.seats);
+      const { frame, seat, restraint } = chairGeometry(def.seats);
       const fm = new THREE.InstancedMesh(frame, chairMat, path.chairCount);
       const sm = new THREE.InstancedMesh(seat, seatMat, path.chairCount);
-      for (const m of [fm, sm]) { m.castShadow = true; m.frustumCulled = false; this.group.add(m); }
-      this.chairMeshes.push({ frame: fm, seat: sm });
+      const bm = new THREE.InstancedMesh(restraint, chairMat, path.chairCount);
+      for (const m of [fm, sm, bm]) { m.castShadow = true; m.frustumCulled = false; this.group.add(m); }
+      this.chairMeshes.push({ frame: fm, seat: sm, restraint: bm });
       // about a third of the chairs carry 1-3 riders (deterministic per lift)
       let seed = def.name.length * 7919;
       const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -240,7 +249,7 @@ export class LiftSystem {
     const t = this.now();
     for (let li = 0; li < this.paths.length; li++) {
       const path = this.paths[li];
-      const { frame, seat } = this.chairMeshes[li];
+      const { frame, seat, restraint } = this.chairMeshes[li];
       for (let i = 0; i < path.chairCount; i++) {
         const lp = path.loopPoint(path.chairU(i, t));
         // Fixed-grip carriers follow the haul rope through the terminals at line speed.
@@ -249,9 +258,13 @@ export class LiftSystem {
         this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
         frame.setMatrixAt(i, this.m4);
         seat.setMatrixAt(i, this.m4);
+        this.m4.multiply(new THREE.Matrix4().makeTranslation(0, -HANGER + 0.65, 0.35));
+        this.m4.multiply(new THREE.Matrix4().makeRotationX(path.restraintAngle(lp.h, lp.uphill)));
+        restraint.setMatrixAt(i, this.m4);
       }
       frame.instanceMatrix.needsUpdate = true;
       seat.instanceMatrix.needsUpdate = true;
+      restraint.instanceMatrix.needsUpdate = true;
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];
       if (R) {

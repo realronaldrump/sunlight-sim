@@ -14,6 +14,7 @@ interface TileData {
   mesh: THREE.InstancedMesh | null;
   cellOf: Int32Array; // cell key per tree index
   hidden: Set<number>; // cell keys hidden (near) in this tile's impostor mesh
+  excluded: Uint8Array;
 }
 
 async function gunzip(buf: ArrayBuffer) {
@@ -43,7 +44,8 @@ export class TreeSystem {
   private sc = new THREE.Vector3();
   enabled = true;
 
-  constructor(private base: string, private colliders: ColliderGrid, private nearDist = 210, private farDist = 3200) {
+  constructor(private base: string, private colliders: ColliderGrid, private nearDist = 210, private farDist = 3200,
+    private buildings: { points: number[][] }[] = []) {
     this.group.name = 'trees';
     const atlas = impostorAtlas();
     const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, alphaTest: 0.5, roughness: 0.95 });
@@ -104,7 +106,21 @@ export class TreeSystem {
     const seed = new Uint8Array(buf.slice(o, o + n));
     const h = new Float32Array(n), r = new Float32Array(n);
     for (let i = 0; i < n; i++) { h[i] = hc[i] / 100; r[i] = rd[i] / 20; }
-    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, cellOf: new Int32Array(n), hidden: new Set() };
+    const excluded = new Uint8Array(n);
+    for (const b of this.buildings) {
+      const xs=b.points.map(p=>p[0]), zs=b.points.map(p=>p[1]);
+      const minX=Math.min(...xs)-1, maxX=Math.max(...xs)+1, minZ=Math.min(...zs)-1, maxZ=Math.max(...zs)+1;
+      for (let i=0;i<n;i++) {
+        if(x[i]<minX || x[i]>maxX || z[i]<minZ || z[i]>maxZ)continue;
+        let inside=false;
+        for(let a=0,prev=b.points.length-1;a<b.points.length;prev=a++){
+          const p=b.points[a],q=b.points[prev];
+          if((p[1]>z[i])!==(q[1]>z[i]) && x[i]<(q[0]-p[0])*(z[i]-p[1])/(q[1]-p[1])+p[0])inside=!inside;
+        }
+        if(inside)excluded[i]=1;
+      }
+    }
+    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, cellOf: new Int32Array(n), hidden: new Set(), excluded };
     for (let i = 0; i < n; i++) {
       const k = cellKey(Math.floor(x[i] / CELL), Math.floor(z[i] / CELL));
       t.cellOf[i] = k;
@@ -113,7 +129,7 @@ export class TreeSystem {
       let entry = list.find((e) => e.tile === t);
       if (!entry) { entry = { tile: t, idx: [] }; list.push(entry); }
       entry.idx.push(i);
-      if (h[i] > 3 && s[i] !== 3) {
+      if (!excluded[i] && h[i] > 3 && s[i] !== 3) {
         const trunk = 0.1 + 0.012 * h[i] + (s[i] <= 1 ? 0.3 : 0.05);
         this.colliders.add({ type: 'cyl', x: x[i], z: z[i], r: trunk, top: y[i] + h[i] });
       }
@@ -141,6 +157,7 @@ export class TreeSystem {
   }
 
   private writeImpostor(m: THREE.InstancedMesh, t: TileData, i: number, hide: boolean) {
+    hide ||= !!t.excluded[i];
     const h = t.h[i], r = t.r[i];
     const rot = (t.seed[i] / 255) * Math.PI;
     this.q.setFromAxisAngle(this.v.set(0, 1, 0), rot);
@@ -187,6 +204,7 @@ export class TreeSystem {
       for (const e of list) {
         const t = e.tile;
         for (const i of e.idx) {
+          if (t.excluded[i]) continue;
           const s = t.s[i];
           const mesh = this.nearMeshes[s];
           if (counts[s] >= mesh.instanceMatrix.count) continue;
@@ -218,7 +236,7 @@ export class TreeSystem {
     let c = 0;
     const list = this.cells.get(cellKey(Math.floor(x / CELL), Math.floor(z / CELL)));
     if (!list) return 0;
-    for (const e of list) for (const i of e.idx) if (Math.hypot(e.tile.x[i] - x, e.tile.z[i] - z) < radius) c++;
+    for (const e of list) for (const i of e.idx) if (!e.tile.excluded[i] && Math.hypot(e.tile.x[i] - x, e.tile.z[i] - z) < radius) c++;
     return c;
   }
 }

@@ -1,9 +1,10 @@
 // Keyboard + gamepad input mapped to ski controls and actions.
 import type { SkiInput } from '../../../shared/skiPhysics';
+import { NO_DRONE_INPUT, type DroneInput } from '../../../shared/dronePhysics';
 
 export interface Actions {
   getUp: boolean; camera: boolean; map: boolean; slope: boolean; skipLift: boolean; help: boolean;
-  chat: boolean; respawn: boolean; mute: boolean; options: boolean; minimap: boolean;
+  chat: boolean; respawn: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
 }
 
 export class InputManager {
@@ -15,14 +16,18 @@ export class InputManager {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
-      if (!this.enabled || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      const target = e.target as HTMLElement;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => this.clear());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.clear(); });
   }
+
+  clear() { this.keys.clear(); this.pressed.clear(); this.steerSmoothed = 0; }
 
   private pad(): Gamepad | null {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -31,6 +36,7 @@ export class InputManager {
   }
 
   ski(dt: number): SkiInput {
+    if (!this.enabled) return { steer: 0, tuck: false, push: false, plow: 0, stop: true };
     const k = this.keys;
     let steer = 0, fwd = 0, back = 0;
     if (k.has('KeyA') || k.has('ArrowLeft')) steer -= 1;
@@ -59,6 +65,22 @@ export class InputManager {
     return { steer, tuck: fwd > 0, push: fwd > 0, plow: back, stop };
   }
 
+  drone(): DroneInput {
+    if (!this.enabled || document.hidden) return { ...NO_DRONE_INPUT, brake: true };
+    const k = this.keys, p = this.pad();
+    const dead = (v = 0) => Math.abs(v) < .14 ? 0 : Math.sign(v)*(Math.abs(v)-.14)/.86;
+    const key = (code: string) => Number(k.has(code));
+    return {
+      forward: key('KeyW')-key('KeyS')-dead(p?.axes[1]), right: key('KeyD')-key('KeyA')+dead(p?.axes[0]),
+      up: key('KeyE')-key('KeyQ')+(p?.buttons[7]?.value ?? 0)-(p?.buttons[6]?.value ?? 0),
+      yaw: key('ArrowLeft')-key('ArrowRight')-dead(p?.axes[2]),
+      pitch: key('ArrowUp')-key('ArrowDown')-dead(p?.axes[3]),
+      fast: k.has('ShiftLeft') || k.has('ShiftRight') || !!p?.buttons[5]?.pressed,
+      precision: k.has('ControlLeft') || k.has('ControlRight') || !!p?.buttons[4]?.pressed,
+      brake: k.has('Space') || !!p?.buttons[0]?.pressed,
+    };
+  }
+
   /** Edge-triggered actions since the last call. */
   actions(): Actions {
     const pr = this.pressed;
@@ -81,6 +103,7 @@ export class InputManager {
       respawn: pr.has('KeyB') || btn(9),
       mute: pr.has('KeyN'),
       options: pr.has('KeyP') || pr.has('Escape'),
+      drone: pr.has('KeyG') || btn(10),
     };
     pr.clear();
     return a;

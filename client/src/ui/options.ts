@@ -46,4 +46,5 @@ export class OptionsPanel {
     q.onchange = () => { saveQuality(q.value as QualityName | 'auto'); location.reload(); };
   }
   toggle() { this.el.classList.toggle('show'); }
+  get visible() { return this.el.classList.contains('show'); }
 }

@@ -93,6 +93,23 @@ def main(lifts_only=False):
                             changed = True
             if not changed:
                 break
+        # Winter unload pad: maintain a gentle downhill exit over the summer DEM's
+        # ridge rather than making outer-seat riders climb a bare-earth lip. Terminal
+        # and tower heights are modeling estimates, not surveyed hardware dimensions.
+        unload_h = horiz - 6.5
+        exit_h = np.arange(unload_h, horiz + 8.01, 0.5)
+        right = np.array([axis[1], -axis[0]])
+        required_floor = -float("inf")
+        for seat in range(spec["seats"]):
+            across = 2.6 + (seat - (spec["seats"] - 1) / 2) * 0.6
+            ex = A[0] + axis[0] * exit_h + right[0] * across
+            en = A[1] + axis[1] * exit_h + right[1] * across
+            required_floor = max(required_floor, float(np.max(dem.h(ex, en) + 0.08 * (exit_h - unload_h))) + 0.05)
+        i = int(np.searchsorted(s, unload_h) - 1)
+        t = (unload_h - s[i]) / (s[i + 1] - s[i])
+        cable = top[i] + (top[i + 1] - top[i]) * t - 4 * SAG_FRAC * (s[i + 1] - s[i]) * t * (1 - t)
+        raise_by = max(0, required_floor - (cable - 3.0 + 0.035 - 0.52))
+        top[i:] += raise_by
         slope_len = float(sum(math.hypot(s[i + 1] - s[i], top[i + 1] - top[i]) for i in range(len(s) - 1)))
         spacing = spec["seats"] * spec["speed"] * 3600 / spec["capacity"]
         out["lifts"].append({

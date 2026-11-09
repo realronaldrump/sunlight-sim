@@ -77,7 +77,7 @@ export class Player {
   /** Skip the rest of the ride (fast-forward to the top). */
   skipRide() { if (this.ride) this.unload(true); }
 
-  update(dt: number, input: SkiInput) {
+  update(dt: number, input: SkiInput, parked = false) {
     this.time += dt;
     this.lastInput = input;
     let st = this.st;
@@ -94,7 +94,7 @@ export class Player {
       const next = path.riderPoint(r.chair, r.seat, t + 0.01).p;
       st.vel = { x: (next.x - info.p.x) * 100, y: (next.y - info.p.y) * 100, z: (next.z - info.p.z) * 100 };
       if (t >= r.unloadAt || !info.uphill) { this.unload(); st = this.st; }
-    } else {
+    } else if (!parked) {
       // A slow, upright skier facing uphill gets a short alignment assist to the load stripe.
       // Holding a turn or pushing leaves ordinary ski physics in control.
       this.inLoadZone = -1;
@@ -123,6 +123,10 @@ export class Player {
         }
       }
       if (this.inLoadZone < 0 && !this.ride) { stepSkier(st, input, this.probe, dt); this.colliders.collide(st); }
+    }
+    if (parked && !this.ride) {
+      st.vel = { x: 0, y: 0, z: 0 }; st.speed = 0; st.edge = 0; st.plow = 0; st.tuck = 0; st.skid = 0;
+      this.inLoadZone = -1;
     }
     // animation blends
     const fallenTarget = st.mode === 'fallen' ? 1 : 0;

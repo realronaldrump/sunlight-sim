@@ -44,7 +44,7 @@ All game-ready world data is committed under `client/public/world`, so no data d
 
 Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, RB skip lift, Start back to base.
 
-To ride a lift, ski into the red load line under the chair and wait; the chair scoops you up and you ride in real time.
+To ride a lift, approach the red load line slowly, face uphill, release the push/turn controls, and wait. A short alignment assist places you in a seat lane. The next chair picks you up at its actual arrival; rides take about 11:34 on Primo, 9:00 on Segundo and 9:34 on Tercero at the published line speeds. You automatically stand onto the snow exit ramp at the top and ski clear. Press F only if you want to skip the ride. See ACCURACY.md for geometry and operating-speed limitations.
 
 ## Ski with a friend (share a link)
 
@@ -111,6 +111,8 @@ npm run data
 It needs Python 3.12 (`uv` or `python3 -m venv`); `pipeline/run_all.sh` creates `.venv` and installs `pipeline/requirements.txt` if missing. No accounts or API keys are needed. Steps: OSM (Overpass), USGS 1 m DEM (TNM), 3DEP regional/far elevation, USGS lidar (EPT on AWS), NAIP (Planetary Computer), terrain pyramid, runs/lifts, canopy height model, trees, surface masks, trail map, base area, distant forest (ESA WorldCover), accuracy report.
 
 ## Project docs
+
+Characters are articulated CC0 human meshes dressed in custom winter clothing and ski equipment. Their asset, license and source hash are committed under `client/public/models`; `npm run data:skier` rebuilds the model without an account. The main lodge and Brettelberg have separate architecture based on aerial/OSM footprints and reference photos. `ACCURACY.md` distinguishes lidar measurements from estimated facade and deck details.
 
 - `SPEC.md` the build spec. `PROGRESS.md` status and next steps. `DECISIONS.md` design decisions and real-world values. `ACCURACY.md` run statistics vs DEM and published figures. `CREDITS.md` sources and licenses.
 

@@ -27,6 +27,17 @@ def test_terrain_index():
     assert len(idx["levels"]["0"]["tiles"]) == 289
 
 
+def test_reference_structures():
+    resort = json.loads((PUBLIC / "resort.json").read_text())
+    lodges = [b for b in resort["buildings"] if b.get("style") == "sunlight_lodge"]
+    assert len(lodges) == 1, "The main lodge must be present once, including after a pipeline rerun"
+    lodge = lodges[0]
+    assert 2492.9 < lodge["roofElevation"] < 2493.2, lodge["roofElevation"]
+    assert all(90 < x < 135 and -985 < z < -935 for x, z in lodge["points"])
+    condos = [b for b in resort["buildings"] if b.get("style") == "brettelberg"]
+    assert len(condos) == 1 and condos[0]["id"] == 789090241
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

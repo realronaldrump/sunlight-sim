@@ -113,4 +113,18 @@ describe('Sunlight boarding and riding', () => {
     expect(f.player.ride).toBeNull();
     expect(f.player.st.pos.y).toBeCloseTo(stations.height(f.player.st.pos.x, f.player.st.pos.z), 8);
   });
+
+  it('every seat has enough downhill runout to clear the following chair', () => {
+    for (let index = 0; index < paths.length; index++) for (let seat = 0; seat < paths[index].def.seats; seat++) {
+      const f = fixture(index), n = f.path.nextChairAt(f.path.loadU, f.now());
+      f.at(n.arrive);
+      f.player.board(index, n.index, seat);
+      f.player.skipRide();
+      const start = { ...f.player.st.pos };
+      for (let frame = 0; frame < 120; frame++) f.at(f.now() + 1 / 30);
+      const along = (f.player.st.pos.x - start.x) * f.path.ax + (f.player.st.pos.z - start.z) * f.path.az;
+      expect(along, `${f.path.def.name} seat ${seat}`).toBeGreaterThan(4);
+      expect(f.player.st.mode).not.toBe('fallen');
+    }
+  });
 });

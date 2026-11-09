@@ -20,7 +20,7 @@ export const UNLOAD_OFFSET = 6.5; // m before the top bull wheel center where ri
 export const SEAT_SPACING = 0.6;
 export const SEAT_TOP = 0.035;
 export const LOAD_SEAT_HEIGHT = 0.52; // estimated maintained snow-to-seat clearance, not a surveyed Sunlight dimension
-export const RIDER_ROOT_BELOW_SEAT = 0.35; // pelvis is 0.45 m above the animated model origin
+export const RIDER_ROOT_BELOW_SEAT = 0.44; // seated hip joint is 0.54 m above origin; pelvis rests 0.10 m above cushion
 export const RIDER_ROOT_FORWARD = 0.25; // seated hips are 0.25 m behind the model origin
 export const MAX_BOARD_SPEED = 1.5;
 
@@ -216,6 +216,12 @@ export class LiftPath {
 
   remainingRideTime(chair: number, t: number) {
     return Math.max(0, (this.unloadU - this.chairU(chair, t)) / this.def.speed);
+  }
+
+  restraintAngle(h: number, uphill: boolean) {
+    const smooth = (v: number) => { const x = Math.max(0, Math.min(1, v)); return x * x * (3 - 2 * x); };
+    const closed = uphill ? smooth((h - LOAD_OFFSET - 4) / 10) * smooth((this.horiz - UNLOAD_OFFSET - h - 6) / 14) : 0;
+    return (1 - closed) * Math.PI * 0.48;
   }
 
   /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
