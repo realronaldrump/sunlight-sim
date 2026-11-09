@@ -2,7 +2,7 @@ body.iphone { --flight-top: max(10px, env(safe-area-inset-top)); --flight-left: 
 body.iphone #app canvas { touch-action: none; }
 body.iphone button, body.iphone select { min-height: 44px; touch-action: manipulation; }
 body.iphone input, body.iphone select { font-size: 16px !important; }
-body.iphone #hud, body.iphone #help, body.iphone #liftdir, body.iphone #hint, body.iphone #drone-toggle, body.iphone #drone-panel, body.iphone #minimap, body.iphone #stats { display: none !important; }
+body.iphone #hud, body.iphone #help, body.iphone #liftdir, body.iphone #hint, body.iphone #runlabel, body.iphone #drone-toggle, body.iphone #drone-panel, body.iphone #minimap, body.iphone #stats { display: none !important; }
 #touch-flight[hidden], .flight-help[hidden] { display: none !important; }
 #touch-flight { position: fixed; inset: 0; pointer-events: none; z-index: 14; font-size: 12px; }
 #touch-flight button, #touch-flight select { pointer-events: auto; -webkit-touch-callout: none; }
@@ -34,7 +34,7 @@ body.iphone #menu .panel { width: min(420px, 100%); padding: 18px; max-height: c
 body.iphone #menu .sw { width: 36px; height: 36px; min-height: 36px; padding: 0; flex: none; }
 body.iphone #menu .row { flex-wrap: wrap; }
 body.iphone #menu label { margin-top: 10px; }
-body.iphone #roombox { top: auto; bottom: calc(var(--flight-bottom) + 118px); left: var(--flight-left); right: var(--flight-right); padding: 5px 8px; text-align: center; font-size: 12px; }
+body.iphone #roombox { top: auto; bottom: calc(var(--flight-bottom) + 138px); left: var(--flight-left); right: var(--flight-right); padding: 5px 8px; text-align: center; font-size: 12px; }
 body.iphone #roombox button { font-size: 12px; }
 body.iphone #chatlog { top: calc(var(--flight-top) + 145px); bottom: auto; right: var(--flight-right); width: min(300px, calc(100vw - 24px)); max-height: 112px; overflow: hidden; font-size: 12px; }
 body.iphone #chat-form { position: fixed; z-index: 35; left: var(--flight-left); right: var(--flight-right); bottom: max(var(--keyboard-bottom, 12px), var(--flight-bottom)); padding: 10px; background: #0c243af5; border-radius: 12px; gap: 6px; }
