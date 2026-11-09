@@ -199,11 +199,15 @@ export class Room {
             swing.slip < CHAIR_SWING.releaseSlip || previous.slip < .4 ||
             Math.abs(swing.roll - previous.roll) > .5 || Math.abs(swing.pitch - previous.pitch) > .5) return;
         const r = p.ride, path = this.lifts[r.lift], time = this.liftClocks[r.lift].now();
-        const point = swingingRiderPoint(path, r.chair, r.seat, time, swing);
-        const vel = chairReleaseVelocity(path, r.chair, r.seat, time, swing);
+        let carrier = swing;
+        for (const other of this.players.values()) if (other.ride?.lift === r.lift && other.ride.chair === r.chair &&
+            other.s.swing && swingEnergy(other.s.swing) > swingEnergy(carrier)) carrier = other.s.swing;
+        const physical = carriedSwing(swing, carrier);
+        const point = swingingRiderPoint(path, r.chair, r.seat, time, physical);
+        const vel = chairReleaseVelocity(path, r.chair, r.seat, time, physical);
         p.s = { ...p.s, x: point.p.x, y: point.p.y, z: point.p.z, heading: point.heading,
           vx: vel.x, vy: vel.y, vz: vel.z, mode: 'fallen', fallen: 0, edge: 0, plow: 0, tuck: 0,
-          swing: undefined, tumble: { pitch: swing.pitch, roll: swing.roll } };
+          swing: undefined, tumble: { pitch: physical.pitch, roll: physical.roll } };
         p.t = t;
         this.freeSeat(p);
         this.broadcast({ type: 'liftFell', id: p.id, s: p.s });

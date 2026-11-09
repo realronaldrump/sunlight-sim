@@ -24,13 +24,18 @@ test('a networked fall releases its seat and broadcasts the landing instead of t
     await page.goto(`/?autostart=1&ambient=0&webgl=1&name=Rocker&room=${room}&server=${encodeURIComponent(server)}`);
     await page.waitForFunction(() => (window as any).game?.ready && (window as any).game.net?.connected, null, { timeout: 120_000 });
     await page.bringToFront();
+    await expect.poll(() => page.evaluate(() => {
+      const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === 'Primo'), path = g.lifts.paths[li], t = g.lifts.now(li);
+      return path.nextChairAt(path.loadU, t).arrive - t;
+    }), { timeout: 25000, intervals: [100] }).toBeLessThan(.8);
     await page.evaluate(() => {
       const g = (window as any).game, path = g.lifts.paths.find((p: any) => p.def.name === 'Primo'), lp = path.loadPoint(), off = path.seatOffset(0);
       g.player.teleport(lp.x + path.rx * off, lp.z + path.rz * off, lp.heading);
-      g.net.markTeleport(); g.networkFall = { corrections: 0, release: null };
+      g.net.markTeleport(); g.networkFall = { corrections: 0, release: null, rejections: [], frames: 0 };
       const message = g.net.onMessage.bind(g.net);
-      g.net.onMessage = (m: any) => { if (m.type === 'correct') g.networkFall.corrections++; message(m); };
-      g.onFrame.push(() => { if (g.player.tumble && !g.networkFall.release) g.networkFall.release = { ...g.player.st.pos }; });
+      g.net.onMessage = (m: any) => { if (m.type === 'correct') g.networkFall.corrections++; if (m.type === 'boardRejected') g.networkFall.rejections.push(m.reason); message(m); };
+      g.onFrame.push(() => { g.networkFall.frames++; if (g.player.tumble && !g.networkFall.release) g.networkFall.release = { ...g.player.st.pos }; });
+      document.getElementById('help')?.classList.add('hidden');
     });
     await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
     await expect.poll(() => skiers.find(p => p.name === 'Rocker')?.ride).toBeTruthy();

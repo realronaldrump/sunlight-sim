@@ -125,7 +125,7 @@ export class Player {
     this.tumble = { pitch: swing.pitch, roll: swing.roll, pitchV: swing.pitchV, rollV: swing.rollV };
     this.ride = null; this.pickupOffset = null; this.inLoadZone = -1; this.liftPreparation = 0;
     this.boardCooldown = 3;
-    this.onLiftFall?.(r, { ...swing });
+    this.onLiftFall?.(r, { ...this.chairSwing });
   }
 
   update(dt: number, input: SkiInput, parked = false) {

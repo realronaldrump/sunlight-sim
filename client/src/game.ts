@@ -879,7 +879,7 @@ export class Game {
       const pos = r.model.root.position, state = r.last;
       neighbors.push({ pos, speed: Math.hypot(state.vx, state.vy, state.vz), skid: state.plow,
         groomed: this.surface?.at(pos.x, pos.z).groomed ?? 1,
-        active: !r.ride && state.mode !== 'air' && state.mode !== 'riding' });
+        active: !r.ride && !state.tumble && state.mode !== 'air' && state.mode !== 'riding' });
     }
     const sound = this.audioScene.sample(dt, st, flight ? null : this.player.ride,
       this.lifts.paths, surface, forward, this.env.snowing, neighbors);

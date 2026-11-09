@@ -68,6 +68,21 @@ describe('multiplayer rooms', () => {
     f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, swing: forged } });
     expect(a.p.s.swing).toBeUndefined();
   });
+
+  it('derives release motion from a stronger co-rider swing without sharing their seat slip', () => {
+    const f = boardFixture(), a = f.join(), b = f.join();
+    for (const q of [a, b]) f.room.handle(q.p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 1 });
+    f.at(f.chair.arrive + 120);
+    const own = { ...createChairSwing(), roll: -.6, rollV: .5, slip: .72, slipX: -.75, slipZ: -.66 };
+    const other = { ...createChairSwing(), roll: .8, rollV: -.7 };
+    a.p.s.swing = own; b.p.s.swing = other;
+    const r = { ...a.p.ride! }, time = f.room.liftClocks[0].now();
+    const expected = swingingRiderPoint(f.lift, r.chair, r.seat, time, { ...own, roll: other.roll, rollV: other.rollV }).p;
+    f.room.handle(a.p.id, { type: 'liftFall', swing: own });
+    expect(a.p.ride).toBeNull(); expect(b.p.ride).not.toBeNull();
+    expect(a.p.s.x).toBeCloseTo(expected.x, 7); expect(a.p.s.y).toBeCloseTo(expected.y, 7);
+    expect(a.p.s.tumble?.roll).toBe(other.roll);
+  });
   it('joins, welcomes and announces players', () => {
     const lobby = new Lobby(loadLifts());
     const a = fakeConn(), b = fakeConn();
