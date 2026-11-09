@@ -12,3 +12,4 @@ playwright-report/
 tests/scratch/
 screenshots/*.png
 .env*
+__pycache__/

@@ -61,3 +61,9 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Client deployed to Vercel (CLI credentials were present): https://sunlight-sim.vercel.app, project `sunlight-sim`. Use `npx vercel@latest` (the globally installed CLI is too old for the deploy endpoint).
 - No Fly.io/Render credentials on the machine, so the multiplayer server is not hosted; exact steps are in README.md (`hosting/fly.toml`, `hosting/render.yaml`, `server/Dockerfile`). Server deploy files live in `hosting/` because the new Vercel CLI auto-detects `fly.toml`/`render.yaml` at the repo root as extra services and refuses to deploy.
 - The deployed client falls back to solo play with a toast when the server is unreachable.
+
+## D13. Realism-first art pass (owner direction, November 8, 2026)
+- The owner explicitly prioritized realism and detail over FPS tuning. Preserve functioning gameplay while improving human characters, ski equipment, lift rides and geographically accurate buildings.
+- Use freely redistributable anatomical assets when they improve realism. Model ski clothing and equipment specifically for skiing, with articulated poses and contact with skis/chairs.
+- Building footprint fidelity alone is insufficient. Facade, roof, massing, lodge decks and terminal appearance must be checked against Sunlight photo references. Record estimated dimensions as estimates, not measured facts.
+- Completion of mechanics tests does not imply that placeholder art meets the visual Definition of Done.

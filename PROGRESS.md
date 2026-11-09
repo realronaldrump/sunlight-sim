@@ -1,8 +1,22 @@
 # Progress
 
-## Status (end of session 1 work so far, Claude Code)
-All Definition of Done items are implemented and verified except where noted below. Now in the "keep improving realism" phase.
+## Status (session 2, Codex, in progress)
+Core systems are implemented and the session-start build, 30 unit tests, 3 pipeline checks, and 6 browser scenarios pass. Visual fidelity is still in progress. The owner explicitly prioritized realism and detail over FPS on November 8, 2026. Do not treat the earlier completed checklist as proof of polished or accurate art.
 Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not hosted: no Fly/Render credentials; see README).
+
+## Owner's current priorities
+- Realistic human skiers, with anatomical proportions, articulated bodies, believable clothing and ski equipment. Replace the capsule/blob appearance. Freely licensed internet assets and custom models are both authorized.
+- Realism across the entire experience, including loading, sitting on a chair, riding, and unloading.
+- Sunlight's actual buildings and terminals, based on references and footprints. Repeated generic windows and placeholder boxes are not an acceptable final result.
+- Prioritize visual accuracy and polish over FPS optimization in this phase.
+
+## Session 2 verification and findings
+- `npm run build`, `npm test`, `npm run test:pipeline`, and `npx playwright test`: all passed at the starting commit `16ebdec`.
+- Fresh 1440p High measurements were 51 to 59 fps on this M3 Pro, lower than the earlier recorded results. FPS work is deferred by owner instruction.
+- Reviewed base, Sun King, multiplayer chair and ambient skier screenshots. Terrain layout works, but characters are visibly assembled from primitive shapes, buildings have repetitive generic facades, and trees are too uniformly pale/striped.
+- Reviewed official Sunlight winter photos from https://sunlightmtn.com/ for comparison. Cached references remain in gitignored `data/raw/reference/`.
+- Found and downloaded a CC0 MakeHuman/MPFB anatomical human with a 53-bone rig, repackaged by Innerscene: https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1. Source is in `data/raw/characters/`; no character asset is shipped yet.
+- An uncommitted `tests/unit/skierModel.test.ts` was started for a skinned-character replacement and currently fails until that replacement is implemented. Do not confuse it with a pre-existing failure.
 
 ## Definition of Done checklist
 1. `npm install && npm run dev` starts client (5173) and multiplayer server (8787); the page loads Sunlight. VERIFIED (Playwright webServer uses exactly `npm run dev`).
@@ -47,13 +61,14 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Slope overlay partly self-lit so colours stay legible; rock exposure on steep distant peaks; WebKit + WebGL2 verified.
 
 ## Next steps (realism improvements, in priority order)
-0. Verify ambient skiers visually (added last, no screenshot review yet) and redeploy to Vercel (`npx vercel@latest deploy --prod --yes`); the live site predates ambient skiers/riders.
-1. Tree wells and wind-scoured ridges (surface shading near trunks and on convex ridgelines).
-2. Mid-distance tree shadows / ambient occlusion under the canopy.
-3. "Join friend" teleport from the trail map in multiplayer.
-4. Skier: a fuller body mesh (current one is capsules), fall tumble animation.
-5. Unload ramps at top terminals (visual).
-6. Host the multiplayer server when credentials become available (Fly.io config in hosting/).
+0. Replace primitive skiers with detailed human models and ski gear; review close-up skiing, wedge, tuck, fall, recovery, seated and multiplayer poses. Current work is in this step.
+1. Research and model Sunlight's recognizable base lodge and lift buildings using exact footprints and photo evidence. Distinguish measured dimensions from visual estimates in DECISIONS.md.
+2. Review lift seats, restraint bars, terminal machinery, load lines and unload paths at human scale. Prevent ambient riders from overlapping player seats.
+3. Improve tree shapes, tree wells, wind-scoured ridge shading, and canopy occlusion without altering measured terrain elevations.
+4. Repeat required viewpoints and relevant gameplay tests, update CREDITS.md/ACCURACY.md, then deploy with the existing Vercel project credentials. The live site still predates ambient skiers/riders.
+5. Host the multiplayer server only if deployment credentials are available (Fly.io config in hosting/); otherwise retain exact deploy instructions.
+
+"Join friend" map travel is already implemented and passed the multiplayer browser scenario again in session 2.
 
 ## Known bugs / limitations
 - Tree species are a k-means split of fall NAIP colours (74% deciduous); no ground truth. Aspen share may be overestimated.
