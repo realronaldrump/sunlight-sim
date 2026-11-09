@@ -44,7 +44,7 @@ export function showMenu(defaults: { quality: QualityName; droneOnly?: boolean }
   const el = document.createElement('div'); el.id = 'menu';
   const phone = !!defaults.droneOnly;
   el.innerHTML = `<div class="panel">
-    <h2>Sunlight Mountain</h2><p class="sub">${phone ? 'Drone explorer · Made for iPhone<br>Drag to look. Hold Fly to explore.' : 'Glenwood Springs, Colorado. Real terrain, real runs, real lifts.'}</p>
+    <h2>Sunlight Mountain</h2><p class="sub">${phone ? 'Drag one finger to aim. Add a finger to fly forward. Touch with two fingers together to fly backward.' : 'Glenwood Springs, Colorado. Real terrain, real runs, real lifts.'}</p>
     <label for="m-name">Your name</label><input type="text" id="m-name" maxlength="18" autocomplete="nickname" placeholder="${phone ? 'Pilot' : 'Skier'}">
     <label>${phone ? 'Map color' : 'Jacket colour'}</label><div class="swatches">${COLORS.map((c,i) => `<button type="button" class="sw" data-c="${c}" aria-label="${['Red','Blue','Yellow','Green','Purple','Pink','Black','White'][i]}" style="background:${c}"></button>`).join('')}</div>
     <div ${phone ? 'hidden' : ''}><label for="m-q">Graphics quality</label><select id="m-q"><option value="auto">Auto (${defaults.quality})</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div>
@@ -96,7 +96,7 @@ export function showRoomBox(room: string) {
   box.querySelector('b')!.textContent = room;
   document.body.appendChild(box);
   box.style.display = 'block';
-  (box.querySelector('#rb-copy') as HTMLButtonElement).onclick = async () => {
+  const share = async () => {
     if (IPHONE && navigator.share) {
       try { await navigator.share({title:'Explore Sunlight together', url:url.toString()}); return; }
       catch(e) { if ((e as Error).name === 'AbortError') return; }
@@ -104,6 +104,8 @@ export function showRoomBox(room: string) {
     try { await navigator.clipboard.writeText(url.toString()); (box.querySelector('#rb-copy') as HTMLButtonElement).textContent = 'Copied'; }
     catch { prompt('Share this link', url.toString()); }
   };
+  (box.querySelector('#rb-copy') as HTMLButtonElement).onclick = share;
+  return share;
 }
 
 export class ChatUI {
@@ -133,14 +135,21 @@ export class ChatUI {
   }
   get open() { return this.input.style.display === 'block'; }
   private submit() { const t = this.input.value.trim(); if (t) this.onSend?.(t); this.close(); }
-  openInput() { this.form.hidden = false; this.input.style.display = 'block'; this.input.value = ''; this.input.focus(); }
+  openInput() {
+    this.form.hidden = false;
+    this.input.style.display = 'block';
+    this.input.value = '';
+    this.log.scrollTop = this.log.scrollHeight;
+    this.input.focus();
+  }
   close() { this.input.style.display = 'none'; this.form.hidden = true; this.input.blur(); }
   add(name: string, text: string) {
     const d = document.createElement('div');
     d.textContent = name ? `${name}: ${text}` : text;
     if (!name) d.style.opacity = '0.8';
     this.log.appendChild(d);
-    setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 1000); }, 12000);
+    if (!IPHONE) setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 1000); }, 12000);
+    this.log.scrollTop = this.log.scrollHeight;
     while (this.log.children.length > 8) this.log.firstChild?.remove();
   }
 }

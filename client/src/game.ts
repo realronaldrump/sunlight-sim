@@ -70,6 +70,7 @@ export class Game {
   trailMap!: TrailMap;
   minimap!: Minimap;
   net: NetClient | null = null;
+  private shareInvite?: () => Promise<void>;
   chat!: ChatUI;
   quality!: QualityPreset;
   audio = new SkiAudio();
@@ -226,9 +227,7 @@ export class Game {
       this.camRig.enabled = false;
       this.drone.update(0, this.input.drone());
       this.touch = new TouchControls(this.renderer.domElement, {
-        map: () => this.trailMap.toggle(), options: () => this.options.toggle(),
-        chat: () => { if (this.net?.connected) this.chat.openInput(); },
-        camera: () => this.drone.cycleCamera(), hold: () => this.holdDrone(),
+        hold: () => this.holdDrone(),
         allowed: () => this.ready && !this.chat?.open && !this.options?.visible && !this.trailMap.visible && !this.launchingDrone && (!this.net || this.net.connected),
       });
     }
@@ -264,10 +263,16 @@ export class Game {
       base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
       travel: () => { if (this.options.visible) this.trailMap.toggle(true, true); },
       recall: () => { if (this.options.visible) { this.recallDrone(); this.options.toggle(false); } },
+      phone: this.droneOnly ? {
+        map: () => { this.options.toggle(false); this.trailMap.toggle(true); },
+        view: () => { this.drone.cycleCamera(); this.options.toggle(false); },
+        chat: () => { if (this.net?.connected) { this.options.toggle(false); this.chat.openInput(); } },
+        share: () => { void this.shareInvite?.(); },
+      } : undefined,
     });
     this.options.onChange = () => {
       this.input.clear(); this.stopLiftSpeed();
-      if (this.options.visible) { this.input.enabled = false; this.holdDrone(); }
+      if (this.options.visible) { this.input.enabled = false; this.touch?.reset(); this.holdDrone(); }
     };
     this.setupFlyControls();
 
@@ -543,8 +548,7 @@ export class Game {
     const controlsEnabled = this.ready && !this.chat?.open && !this.trailMap?.visible && !this.options?.visible && !this.launchingDrone && (!this.droneOnly || !this.net || this.net.connected);
     if (this.input.enabled && !controlsEnabled) { this.input.clear(); if (this.drone) this.holdDrone(); }
     this.input.enabled = controlsEnabled;
-    this.touch?.update(this.ready && !this.trailMap.visible && !this.options.visible && !this.chat?.open,
-      controlsEnabled, this.net ? (this.net.connected ? `Room ${this.net.room} · ${this.net.remotes.size + 1} online` : 'Reconnecting to your room…') : 'Solo flight', !!this.net?.connected);
+    this.touch?.update(controlsEnabled);
     const actions = this.input.actions();
     if (actions.drone && this.ready && !this.chat?.open && !this.trailMap.visible && !this.options.visible) this.toggleDrone();
     if (actions.chat && this.net?.connected) this.chat.openInput();
@@ -638,12 +642,16 @@ export class Game {
       this.drone.area.nearest(mapPos.x,mapPos.z).remaining,this.ready,this.trailMap.visible || this.options.visible,!this.input.enabled);
     const ride = this.player.ride, lift = ride ? this.lifts.paths[ride.lift] : null;
     const overlaysClear = this.ready && !this.options.visible && !this.trailMap.visible && !this.chat?.open;
-    this.options.update(this.ready, this.drone.active, this.trailMap.visible);
+    const phoneRoom = this.droneOnly && this.options.visible ? {
+      label: this.net ? (this.net.connected ? `Room ${this.net.room} · ${this.net.remotes.size + 1} online` : 'Reconnecting to your room…') : 'Solo flight',
+      connected: !!this.net?.connected,
+      share: !!this.shareInvite,
+    } : undefined;
+    this.options.update(this.ready, this.drone.active, this.trailMap.visible || (this.droneOnly && !!this.chat?.open), phoneRoom);
     this.liftControls.update(lift?.def.name ?? null, ride ? ride.unloadAt - this.lifts.now(ride.lift) : 0,
       ride ? this.lifts.clocks[ride.lift].rate : 1, overlaysClear,
       !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net);
     this.playerMarker.update(this.camera, st.pos, this.drone.active && !this.droneOnly && overlaysClear, lift?.def.name);
-    this.touch?.showStatus(this.drone.state?.speed ?? 0, this.drone.state?.warning ?? '');
     this.updateHints();
     this.updateLiftArrow();
     this.updateAudio(dt);
@@ -707,7 +715,7 @@ export class Game {
     this.chat.onSend = (t) => this.net?.chat(t);
     this.remoteMapPlayers = () => this.net?.mapPlayers() ?? [];
     const ok = await this.net.connect(NetClient.defaultUrl(), room, this.playerName, this.playerColor);
-    showRoomBox(room);
+    this.shareInvite = showRoomBox(room);
     if (!ok) this.hud.toast('Connection interrupted. Reconnecting to your room.', 5);
     return ok;
   }

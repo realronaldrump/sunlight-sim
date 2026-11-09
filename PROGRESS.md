@@ -386,3 +386,9 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Fixed nearby multiplayer labels so they cannot enlarge across the screen, culled aircraft inside the first-person camera, hid the leftover skiing run badge and separated sharing controls from the flight buttons. The flight view remains open while the aircraft is moving.
 - The existing public multiplayer server is healthy at release `77af31d`; its server/protocol/lift source matches this client release. No server restart was needed for this input-only revision. The temporary Vercel automation bypass created during the earlier staged verification was revoked.
 - Verification is browser emulation, not a physical iPhone GPU/thermal benchmark. The requested direct-control implementation and deployment are complete; other lift/building/minimap work is recorded separately above.
+
+## iPhone screen gesture revision (November 8, 2026)
+
+- Replaced the movement buttons with canvas gestures. One finger aims, a second flies forward, and two fingers together fly backward. Releasing either finger brakes to hover.
+- Collapsed the flight interface to one corner menu. Map, view, chat, sharing, recall and settings are available there. Room messages are visible when chat is open.
+- Baseline build and 132 unit tests passed. Revised build, 132 unit tests and all five pipeline checks also passed. Next, run the gesture and room scenarios in Chromium and WebKit on the committed snapshot, then publish and verify the client.

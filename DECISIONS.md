@@ -274,3 +274,9 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Use a stylized likeness on the existing anatomical pedestrian rig. The base simulation grounds him on the same snow surface as other walkers. His seven-stop loop stays outdoors near the lodge ski racks and reserves clearance for the sign.
 - The printed front is traced vector artwork. The game board's 0.62 by 0.775 m dimensions are estimated from the photos, and the reverse repeats the print so it can be read from either side.
 - The rig keeps the board at the raised palm throughout the walk. UV and vest masks share one vertex buffer to stay within the WebGPU binding limit.
+
+## Screen gestures for iPhone flight (November 8, 2026)
+
+- The first contact aims. Adding a second contact to an existing aim flies forward. Two contacts landing within 120 ms before a 6 px aim drag fly backward. Direction stays fixed until either contact lifts. The remaining finger can continue aiming.
+- Both directions use the existing 6 m/s flight speed and pitch control. Lifting either finger returns to hover through the existing braking physics. Interrupted gestures clear their contacts.
+- One corner menu gives access to existing flight utilities and room controls. Chat history appears when chat opens.

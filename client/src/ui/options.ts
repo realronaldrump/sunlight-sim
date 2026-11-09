@@ -6,6 +6,7 @@ export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
   hour: number; snow: boolean; volume: number;
   resume(): void; base(): void; travel(): void; recall(): void;
+  phone?: { map(): void; view(): void; chat(): void; share(): void };
 }
 
 const css = `
@@ -22,7 +23,6 @@ const css = `
 #opts hr { border:0; border-top:1px solid #ffffff30; margin:12px 0; }
 #pause-toggle { position:fixed; top:16px; right:340px; z-index:12; padding:8px 12px; color:#fff; background:rgba(10,20,35,.85); border:1px solid #97c5cf70; border-radius:8px; cursor:pointer; }
 #pause-toggle[hidden] { display:none; }
-body.iphone #pause-toggle { display:none; }
 body.pause-menu-open #help { display:none; }
 `;
 
@@ -35,12 +35,21 @@ function fmtHour(h: number) {
 export class OptionsPanel {
   private el: HTMLDivElement;
   private button = document.createElement('button');
+  private roomStatus: HTMLElement | null;
+  private chatButton: HTMLButtonElement | null;
+  private shareButton: HTMLButtonElement | null;
   onChange?: () => void;
   constructor(h: OptionsHandlers) {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.el = document.createElement('div'); this.el.id = 'opts';
-    this.el.setAttribute('role', 'dialog'); this.el.setAttribute('aria-label', 'Pause menu');
-    this.el.innerHTML = `<h3>Pause menu</h3><button id="pause-resume" type="button">Resume</button>
+    const title = h.phone ? 'Flight menu' : 'Pause menu';
+    this.el.setAttribute('role', 'dialog'); this.el.setAttribute('aria-label', title);
+    this.el.innerHTML = `<h3>${title}</h3><button id="pause-resume" type="button">Resume</button>
+      ${h.phone ? `<p>Drag one finger to aim. Add a finger to fly forward. Touch with two fingers together to fly backward. Lift either finger to hover.</p>
+      <div class="phone-menu-actions">
+        <button id="pause-map" type="button">Map</button><button id="pause-view" type="button">Switch view</button>
+        <button id="pause-chat" type="button" disabled>Chat</button><button id="pause-share" type="button" disabled>Share invite</button>
+      </div><p id="pause-room" role="status"></p>` : ''}
       <hr><button id="pause-base" type="button" ${IPHONE ? 'hidden' : ''}>Teleport to base</button>
       <button id="pause-travel" type="button">Teleport to a run or friend…</button>
       <button id="pause-recall" type="button" hidden>Recall drone to ${IPHONE ? 'launch point' : 'skier'}</button><hr>
@@ -52,12 +61,22 @@ export class OptionsPanel {
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
       </div><p style="opacity:.7;margin:10px 0 0">${IPHONE ? 'Graphics optimized for iPhone.' : 'Esc or P to resume. Lifts keep moving.'}</p>`;
     document.body.appendChild(this.el);
-    this.button.type = 'button'; this.button.id = 'pause-toggle'; this.button.textContent = 'Pause · Esc'; this.button.hidden = true;
+    this.button.type = 'button'; this.button.id = 'pause-toggle'; this.button.textContent = h.phone ? '⋯' : 'Pause · Esc'; this.button.hidden = true;
+    if (h.phone) this.button.setAttribute('aria-label', 'Flight menu');
     this.button.onclick = () => this.toggle(); document.body.append(this.button);
     this.el.querySelector('#pause-resume')?.addEventListener('click', h.resume);
     this.el.querySelector('#pause-base')?.addEventListener('click', h.base);
     this.el.querySelector('#pause-travel')?.addEventListener('click', h.travel);
     this.el.querySelector('#pause-recall')?.addEventListener('click', h.recall);
+    this.roomStatus = this.el.querySelector('#pause-room');
+    this.chatButton = this.el.querySelector('#pause-chat');
+    this.shareButton = this.el.querySelector('#pause-share');
+    if (h.phone) {
+      this.el.querySelector('#pause-map')?.addEventListener('click', h.phone.map);
+      this.el.querySelector('#pause-view')?.addEventListener('click', h.phone.view);
+      this.chatButton?.addEventListener('click', h.phone.chat);
+      this.shareButton?.addEventListener('click', h.phone.share);
+    }
     const hour = this.el.querySelector('#o-hour') as HTMLInputElement;
     hour.oninput = () => { (this.el.querySelector('#o-hl') as HTMLElement).textContent = fmtHour(Number(hour.value)); };
     hour.onchange = () => h.setHour(Number(hour.value));
@@ -68,9 +87,14 @@ export class OptionsPanel {
     q.onchange = () => { saveQuality(q.value as QualityName | 'auto'); location.reload(); };
   }
   toggle(force?: boolean) { this.el.classList.toggle('show', force ?? !this.visible); document.body.classList.toggle('pause-menu-open', this.visible); this.onChange?.(); }
-  update(ready: boolean, drone: boolean, map: boolean) {
-    this.button.hidden = !ready || map || this.visible;
+  update(ready: boolean, drone: boolean, obscured: boolean, room?: { label: string; connected: boolean; share: boolean }) {
+    this.button.hidden = !ready || obscured || this.visible;
     (this.el.querySelector('#pause-recall') as HTMLElement).hidden = !drone;
+    if (room && this.roomStatus && this.chatButton && this.shareButton) {
+      if (this.roomStatus.textContent !== room.label) this.roomStatus.textContent = room.label;
+      this.chatButton.disabled = !room.connected;
+      this.shareButton.disabled = !room.share;
+    }
   }
   get visible() { return this.el.classList.contains('show'); }
 }

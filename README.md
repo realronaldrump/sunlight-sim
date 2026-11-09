@@ -28,13 +28,13 @@ All game-ready world data is committed under `client/public/world`, so no data d
 
 An iPhone always starts as a drone in first-person view. Skiing, walking and lift boarding are unavailable, including with an attached keyboard or gamepad. Portrait and landscape both work.
 
-- **Drag the scenery to look around.** Looking alone keeps the drone hovering.
-- **Hold Fly** to move continuously in the direction you are looking. Keep holding it while dragging with your other thumb to steer. Look up to climb or down to descend.
-- **Release to hover.** The drone accelerates and brakes smoothly. **Back** gives slower reverse movement for small corrections.
-- **View** switches between the drone camera and chase view. **Pause** contains recall, instant travel and settings. **Map** shows the mountain and friends; pinch to zoom and drag to pan.
-- Backgrounding the browser, losing focus, rotating, opening a panel or losing the multiplayer connection stops flight. Rejoining your room is automatic; movement does not resume by itself.
+- **Drag one finger** anywhere on the scenery to aim.
+- **Add a second finger** while aiming to fly forward. Aim up to climb or down to descend.
+- **Touch with two fingers together** to fly backward. Lift either finger to hover.
+- The small **⋯** menu contains map, view, chat, sharing, recall and settings.
+- Changing orientation, leaving the page, opening a panel or losing the room connection clears the gesture.
 
-Forward flight is 6 m/s (about 13 mph); reverse is 3 m/s (about 7 mph), with existing terrain clearance, obstacles, flight-area and altitude limits. There are no waypoints or automatic destination routes.
+Flight follows the viewing direction at up to 6 m/s (about 13 mph), with the existing terrain and altitude limits.
 
 Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail range and no shadows. The hidden minimap does not repaint. Real terrain and Mount Sopris detail remain. Browser emulation verifies controls and layout, not physical iPhone GPU or thermal performance.
 

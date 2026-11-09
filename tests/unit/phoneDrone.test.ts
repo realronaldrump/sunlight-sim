@@ -9,7 +9,7 @@ import type { ServerMsg } from '../../shared/protocol';
 
 const area=new FlightArea([[-1000,0,-1000],[1000,0,-1000],[1000,0,1000],[-1000,0,1000]],0);
 const world:FlightWorld={height:()=>2500};
-function fly(state:ReturnType<typeof createDrone>, seconds:number, direction:number, pitch=0,hz=60) {
+function fly(state:ReturnType<typeof createDrone>, seconds:number, direction:-1|0|1, pitch=0,hz=60) {
   for(let i=0;i<seconds*hz;i++)stepDrone(state,directFlightInput(direction,pitch),world,area,1/hz);
 }
 const spawn=()=>createDrone({x:0,y:2518,z:0},0,world,area);
@@ -26,13 +26,13 @@ describe('iPhone launch policy',()=>{
 });
 
 describe('direct phone flight',()=>{
-  it('flies forward smoothly, reverses more slowly, and follows the look direction vertically',()=>{
+  it('flies forward smoothly, flies backward, and follows the look direction vertically',()=>{
     const s=spawn();fly(s,4,1);expect(s.speed).toBeCloseTo(6,5);expect(s.pos.z).toBeLessThan(-20);
-    const reverse=spawn();fly(reverse,4,-1);expect(reverse.speed).toBeCloseTo(3,5);expect(reverse.pos.z).toBeGreaterThan(10);
+    const reverse=spawn();fly(reverse,4,-1);expect(reverse.speed).toBeCloseTo(6,5);expect(reverse.pos.z).toBeGreaterThan(20);
     const up=spawn();fly(up,4,1,Math.PI/6);expect(up.vel.y).toBeCloseTo(3,5);expect(up.vel.z).toBeCloseTo(-6*Math.cos(Math.PI/6),5);
     const down=spawn();fly(down,2,1,-Math.PI/6);expect(down.pos.y).toBeLessThan(2514);
   });
-  it('releasing the button brakes to hover and a short press gives a small nudge',()=>{
+  it('releasing thrust brakes to hover and a short touch gives a small nudge',()=>{
     const s=spawn();fly(s,3,1);fly(s,1,0);expect(s.speed).toBeLessThan(.001);
     const parked={...s.pos};fly(s,5,0);expect(s.pos).toEqual(parked);
     const tap=spawn();fly(tap,.1,1);fly(tap,1,0);expect(Math.hypot(tap.pos.x,tap.pos.z)).toBeLessThan(.15);
@@ -42,7 +42,7 @@ describe('direct phone flight',()=>{
     expect(a.pos.x).toBeCloseTo(b.pos.x,5);expect(a.pos.y).toBeCloseTo(b.pos.y,5);expect(a.pos.z).toBeCloseTo(b.pos.z,5);
     fly(a,40,1,Math.PI/2);expect(a.agl).toBeLessThanOrEqual(120.0001);
     fly(a,40,1,-Math.PI/2);expect(a.agl).toBeGreaterThanOrEqual(1.3999);
-    expect(Object.values(directFlightInput(NaN,Infinity)).filter(v=>typeof v==='number').every(Number.isFinite)).toBe(true);
+    expect(Object.values(directFlightInput(1,Infinity)).filter(v=>typeof v==='number').every(Number.isFinite)).toBe(true);
   });
 });
 

@@ -3,47 +3,22 @@ body.iphone #app canvas { touch-action: none; }
 body.iphone button, body.iphone select { min-height: 44px; touch-action: manipulation; }
 body.iphone input, body.iphone select { font-size: 16px !important; }
 body.iphone #hud, body.iphone #help, body.iphone #liftdir, body.iphone #hint, body.iphone #runlabel, body.iphone #drone-toggle, body.iphone #drone-panel, body.iphone #minimap, body.iphone #stats { display: none !important; }
-#touch-flight[hidden], .flight-help[hidden] { display: none !important; }
-#touch-flight { position: fixed; inset: 0; pointer-events: none; z-index: 14; font-size: 12px; }
-#touch-flight button, #touch-flight select { pointer-events: auto; -webkit-touch-callout: none; }
-#touch-flight button, #touch-flight select { color: #f5fcff; border: 1px solid #9acbd066; background: #102a3deb; border-radius: 12px; font: 600 13px -apple-system, sans-serif; padding: 8px 12px; }
-#touch-flight button:active { background: #356074; }
-#touch-flight button:focus-visible { outline: 3px solid #9df2e1; }
-#touch-flight button:disabled { opacity: .45; }
-.flight-toolbar { position: absolute; top: var(--flight-top); left: var(--flight-left); right: var(--flight-right); display: flex; gap: 6px; }
-.flight-toolbar button { flex: 1; padding: 8px 6px !important; }
-.flight-toolbar #touch-help { flex: 0 0 44px; }
-.flight-connection { position: absolute; top: calc(var(--flight-top) + 52px); left: var(--flight-left); right: var(--flight-right); text-align: center; color: #d7f9f0; text-shadow: 0 1px 4px #000; }
- .flight-bottom { position: absolute; bottom: var(--flight-bottom); left: var(--flight-left); right: var(--flight-right); margin: auto; max-width: 330px; padding: 10px 12px; background: #102536d9; border: 1px solid #a5d7d655; border-radius: 16px; text-align: center; }
-.flight-actions { display: flex; gap: 8px; margin: 8px 0; }
-.flight-actions > * { flex: 1; min-width: 0; }
-body.iphone #touch-flight .flight-move { touch-action: none; min-height: 58px; font-size: 17px; }
-#touch-fly { flex: 1.5; }
-#touch-flight .flight-move.engaged { box-shadow: inset 0 0 0 2px #d7fff5; background: #377663; }
-#touch-fly { background: #d7f9f0 !important; color: #123241 !important; border-color: #fff !important; }
-.flight-tip { color: #d7edf0; font-size: 11px; }
-#touch-flight-status { color: #d7f9f0; font-size: 12px; min-height: 16px; }
-.flight-aim { position: absolute; left: calc(50% - 2px); top: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #fff9; box-shadow: 0 0 0 1px #001a3940; }
-.flight-help { position: absolute; top: calc(var(--flight-top) + 82px); left: var(--flight-left); right: var(--flight-right); margin: auto; max-width: 330px; padding: 18px; background: #102536f5; border: 1px solid #a5d7d6; border-radius: 16px; pointer-events: auto; line-height: 1.6; max-height: calc(100dvh - 100px); overflow-y: auto; }
-.flight-help strong { font-size: 17px; } .flight-help p { margin: 10px 0; }
-body.iphone #drone-telemetry { top: calc(var(--flight-top) + 76px); bottom: auto; padding: 8px 14px; gap: 22px; max-width: calc(100vw - 24px); background: #0d2738cf; }
-body.iphone #drone-telemetry div:last-child { display: none; }
-body.iphone #drone-telemetry span { font-size: 8px; letter-spacing: .07em; } body.iphone #drone-telemetry b { font-size: 15px; }
+body.iphone #drone-telemetry, body.iphone #roombox, body.iphone #toast, body.iphone #chatlog { display: none !important; }
+body.iphone #pause-toggle { top: var(--flight-top); right: var(--flight-right); width: 44px; padding: 0; font-size: 24px; line-height: 1; background: #102a3d65; border-color: #d7fff550; }
+body.iphone #chatlog:has(+ #chat-form:not([hidden])) { display: block !important; top: var(--flight-top); bottom: auto; right: var(--flight-right); width: min(300px, calc(100vw - 24px)); max-height: 112px; overflow-y: auto; pointer-events: auto; font-size: 12px; }
 body.iphone #menu { padding: var(--flight-top) var(--flight-right) var(--flight-bottom) var(--flight-left); overflow-y: auto; }
 body.iphone #menu .panel { width: min(420px, 100%); padding: 18px; max-height: calc(var(--visual-height, 100dvh) - var(--flight-top) - var(--flight-bottom)); overflow-y: auto; }
 body.iphone #menu .sw { width: 36px; height: 36px; min-height: 36px; padding: 0; flex: none; }
 body.iphone #menu .row { flex-wrap: wrap; }
 body.iphone #menu label { margin-top: 10px; }
-body.iphone #roombox { top: auto; bottom: calc(var(--flight-bottom) + 138px); left: var(--flight-left); right: var(--flight-right); padding: 5px 8px; text-align: center; font-size: 12px; }
-body.iphone #roombox button { font-size: 12px; }
-body.iphone #chatlog { top: calc(var(--flight-top) + 145px); bottom: auto; right: var(--flight-right); width: min(300px, calc(100vw - 24px)); max-height: 112px; overflow: hidden; font-size: 12px; }
 body.iphone #chat-form { position: fixed; z-index: 35; left: var(--flight-left); right: var(--flight-right); bottom: max(var(--keyboard-bottom, 12px), var(--flight-bottom)); padding: 10px; background: #0c243af5; border-radius: 12px; gap: 6px; }
 body.iphone #chat-form:not([hidden]) { display: flex; }
 body.iphone #chatin { position: static; display: block; flex: 1; min-width: 0; width: auto; font-size: 16px; }
 body.iphone #chat-form button { border: 1px solid #80aebd; border-radius: 8px; color: white; background: #244b68; }
 body.iphone #opts { left: var(--flight-left); right: var(--flight-right); top: var(--flight-top); width: auto; max-height: calc(100dvh - var(--flight-top) - var(--flight-bottom)); overflow-y: auto; background: #102536f5; }
 body.iphone #opts input[type=range] { height: 36px; }
-body.iphone #opts .options-close { float: right; background: #32536a; color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; }
+body.iphone #opts .phone-menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+body.iphone #opts .phone-menu-actions button:disabled { opacity: .45; }
 body.iphone #tmap { touch-action: none; }
 body.iphone #tmap .title { top: var(--flight-top); left: var(--flight-left); font-size: 15px; }
 body.iphone #tmap .title span { display: none; }
@@ -51,14 +26,3 @@ body.iphone #tmap .close { top: calc(var(--flight-top) + 32px); right: var(--fli
 body.iphone #tmap .orient { right: calc(var(--flight-right) + 82px) !important; }
 body.iphone #tmap .legend { left: var(--flight-left); right: var(--flight-right); bottom: var(--flight-bottom); font-size: 10px; display: flex; gap: 5px 12px; flex-wrap: wrap; }
 body.iphone #tmap .legend div:last-child { flex-basis: 100%; }
-body.iphone #toast { max-width: calc(100vw - 28px); top: 38%; bottom: auto; font-size: 13px; }
-@media (orientation: landscape) {
-  .flight-toolbar { left: auto; width: min(390px, 53vw); }
-  .flight-connection { left: auto; width: min(390px, 53vw); }
-  .flight-bottom { max-width: 330px; padding: 6px 12px; }
-  .flight-tip { display: none; }
-  body.iphone #drone-telemetry { top: var(--flight-top); left: var(--flight-left); transform: none; gap: 15px; }
-  body.iphone #roombox { top: calc(var(--flight-top) + 65px); bottom: auto; left: var(--flight-left); right: auto; }
-  body.iphone #chatlog { top: calc(var(--flight-top) + 77px); max-height: 70px; }
-  .flight-help { top: var(--flight-top); max-height: calc(100dvh - 24px); z-index: 2; }
-}
