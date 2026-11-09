@@ -101,7 +101,7 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 1. Main lodge and Brettelberg have distinct models from aerial/OSM footprints and photos. Continue the same treatment for outlying lodgings and service buildings; exact facade dimensions remain estimates.
 2. Review lift seats, restraint bars, terminal machinery, load lines and unload paths at human scale. Prevent ambient riders from overlapping player seats.
 3. Improve tree shapes, tree wells, wind-scoured ridge shading, and canopy occlusion without altering measured terrain elevations.
-4. Character/building, gameplay, both browser engines and all viewpoints passed on a frozen production build. Multiplayer passed against a matching server after the GPU startup fix. Validate a committed-source release and deploy with existing Vercel credentials; the latest building/character work has not yet been deployed by this chat.
+4. Character/building release `6429651` is deployed and verified at https://sunlight-sim.vercel.app. Later drone, detailed Mount Sopris and lift refinements should be validated and released from their own committed-source snapshots, preserving this work.
 5. Host the multiplayer server only if deployment credentials are available (Fly.io config in hosting/); otherwise retain exact deploy instructions.
 
 "Join friend" map travel is already implemented and passed the multiplayer browser scenario again in session 2.
@@ -205,3 +205,10 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Owner requires `main` as the only local and GitHub branch, and every deployment to include `git push origin main`. Added this policy to AGENTS.md.
 - The minimap feature files already match their integrated versions on main. Preserve the former branch history with an ancestry-only merge, retaining the current implementation, then detach its clean checkout and remove the obsolete local branch. GitHub already has only main.
 - Validation: production build, all 84 unit tests and all five pipeline checks passed. Other chats' ongoing source/data/document edits remain unstaged.
+
+## Live character and architecture release (November 8, 2026)
+- Released committed snapshot `6429651` to https://sunlight-sim.vercel.app, Vercel deployment `dpl_HQAGYrZLgmQ8wkmyDUhLzp4SPPmq`, READY. Used a staged production build, verified its bundle and character license, then promoted that exact build. The local snapshot is `tests/scratch/realism-release/` (ignored).
+- Exact release checks: production build, all 72 unit tests, all four pipeline tests and 10 browser scenarios passed. Browser coverage includes character/building views, full skiing/fall/recovery/audio gameplay, natural load/ride/unload on all three lifts, same-chair multiplayer, a never-resolving GPU startup fallback, Chromium and Safari smoke checks, and the full fixed-viewpoint sweep.
+- Public browser verification loaded in 8.45 seconds on this connection, used WebGPU, found the 53-bone human, the lodge's 2493.065 m roof and named Brettelberg model, and produced no browser errors. Live captures: `screenshots/realism_live_base.png` and `screenshots/realism_live_lodge.png`.
+- Ran `git push origin main` and verified `6429651` is an ancestor of `origin/main`, following the updated AGENTS.md deployment policy. Subsequent parallel commits remain on main and were not silently folded into this tested deployment.
+- This is a verified realism release, not a claim that the complete visual/performance Definition of Done is now satisfied. Continue reference-based outlying buildings, character variety/cloth/fall polish, exact modern lift geometry, and the remaining realism tasks above. The historical 60 fps result predates these art additions; High-preset performance still needs a clean later pass, as the owner explicitly deferred FPS tuning.
