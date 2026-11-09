@@ -162,7 +162,7 @@ Characters are articulated CC0 human meshes dressed in custom winter clothing an
 
 The upper-left minimap follows your position while skiing and riding lifts. North stays up; the cyan arrow shows your ski heading, and nearby friends use their jacket colors. The header keeps your current run or lift visible. Difficulty-colored trails, run names, lifts and a distance scale help you choose a route.
 
-Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the existing trail map for overview and travel. Clicking the minimap itself does not teleport you.
+Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the trail map for an overview. Use the pause menu for teleport destinations. Clicking the minimap itself does not teleport you.
 
 ## Audio
 
@@ -183,10 +183,10 @@ Click **Fly a drone** or press **G** (gamepad L3) to launch a small camera quadc
 | Space | Brake into a stabilized hover |
 | Shift / Ctrl | Fast / precision flight |
 | C | Switch between stabilized FPV and chase views |
-| R | Recall the drone above your skier |
+| Esc / P | Pause menu, including drone recall and teleport destinations |
 | G | Return to skiing |
 
-Gamepad: left stick moves, right stick looks, RT climbs, LT descends, A brakes, Y changes camera, B recalls, LB selects precision speed and RB selects fast speed. Menus, chat and loss of focus suspend flight input. Opening the full map still allows normal travel to a run; choosing a destination exits drone mode.
+Gamepad: left stick moves, right stick looks, RT climbs, LT descends, A brakes, Y changes camera, LB selects precision speed and RB selects fast speed. Menus, chat and loss of focus suspend flight input. Choose teleport destinations through the pause menu; travel to a run exits desktop drone mode.
 
 Flight stays inside the resort boundary plus a 197 ft viewing apron, with a 394 ft ceiling above local terrain. An amber grid and HUD message warn when you approach the flight limit. Snow clearance and tree, tower and building collision volumes prevent flying through the modeled terrain and solid obstacles. Distant mountain scenery remains visible from the ski area.
 
