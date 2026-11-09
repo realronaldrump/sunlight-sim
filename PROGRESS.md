@@ -4,7 +4,8 @@
 
 - Added one animated pedestrian on the snow apron by the main lodge ski racks. He wears a red quilted vest, blue shirt and rectangular glasses, and carries the reference sign in his right hand. Recreated the lettering and layout as a vector from the owner photos.
 - Inspected the normal ski start and close-up Chromium captures under `screenshots/lodge-sign/`. Corrected a floating grip and a WebGPU vertex buffer limit found during visual review. The Chromium on-foot regression and baseline build, 132 unit tests and five pipeline checks passed.
-- Next steps are to verify the committed build on both browser backends, push `main` and release the client to the existing Vercel project.
+- The production build from `fea8dde` passed 132 unit tests, five pipeline checks and seven targeted Chromium and WebKit scenarios. The walker completed two simulated circuits, stayed grounded and remained within 12 m of the normal ski start. The High preset close-up is `screenshots/lodge-sign/release-front.png`.
+- Ran `git push origin main` and verified `fea8dde` on `origin/main`. Vercel deployment `dpl_H3TE2LRisbBYSdJ9Spm94hncFA3d` is READY at https://sunlight-sim.vercel.app. Live HTML, JavaScript, resort data and sign artwork match the verified build. The live sign-walker scenario passed in Chromium and WebKit. This feature and release are complete.
 
 ## Building signage and release preparation (November 8, 2026)
 
