@@ -69,9 +69,9 @@ export class SnowMemory {
   }
 
   /** Per frame: snowfall while it snows, periodic saves. */
-  update(dt: number, snowing: boolean, now: number) {
-    if (snowing) {
-      const inches = dt * SNOW_RATE;
+  update(dt: number, snowing: number, now: number) {
+    if (snowing > 0.05) {
+      const inches = dt * SNOW_RATE * snowing;
       this.state.snowfall(inches);
       this.pendingCover += inches;
     }

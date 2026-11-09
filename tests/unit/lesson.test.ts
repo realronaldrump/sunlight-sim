@@ -53,7 +53,7 @@ describe('guests and conditions', () => {
     expect(formatClock(9.5)).toBe('9:30 AM');
     expect(formatClock(13.25)).toBe('1:15 PM');
     const c = conditionsFor({ now: 1_800_000_000, hour: 11, snowing: true, runs, liftNames: ['Primo'], lesson: 'x' });
-    expect(c.weather).toBe('Snowing');
+    expect(c.weather).toBe('Snow showers');
     expect(c.lifts[0].open).toBe(true);
     expect(c.tempF).toBeGreaterThan(5); expect(c.tempF).toBeLessThan(35);
   });

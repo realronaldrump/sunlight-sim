@@ -28,9 +28,14 @@ export class Environment {
   /** Direction of the light that casts shadows: the sun, or the moon after dusk. */
   readonly lightDir = new THREE.Vector3(0, 1, 0);
   private nightDome: THREE.Mesh;
+  private overcastDome: THREE.Mesh;
+  private overcastAmount = uniform(0);
   private dayHaze = new THREE.Color(0.66, 0.75, 0.88);
   hour = 11;
   snowing = false;
+  /** 0 clear .. 1 a snow squall overhead: haze, flat light, cloud. */
+  overcast = 0;
+  private envOvercast = 0;
   csm: CSMShadowNode | null = null;
   private pmrem: THREE.PMREMGenerator | null = null;
   private envRT: THREE.RenderTarget | null = null;
@@ -61,6 +66,9 @@ export class Environment {
     // horizon below the set sun, stars and the moon. Kept inside the camera's far plane.
     this.nightDome = this.makeNightDome(250000);
     scene.add(this.nightDome);
+    // a grey ceiling of snow cloud as a squall moves overhead
+    this.overcastDome = this.makeOvercastDome(249000);
+    scene.add(this.overcastDome);
     scene.add(this.hemi);
     scene.add(this.sun);
     scene.add(this.sun.target);
@@ -119,18 +127,45 @@ export class Environment {
     return dome;
   }
 
-  /** Weather: clear (default) or light snowfall (lower visibility, overcast light). */
-  setSnowing(on: boolean) {
-    this.snowing = on;
-    this.hazeDensity.value = on ? 3.2e-4 : 1.1e-5;
-    this.dayHaze.setRGB(on ? 0.78 : 0.66, on ? 0.8 : 0.75, on ? 0.84 : 0.88);
-    const sky = this.sky as unknown as { cloudCoverage?: { value: number }; cloudDensity?: { value: number } };
-    if (sky.cloudCoverage) sky.cloudCoverage.value = on ? 0.95 : 0.15;
-    if (sky.cloudDensity) sky.cloudDensity.value = on ? 0.9 : 0.4;
-    this.setHour(this.hour);
+  private makeOvercastDome(radius: number) {
+    const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false });
+    mat.fog = false;
+    const v = normalize(positionWorld.sub(cameraPosition));
+    const lit = float(1).sub(this.night.mul(0.88));
+    // brighter toward the horizon under a snow ceiling, a little brighter toward the hidden sun
+    const sunGlow = pow(max(dot(v, this.sunDir), 0), 4).mul(0.12);
+    const base = mix(vec3(0.8, 0.82, 0.86), vec3(0.62, 0.65, 0.71), smoothstep(0.0, 0.7, v.y));
+    mat.colorNode = base.add(sunGlow).mul(lit);
+    mat.opacityNode = this.overcastAmount.mul(smoothstep(-0.15, 0.05, v.y).mul(0.1).add(0.88)).clamp(0, 0.97);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24), mat);
+    dome.frustumCulled = false; dome.renderOrder = -1; dome.visible = false; dome.name = 'overcast-sky';
+    return dome;
   }
 
-  setHour(hour: number) {
+  /** Weather: clear (default) or light snowfall (lower visibility, overcast light). */
+  setSnowing(on: boolean) { this.setWeather(on ? 1 : 0); }
+
+  /** Continuous weather: a squall drifting overhead raises this from 0 toward 1 and back. */
+  setWeather(k: number) {
+    k = THREE.MathUtils.clamp(k, 0, 1);
+    if (Math.abs(k - this.overcast) < 0.01 && !(k === 0 && this.overcast > 0)) return;
+    this.overcast = k;
+    this.snowing = k > 0.15;
+    this.overcastAmount.value = THREE.MathUtils.smoothstep(k, 0.05, 0.7);
+    this.overcastDome.visible = k > 0.03;
+    const lerp = THREE.MathUtils.lerp, kk = Math.pow(k, 1.3);
+    this.hazeDensity.value = lerp(1.1e-5, 3.2e-4, kk);
+    this.dayHaze.setRGB(lerp(0.66, 0.78, k), lerp(0.75, 0.8, k), lerp(0.88, 0.84, k));
+    const sky = this.sky as unknown as { cloudCoverage?: { value: number }; cloudDensity?: { value: number } };
+    if (sky.cloudCoverage) sky.cloudCoverage.value = lerp(0.15, 0.95, k);
+    if (sky.cloudDensity) sky.cloudDensity.value = lerp(0.4, 0.9, k);
+    // re-light; the sky environment map is rebuilt only for a real change in the weather
+    const regen = Math.abs(k - this.envOvercast) > 0.1 || (k === 0) !== (this.envOvercast === 0);
+    this.setHour(this.hour, regen);
+    if (regen) this.envOvercast = k;
+  }
+
+  setHour(hour: number, rebuildSky = true) {
     this.hour = hour;
     this.sunInfo = sunPosition(januaryMST(hour), LAT, LON);
     const d = this.sunInfo.dir;
@@ -148,15 +183,15 @@ export class Environment {
     this.lightDir.copy(moonlit ? this.moonDir : this.sunDir.value);
     if (moonlit) {
       this.sun.color.setRGB(0.62, 0.72, 1.0);
-      this.sun.intensity = 0.42 * night * (this.snowing ? 0.3 : 1);
+      this.sun.intensity = 0.42 * night * (1 - 0.7 * this.overcast);
     } else {
       this.sun.color.setRGB(1.0, 0.78 + 0.18 * t, 0.6 + 0.32 * t);
-      this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (this.snowing ? 0.25 : 1);
+      this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (1 - 0.75 * this.overcast);
     }
-    this.hemi.intensity = THREE.MathUtils.lerp((0.1 + 0.08 * t) * (this.snowing ? 3.2 : 1), 0.07, night);
+    this.hemi.intensity = THREE.MathUtils.lerp((0.1 + 0.08 * t) * (1 + 2.2 * this.overcast), 0.07, night);
     this.hemi.color.setRGB(THREE.MathUtils.lerp(0.706, 0.32, night), THREE.MathUtils.lerp(0.816, 0.42, night), THREE.MathUtils.lerp(1, 0.75, night));
     this.hazeColor.value.copy(this.dayHaze).lerp(new THREE.Color(0.035, 0.05, 0.095), night);
-    this.envDirty = true;
+    if (rebuildSky) this.envDirty = true;
   }
 
   /** Keep the shadow light centered on the viewer. */
@@ -200,7 +235,7 @@ export class Environment {
       }
       key /= weight;
       const flat = Math.max(0.05, Math.max(0, s.y)) + fill;
-      this.adaptTarget = this.snowing ? 1 : THREE.MathUtils.clamp(Math.sqrt(flat / Math.max(key, 0.05)), 0.8, 1.45);
+      this.adaptTarget = THREE.MathUtils.lerp(THREE.MathUtils.clamp(Math.sqrt(flat / Math.max(key, 0.05)), 0.8, 1.45), 1, this.overcast);
       // indoors the eye opens up to lamp light, so windows read bright as they do in a real lodge
       if (indoor) this.adaptTarget = 2.1;
     }
@@ -228,7 +263,7 @@ export class Environment {
       this.envRT?.dispose();
       this.envRT = rt;
       this.scene.environment = rt.texture;
-      this.scene.environmentIntensity = this.envIntensity * (this.snowing ? 2.2 : 1);
+      this.scene.environmentIntensity = this.envIntensity * (1 + 1.2 * this.overcast);
     } catch (e) {
       console.warn('env map failed', e);
     }

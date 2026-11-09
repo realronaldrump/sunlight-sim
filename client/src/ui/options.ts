@@ -4,6 +4,7 @@ import { IPHONE } from '../platform';
 
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
+  weather?: { mode: 'changing' | 'clear' | 'snow'; setMode(mode: 'changing' | 'clear' | 'snow'): void };
   clock?: { mode: 'explore' | 'day'; setMode(mode: 'explore' | 'day'): void };
   hour: number; snow: boolean; volume: number;
   resume(): void; base(): void; travel(): void; recall(): void; log?(): void;
@@ -58,7 +59,8 @@ export class OptionsPanel {
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
       <input type="range" id="o-hour" min="7" max="20" step="0.25" value="${h.hour}">
       ${h.clock ? `<label>Clock</label><select id="o-clock"><option value="explore">Free explore: you set the time, lifts run any hour</option><option value="day">Resort day: time passes, lifts 9 AM to 4 PM, shared in a room</option></select>` : ''}
-      <label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>
+      ${h.weather ? `<label>Weather</label><select id="o-weather"><option value="changing">Changing: snow squalls drift through, shared in a room</option><option value="clear">Clear</option><option value="snow">Light snow all day</option></select>`
+        : `<label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>`}
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
@@ -84,7 +86,10 @@ export class OptionsPanel {
     const hour = this.el.querySelector('#o-hour') as HTMLInputElement;
     hour.oninput = () => { (this.el.querySelector('#o-hl') as HTMLElement).textContent = fmtHour(Number(hour.value)); };
     hour.onchange = () => h.setHour(Number(hour.value));
-    (this.el.querySelector('#o-snow') as HTMLInputElement).onchange = (e) => h.setSnow((e.target as HTMLInputElement).checked);
+    const snowBox = this.el.querySelector('#o-snow') as HTMLInputElement | null;
+    if (snowBox) snowBox.onchange = (e) => h.setSnow((e.target as HTMLInputElement).checked);
+    const weather = this.el.querySelector('#o-weather') as HTMLSelectElement | null;
+    if (weather && h.weather) { weather.value = h.weather.mode; weather.onchange = () => h.weather!.setMode(weather.value as 'changing' | 'clear' | 'snow'); }
     (this.el.querySelector('#o-vol') as HTMLInputElement).oninput = (e) => h.setVolume(Number((e.target as HTMLInputElement).value));
     const clock = this.el.querySelector('#o-clock') as HTMLSelectElement | null;
     if (clock && h.clock) { clock.value = h.clock.mode; clock.onchange = () => h.clock!.setMode(clock.value as 'explore' | 'day'); }

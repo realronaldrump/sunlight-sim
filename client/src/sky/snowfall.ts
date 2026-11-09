@@ -9,6 +9,8 @@ import {
 export class Snowfall {
   readonly mesh: THREE.InstancedMesh;
   private center = uniform(new THREE.Vector3());
+  /** 0..1 how hard it snows: a squall's edge is a few flakes, its heart a proper shower. */
+  readonly amount = uniform(1);
   readonly box = 64;
 
   constructor(count = 14000) {
@@ -45,7 +47,9 @@ export class Snowfall {
     const lensFade = smoothstep(0.65, 2.2, distance);
     const boundary = max(max(abs(local.x), abs(local.y)), abs(local.z));
     const boxFade = float(1).sub(smoothstep(this.box * 0.39, this.box * 0.5, boundary));
-    mat.opacityNode = shape.mul(shape).mul(lensFade).mul(boxFade).mul(mix(0.45, 0.85, seed.w));
+    // lighter snow shows fewer flakes: each flake has its own threshold
+    const present = smoothstep(seed.z.sub(0.08), seed.z, this.amount);
+    mat.opacityNode = shape.mul(shape).mul(lensFade).mul(boxFade).mul(mix(0.45, 0.85, seed.w)).mul(present);
     this.mesh = new THREE.InstancedMesh(geo, mat, count);
     this.mesh.name = 'wind-drifting snowfall';
     this.mesh.frustumCulled = false;

@@ -37,7 +37,7 @@ export function formatClock(hour: number) {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-export function conditionsFor(o: { now: number; hour: number; snowing: boolean; runs: RunInfo[]; liftNames: string[]; lesson: string; fallenToday?: number; resortDay?: boolean }): Conditions {
+export function conditionsFor(o: { now: number; hour: number; snowing: boolean; runs: RunInfo[]; liftNames: string[]; lesson: string; fallenToday?: number; resortDay?: boolean; showersNearby?: boolean }): Conditions {
   const day = dayNumber(o.now);
   const today = overnightSnow(day), yesterday = overnightSnow(day - 1);
   // a storm passing over the mountain adds to today's total while it snows
@@ -51,7 +51,7 @@ export function conditionsFor(o: { now: number; hour: number; snowing: boolean; 
   // January temperatures at the base: coldest at dawn, warmest early afternoon
   const t = Math.cos(((o.hour - 14.5) / 12) * Math.PI);
   const tempF = Math.round(17 + 10 * (t + 1) / 2 - (o.snowing ? 3 : 0));
-  const weather = o.snowing ? 'Snowing' : o.hour < 7 || o.hour > 17.5 ? 'Clear' : today > 0 ? 'Clearing' : 'Sunny';
+  const weather = o.snowing ? 'Snow showers' : o.showersNearby ? 'Showers nearby' : o.hour < 7 || o.hour > 17.5 ? 'Clear' : today > 0 ? 'Clearing' : 'Sunny';
   const open = o.hour >= 9 && o.hour < 16;
   const lineRuns = new Set(o.runs.filter((r) => r.kind === 'line').map((r) => r.name));
   return {

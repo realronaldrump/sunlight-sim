@@ -33,6 +33,7 @@ import { SnowState } from './terrain/snowState';
 import { SnowMemory } from './terrain/snowMemory';
 import { Snowcats } from './world/snowcats';
 import { Patrol, PATROL_CALL } from './world/patrol';
+import { Weather, savedWeather, saveWeather, type WeatherMode } from './sky/weather';
 import { crowdLevel, liftsOpen, resortDayHour, savedClockMode, saveClockMode, HOURS, type ClockMode } from './world/resortDay';
 import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
@@ -100,6 +101,12 @@ export class Game {
   snowMemory: SnowMemory | null = null;
   snowcats: Snowcats | null = null;
   patrol: Patrol | null = null;
+  weather = new Weather();
+  /** Changing (squalls on the shared clock), clear, or steady light snow. */
+  weatherMode: WeatherMode = 'changing';
+  /** 0..1 how hard it is snowing where you are. */
+  snowAmount = 0;
+  private weatherTimer = 0;
   /** Free Explore (you set the time, lifts always run) or Resort Day (shared clock, operating hours). */
   clockMode: ClockMode = savedClockMode();
   private dayTimer = 0;
@@ -346,10 +353,15 @@ export class Game {
     // mountain status board at the Lesson Line-Up Area, facing skiers leaving the lodge racks
     this.board = new ConditionsBoard(LINEUP.x - 6, LINEUP.z + 8, 0.67, (x, z) => this.probe.height(x, z), this.colliders);
     this.scene.add(this.board.group);
+    // tests start clear unless they ask for weather; players get the changing sky they last chose
+    const wq = this.params.get('weather');
+    this.weatherMode = wq === 'changing' || wq === 'clear' || wq === 'snow' ? wq : this.params.get('autostart') === '1' ? 'clear' : savedWeather();
+    this.scene.add(this.weather.group);
     if (this.params.get('snow') === '1') this.setSnow(true);
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
       setHour: (h) => { if (this.clockMode === 'explore') this.env.setHour(h); }, setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
+      weather: this.droneOnly ? undefined : { mode: this.weatherMode, setMode: (m) => { this.weatherMode = m; saveWeather(m); this.weatherTimer = 0; this.hud.toast(m === 'changing' ? 'Changing weather: watch for squalls drifting in from the west' : m === 'snow' ? 'Light snow' : 'Clear skies'); } },
       clock: this.droneOnly ? undefined : { mode: this.clockMode, setMode: (m) => this.setClockMode(m) },
       resume: () => this.options.toggle(false),
       base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
@@ -822,6 +834,7 @@ export class Game {
     this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
     this.updateLesson(dt, actions.lesson && this.input.enabled);
     this.updateResortDay(dt);
+    this.updateWeather(dt);
     this.updateBoard(dt);
     this.recordSkiing(dt);
     if (this.patrol) {
@@ -962,6 +975,9 @@ export class Game {
   }
 
   setSnow(on: boolean) {
+    this.weatherMode = on ? 'snow' : 'clear';
+    this.snowAmount = on ? 1 : 0;
+    this.snowfall.amount.value = 1;
     this.env.setSnowing(on);
     this.snowfall.mesh.visible = on;
   }
@@ -1064,6 +1080,23 @@ export class Game {
     } finally { this.launchingDrone = false; }
   }
 
+  /** Squalls drift through on the shared clock; under one the light flattens and it snows. */
+  private updateWeather(dt: number) {
+    if ((this.weatherTimer -= dt) > 0) return;
+    this.weatherTimer = 0.2;
+    const changing = this.weatherMode === 'changing';
+    this.weather.group.visible = changing;
+    const light = Math.max(0.12, 1 - 0.88 * this.env.night.value);
+    const here = changing ? this.weather.update(resortClock.now(), this.camera.position, light, (x, z) => this.hf.heightAt(x, z)) : 0;
+    const amount = this.weatherMode === 'snow' ? 1 : changing ? here : 0;
+    // ease in and out as a cell's edge arrives
+    this.snowAmount += (amount - this.snowAmount) * Math.min(1, 0.2 * 1.5);
+    if (Math.abs(this.snowAmount - amount) < 0.01) this.snowAmount = amount;
+    this.env.setWeather(this.snowAmount);
+    this.snowfall.mesh.visible = this.snowAmount > 0.06;
+    this.snowfall.amount.value = Math.min(1, this.snowAmount * 1.3);
+  }
+
   /** Test hook: the shared resort clock. */
   get resortClock() { return resortClock; }
 
@@ -1125,7 +1158,8 @@ export class Game {
         : tau < T.lineup + T.toLift + T.lift ? `${LESSON_NAME} is riding Segundo. Back here in about ${Math.ceil(left / 60)} min`
         : `${LESSON_NAME} is skiing Ute. Back here in about ${Math.ceil(left / 60)} min`;
     }
-    this.board.update(conditionsFor({ now, hour: this.env.hour, snowing: this.env.snowing, runs: this.resort.runs, liftNames: ['Primo', 'Segundo', 'Tercero'], lesson, resortDay: this.clockMode === 'day' }));
+    const showersNearby = this.weatherMode === 'changing' && this.weather.squalls.some((s) => s.strength > 0.3 && Math.hypot(s.x - this.camera.position.x, s.z - this.camera.position.z) < 14000);
+    this.board.update(conditionsFor({ now, hour: this.env.hour, snowing: this.snowAmount > 0.15, runs: this.resort.runs, liftNames: ['Primo', 'Segundo', 'Tercero'], lesson, resortDay: this.clockMode === 'day', showersNearby }));
   }
 
   /** The lesson group: move them on the shared clock, tag along with L, captions and the panel. */
@@ -1195,7 +1229,7 @@ export class Game {
     this.tracks.update(dt);
     if (this.trackFade > 10) { this.tracks.fade(this.trackFade); this.crowdTracks.fade(this.trackFade); this.trackFade = 0; }
     if (this.snowState) {
-      this.snowMemory?.update(dt, this.env.snowing, resortClock.now());
+      this.snowMemory?.update(dt, this.snowAmount, resortClock.now());
       if (!this.snowMemory) this.snowState.update(dt);
       this.terrainMat.skiedHours.value = this.skiedHours;
       this.terrainMat.freshCover.value = this.snowState.freshCover;
