@@ -8,6 +8,7 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 - Primo, Segundo and Tercero chairlifts on their real lines with OSM tower positions, moving chairs, real-time rides.
 - Physically based ski model (edging and sidecut carving, skidding, snowplow, tuck, drag, falls).
 - Multiplayer rooms by link, shared chairs, chat, trail map with other players.
+- All in-game measurements use U.S. units: speed in mph, elevation in feet, and lift distances and trail lengths in feet or miles.
 
 **Play now (solo):** https://sunlight-sim.vercel.app  (the multiplayer server is not hosted yet; see Deploy below. Multiplayer works locally and on a LAN.)
 

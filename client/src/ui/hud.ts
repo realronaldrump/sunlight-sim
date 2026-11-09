@@ -1,4 +1,6 @@
 // Heads-up display: speed, slope angle, run name, altitude, hints, help panel and toasts.
+import { formatDistance, formatFeet, formatSpeedMph } from './units';
+
 const css = `
 #hud { position: fixed; left: 16px; bottom: 16px; z-index: 10; pointer-events: none; font-variant-numeric: tabular-nums; }
 #hud .card { background: rgba(10,20,35,.55); backdrop-filter: blur(6px); border-radius: 10px; padding: 10px 14px; margin-top: 8px; min-width: 190px; box-shadow: 0 2px 10px rgba(0,0,0,.2); }
@@ -49,7 +51,7 @@ export class Hud {
     const hud = document.createElement('div'); hud.id = 'hud';
     hud.innerHTML = `
       <div class="card"><div class="row">
-        <div><div class="lbl">Speed</div><span class="big" id="h-speed">0</span><span class="unit">km/h</span></div>
+        <div><div class="lbl">Speed</div><span class="big" id="h-speed">0</span><span class="unit">mph</span></div>
         <div><div class="lbl">Slope</div><span class="big" id="h-slope">0</span><span class="unit">deg</span></div>
       </div><div class="slope-bar"><i id="h-marker"></i></div>
       <div class="row" style="margin-top:6px;font-size:12px;opacity:.85"><span id="h-alt"></span><span id="h-mode"></span></div></div>`;
@@ -95,15 +97,15 @@ export class Hud {
   liftDirection(name: string | null, dist: number, relAngle: number) {
     if (!name || this.liftEl.parentElement?.querySelector('#help:not(.hidden)') && false) { this.liftEl.style.display = 'none'; return; }
     this.liftEl.style.display = 'flex';
-    this.liftEl.innerHTML = `<i style="transform:rotate(${(relAngle * 180) / Math.PI}deg)"></i><span>${name} lift ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'}</span>`;
+    this.liftEl.innerHTML = `<i style="transform:rotate(${(relAngle * 180) / Math.PI}deg)"></i><span>${name} lift ${formatDistance(dist)}</span>`;
   }
   hideLiftDirection() { this.liftEl.style.display = 'none'; }
 
   update(dt: number, speed: number, slopeDeg: number, altitude: number, mode: string, run: { name: string; difficulty: string; stats?: { avgDeg: number; maxDeg: number } } | null) {
-    this.speedEl.textContent = String(Math.round(speed * 3.6));
+    this.speedEl.textContent = formatSpeedMph(speed);
     this.slopeEl.textContent = String(Math.round(slopeDeg));
     this.marker.style.left = `${Math.min(100, (slopeDeg / 50) * 100)}%`;
-    this.altEl.textContent = `${Math.round(altitude)} m / ${Math.round(altitude * 3.28084).toLocaleString()} ft`;
+    this.altEl.textContent = formatFeet(altitude);
     this.modeEl.textContent = mode;
     const key = run ? run.name : '';
     if (key !== this.lastRun) {

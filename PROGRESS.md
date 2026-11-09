@@ -1,5 +1,12 @@
 # Progress
 
+## U.S. units update (November 8, 2026)
+- Owner requested U.S. units throughout the game and deployment when complete.
+- Updated the HUD to mph and feet, and both lift guidance and trail-map run lengths to feet or miles. Shared display helpers use exact conversions and U.S. number formatting; simulation and world data remain in SI units. See D14.
+- Starting working-tree validation: production build, all 32 unit tests, and all 3 pipeline checks passed.
+- Existing uncommitted character-model and pipeline work is present in the checkout. The units release will be packaged from committed source so that ongoing art work is not included accidentally.
+- Next: validate the committed release build and browser flows, visually inspect the HUD/map, deploy to the existing Vercel production project, and verify the live units.
+
 ## Status (session 2, Codex, in progress)
 Core systems are implemented and the session-start build, 30 unit tests, 3 pipeline checks, and 6 browser scenarios pass. Visual fidelity is still in progress. The owner explicitly prioritized realism and detail over FPS on November 8, 2026. Do not treat the earlier completed checklist as proof of polished or accurate art.
 Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not hosted: no Fly/Render credentials; see README).

@@ -67,3 +67,8 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Use freely redistributable anatomical assets when they improve realism. Model ski clothing and equipment specifically for skiing, with articulated poses and contact with skis/chairs.
 - Building footprint fidelity alone is insufficient. Facade, roof, massing, lodge decks and terminal appearance must be checked against Sunlight photo references. Record estimated dimensions as estimates, not measured facts.
 - Completion of mechanics tests does not imply that placeholder art meets the visual Definition of Done.
+
+## D14. U.S. display units (owner direction, November 8, 2026)
+- The game displays speed only in mph, elevation only in feet, and lift distances and trail-map run lengths in feet below one mile or miles at and above one mile. Number formatting uses U.S. separators.
+- All player-facing measurement conversions are centralized in `client/src/ui/units.ts`. Slope angles remain in degrees.
+- Terrain data, physics, lift movement and multiplayer coordinates retain their existing SI units for accuracy and compatibility. Convert only at the display boundary; do not retune movement or relabel metric values as U.S. values.
