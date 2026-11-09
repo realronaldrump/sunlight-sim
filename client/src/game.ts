@@ -50,6 +50,9 @@ import { resortClock } from './world/resortClock';
 import { ConditionsBoard } from './world/conditionsBoard';
 import { conditionsFor } from './world/conditions';
 import { LINEUP } from './world/lesson';
+import { SkiLog, type Descent } from './log/skiLog';
+import { SkiLogPanel } from './ui/skiLogPanel';
+import { formatDistance as fmtDist, formatFeet } from './ui/units';
 import { collideCylinder } from '../../shared/skiPhysics';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
@@ -102,6 +105,8 @@ export class Game {
   tagging = false;
   private lessonNear = Infinity;
   board: ConditionsBoard | null = null;
+  skiLog: SkiLog | null = null;
+  skiLogPanel: SkiLogPanel | null = null;
   private boardTimer = 0;
   private launchingDrone = false;
   params = new URLSearchParams(location.search);
@@ -170,6 +175,15 @@ export class Game {
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });
     this.terrainMat.sunDir.value.copy(this.env.sunDir.value);
 
+    // personal ski log, kept in this browser
+    if (!this.droneOnly && this.params.get('log') !== '0') {
+      this.skiLog = new SkiLog(this.resort.runs);
+      this.skiLogPanel = new SkiLogPanel(this.skiLog, this.resort, WORLD_BASE);
+      this.skiLog.onDescent = (d, completed) => this.announceDescent(d, completed);
+      const flush = () => this.skiLog?.save();
+      window.addEventListener('pagehide', flush);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+    }
     this.runs = new RunSystem(this.resort);
     await this.runs.load(WORLD_BASE).catch((e) => console.warn('runs raster failed', e));
     this.runLookup = (x, z) => this.runs.runAt(x, z);
@@ -288,6 +302,7 @@ export class Game {
       base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
       travel: () => { if (this.options.visible) this.trailMap.toggle(true, true); },
       recall: () => { if (this.options.visible) { this.recallDrone(); this.options.toggle(false); } },
+      log: this.skiLogPanel ? () => { if (this.options.visible) this.skiLogPanel?.show('overview'); } : undefined,
       phone: this.droneOnly ? {
         map: () => { this.options.toggle(false); this.trailMap.toggle(true); },
         view: () => { this.drone.cycleCamera(); this.options.toggle(false); },
@@ -570,7 +585,7 @@ export class Game {
     const t0 = performance.now();
     const dt = Math.min(this.timer.getDelta(), 0.1);
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
-    const controlsEnabled = this.ready && !this.chat?.open && !this.trailMap?.visible && !this.options?.visible && !this.launchingDrone && (!this.droneOnly || !this.net || this.net.connected);
+    const controlsEnabled = this.ready && !this.chat?.open && !this.trailMap?.visible && !this.options?.visible && !this.skiLogPanel?.visible && !this.launchingDrone && (!this.droneOnly || !this.net || this.net.connected);
     if (this.input.enabled && !controlsEnabled) { this.input.clear(); if (this.drone) this.holdDrone(); }
     this.input.enabled = controlsEnabled;
     this.touch?.update(controlsEnabled);
@@ -639,6 +654,7 @@ export class Game {
     this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
     this.updateLesson(dt, actions.lesson && this.input.enabled);
     this.updateBoard(dt);
+    this.recordSkiing(dt);
     this.updateCamera(dt);
     for (const remote of this.net?.remotes.values() ?? []) {
       fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
@@ -852,6 +868,27 @@ export class Game {
       this.drone.recall({...this.player.st.pos, y: altitude === undefined ? this.player.st.pos.y : altitude - this.drone.launchHeight}, heading);
       this.net?.markTeleport(); this.audioScene = new AudioScene();
     } finally { this.launchingDrone = false; }
+  }
+
+  /** Feed the ski log with real (unscaled) frame time. */
+  private recordSkiing(dt: number) {
+    const log = this.skiLog;
+    if (!log || !this.ready || this.flyMode) return;
+    const st = this.player.st;
+    const onSkis = !this.onFoot.active && !this.drone.active && !this.player.ride;
+    log.update(dt, { x: st.pos.x, y: st.pos.y, z: st.pos.z, speed: onSkis ? st.speed : 0,
+      skiing: onSkis, riding: !!this.player.ride && !this.drone.active, fallen: st.mode === 'fallen' || !!this.player.tumble,
+      run: onSkis ? this.runAt(st.pos.x, st.pos.z)?.name ?? null : null });
+  }
+
+  private announceDescent(d: Descent, completed: string[]) {
+    if (!this.skiLog) return;
+    const cov = this.skiLog.coverage(), done = cov.filter((c) => c.status === 'completed').length;
+    const first = completed.filter((n) => cov.find((c) => c.trail.name === n)?.laps === 1);
+    const main = d.runs.find((r) => r.done) ?? d.runs[0];
+    const name = main ? this.skiLog.trailByKey(main.key)?.name : null;
+    const what = `${name ? `${name}: ` : ''}${fmtDist(d.dist)}, ${formatFeet(d.vert)} vertical`;
+    this.hud.toast(first.length ? `First lap of ${first.join(' and ')}! ${done} of ${cov.length} trails skied. (${what})` : `Descent logged. ${what}`, first.length ? 6 : 3.5);
   }
 
   private updateBoard(dt: number) {

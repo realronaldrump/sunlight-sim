@@ -5,7 +5,7 @@ import { IPHONE } from '../platform';
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
   hour: number; snow: boolean; volume: number;
-  resume(): void; base(): void; travel(): void; recall(): void;
+  resume(): void; base(): void; travel(): void; recall(): void; log?(): void;
   phone?: { map(): void; view(): void; chat(): void; share(): void };
 }
 
@@ -52,7 +52,8 @@ export class OptionsPanel {
       </div><p id="pause-room" role="status"></p>` : ''}
       <hr><button id="pause-base" type="button" ${IPHONE ? 'hidden' : ''}>Teleport to base</button>
       <button id="pause-travel" type="button">Teleport to a run or friend…</button>
-      <button id="pause-recall" type="button" hidden>Recall drone to ${IPHONE ? 'launch point' : 'skier'}</button><hr>
+      <button id="pause-recall" type="button" hidden>Recall drone to ${IPHONE ? 'launch point' : 'skier'}</button>
+      <button id="pause-log" type="button" ${h.log ? '' : 'hidden'}>Ski log and mountain progress</button><hr>
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
       <input type="range" id="o-hour" min="7.5" max="17" step="0.25" value="${h.hour}">
       <label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>
@@ -68,6 +69,7 @@ export class OptionsPanel {
     this.el.querySelector('#pause-base')?.addEventListener('click', h.base);
     this.el.querySelector('#pause-travel')?.addEventListener('click', h.travel);
     this.el.querySelector('#pause-recall')?.addEventListener('click', h.recall);
+    if (h.log) this.el.querySelector('#pause-log')?.addEventListener('click', h.log);
     this.roomStatus = this.el.querySelector('#pause-room');
     this.chatButton = this.el.querySelector('#pause-chat');
     this.shareButton = this.el.querySelector('#pause-share');
