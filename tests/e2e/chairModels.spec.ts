@@ -20,7 +20,7 @@ for (const webgl of [false, true]) test(`Sunlight chair close-ups and occupied s
       }];
       const style = document.createElement('style'); style.textContent = 'body > :not(#app) { visibility: hidden !important; }'; document.head.appendChild(style);
       const meshes = g.lifts.chairMeshes[li];
-      return { near: meshes.near.length, bar: meshes.near.some((m: any) => m.motion === 'restraint'), count: meshes.labels.count };
+      return { near: meshes.near.length, bar: meshes.near.some((m: any) => m.motion === 'restraint'), count: p.chairCount };
     }, name);
     expect(model.near).toBeGreaterThanOrEqual(3);
     expect(model.bar).toBe(name !== 'Tercero');

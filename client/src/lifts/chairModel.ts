@@ -178,5 +178,6 @@ export function numberedChairPlates(name: string, count: number) {
   const mat = new THREE.MeshStandardNodeMaterial({ roughness: .65 });
   mat.colorNode = texture(map, uv().mul(vec2(1 / cols, 1 / rows)).add(attribute('labelUV', 'vec2'))).rgb;
   const mesh = new THREE.InstancedMesh(g, mat, count); mesh.name = `${name}-chair-numbers`; mesh.frustumCulled = false;
+  mesh.userData.atlasColumns = cols; mesh.userData.atlasRows = rows;
   return mesh;
 }

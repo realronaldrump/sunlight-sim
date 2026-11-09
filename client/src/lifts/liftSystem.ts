@@ -228,8 +228,10 @@ export class LiftSystem {
     for (let li = 0; li < this.paths.length; li++) {
       const path = this.paths[li];
       const models = this.chairMeshes[li];
-      const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
       const bar = new THREE.Matrix4(), grip = new THREE.Matrix4(), local = new THREE.Matrix4();
+      let nearCount = 0, farCount = 0;
+      const labelUV = models.labels.geometry.getAttribute('labelUV') as THREE.InstancedBufferAttribute;
+      const cols = models.labels.userData.atlasColumns, rows = models.labels.userData.atlasRows;
       for (let i = 0; i < path.chairCount; i++) {
         const u = path.chairU(i, t), lp = path.loopPoint(u);
         const bank = path.chairBank(u);
@@ -241,12 +243,18 @@ export class LiftSystem {
         const pitch = Math.atan2(next.y - lp.p.y, Math.hypot(next.x - lp.p.x, next.z - lp.p.z));
         grip.copy(this.m4).multiply(local.makeRotationZ(-bank)).multiply(local.makeRotationX(pitch));
         const near = !viewer || Math.hypot(viewer.x - lp.p.x, viewer.y - lp.p.y, viewer.z - lp.p.z) < 90 || occupied.some(o => o.lift === li && o.chair === i);
-        for (const [parts, visible] of [[models.near, near], [models.far, !near]] as const) {
-          for (const part of parts) part.mesh.setMatrixAt(i, !visible ? hidden : part.motion === 'restraint' ? bar : part.motion === 'grip' ? grip : this.m4);
+        const instance = near ? nearCount++ : farCount++;
+        for (const part of near ? models.near : models.far) {
+          part.mesh.setMatrixAt(instance, part.motion === 'restraint' ? bar : part.motion === 'grip' ? grip : this.m4);
         }
-        models.labels.setMatrixAt(i, near ? this.m4 : hidden);
+        if (near) {
+          models.labels.setMatrixAt(instance, this.m4);
+          labelUV.setXY(instance, (i % cols) / cols, (rows - 1 - Math.floor(i / cols)) / rows);
+        }
       }
-      for (const part of [...models.near, ...models.far]) part.mesh.instanceMatrix.needsUpdate = true;
+      for (const part of models.near) { part.mesh.count = nearCount; part.mesh.instanceMatrix.needsUpdate = true; }
+      for (const part of models.far) { part.mesh.count = farCount; part.mesh.instanceMatrix.needsUpdate = true; }
+      models.labels.count = nearCount; labelUV.needsUpdate = true;
       models.labels.instanceMatrix.needsUpdate = true;
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];

@@ -29,6 +29,7 @@
 - A fixed release snapshot passed production build, 80 existing unit tests and all 4 pipeline checks. Three new chair geometry tests pass. Browser chair close-ups plus the full Primo, Segundo and Tercero load/ride/unload scenarios all passed (4 scenarios, 56 seconds). The new bank-endpoint test was adjusted for floating-point roundoff below 1e-27, not a visible motion error.
 - Post-polish close-up browser pass passed for all three chairs with their actual seated human models. Inspected the full Primo occupied carrier, including the lowered bar, paired foot supports, ski contact and complete hanger/grip. Final release validation and deployment remain pending.
 - Extended the close-up scenario to explicitly exercise both WebGPU and forced WebGL2 before release, including the numbered-plate instancing shader.
+- Final review corrected chair LOD submission: compact visible near/far instance buffers instead of submitting zero-scale detailed carriers at distance. This preserves the reviewed silhouettes and chair numbers while avoiding unnecessary GPU vertex work. The follow-up tower/station visual pass is explicitly queued after this chair deployment is live.
 - Next: run final checks from the committed release snapshot, push main per repository policy, deploy, verify the public alias, and record deployment evidence here.
 
 ## U.S. units update (November 8, 2026)
