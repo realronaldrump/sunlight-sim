@@ -1,0 +1,252 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "note": "Third-party sources are CC0. Original generated Foley is dedicated to CC0. Location-specific audio is a designed approximation, not a Sunlight field recording.",
+  "sources": [
+    {
+      "id": "ski",
+      "author": "Lydmakeren",
+      "title": "Alpine_ski_POV - - Stereo Out.wav",
+      "page": "https://freesound.org/people/Lydmakeren/sounds/567839/",
+      "url": "https://cdn.freesound.org/previews/567/567839_11157357-hq.mp3",
+      "file": "ski.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "6442ce620053a89b156ce18d1704e885e46e92b7a56d84667abfdf24ab5b8a41"
+    },
+    {
+      "id": "motor",
+      "author": "indieground",
+      "title": "remontée mécanique ski moteur.wav",
+      "page": "https://freesound.org/people/indieground/sounds/223829/",
+      "url": "https://cdn.freesound.org/previews/223/223829_2735146-hq.mp3",
+      "file": "motor.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "9a8dad021f22fcf1af3a37395f7de7ae01c3d4e634f1539f167825a6fa114e46"
+    },
+    {
+      "id": "lift",
+      "author": "13FPanska_Marval_Lukas",
+      "title": "ski_lift.wav",
+      "page": "https://freesound.org/people/13FPanska_Marval_Lukas/sounds/379326/",
+      "url": "https://cdn.freesound.org/previews/379/379326_7020229-hq.mp3",
+      "file": "lift.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "7fbd062a8daba958e6cda177ad999d348b0e82959c21aabb341003f72d27a932"
+    },
+    {
+      "id": "wind",
+      "author": "HECKFRICKER",
+      "title": "Winter Snowstorm Ambience",
+      "page": "https://freesound.org/people/HECKFRICKER/sounds/754256/",
+      "url": "https://cdn.freesound.org/previews/754/754256_12863902-hq.mp3",
+      "file": "wind.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "b19a078d9d50c399cdb92c50e19c940ec8fe98d44e04cd1a20654b5326e5e7bd"
+    },
+    {
+      "id": "snow",
+      "author": "Iwan \"qubodup\" Gabovitch",
+      "title": "4 dry snow steps",
+      "page": "https://opengameart.org/content/4-dry-snow-steps",
+      "url": "https://opengameart.org/sites/default/files/qubodup-snow_steps_dry_0.7z",
+      "file": "snow-steps.7z",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "44b2ead054a341bfa80842fdee85d2fc8a2da1ee202daf4ef114ca7a944fd329"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "ski-glide.wav",
+      "sources": [
+        "ski"
+      ],
+      "processing": "18-42s; 230-10500Hz; seeded overlapping 230ms grains; wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 11.35,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.09128,
+      "peak": 0.82,
+      "sha256": "4ea024d3dde909652745d32b3b95bcc0c8997eaf80e2671705329165a5deb33e"
+    },
+    {
+      "file": "ski-edge.wav",
+      "sources": [
+        "ski"
+      ],
+      "processing": "68-92s; 450-11500Hz; seeded overlapping 130ms grains; wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 8.95,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.1195,
+      "peak": 0.82,
+      "sha256": "b554cb05851e7cf563730d66dd67510a6735b51c5d2e51bd88404d6b53e83457"
+    },
+    {
+      "file": "snow-soft.wav",
+      "sources": [
+        "snow"
+      ],
+      "processing": "Dry snow compression reassembled as 110ms grains; 100-2800Hz; wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 10.55,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.08224,
+      "peak": 0.82,
+      "sha256": "4f9a9721298f6a871bdc122b6e7a71128e651b3bc7060a7eddfcc805a8181362"
+    },
+    {
+      "file": "lift-motor.wav",
+      "sources": [
+        "motor"
+      ],
+      "processing": "4-17s; mono; 65-6500Hz; 600ms wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 12.4,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.04474,
+      "peak": 0.82,
+      "sha256": "cdabd532c9e677820d804f31a66d6ddabe67003ab748add432dcc9729c94942a"
+    },
+    {
+      "file": "lift-cable.wav",
+      "sources": [
+        "lift"
+      ],
+      "processing": "0.4-7.6s; mono; 180-7500Hz; 500ms wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 6.7,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.10059,
+      "peak": 0.82,
+      "sha256": "52b128662e244543f478e27bef0cdc1795aacf0b8820e92e42b0a93b7650b69d"
+    },
+    {
+      "file": "winter-air.wav",
+      "sources": [
+        "wind"
+      ],
+      "processing": "72-94s; stereo; 70-5500Hz; 1.5s wrap crossfade; RMS/peak normalization",
+      "loop": true,
+      "seconds": 20.5,
+      "channels": 2,
+      "sampleRate": 32000,
+      "rms": 0.15,
+      "peak": 0.70987,
+      "sha256": "bb4e6ecf126eddd277bb27b3a0229a71537cd232448da52d11107e40206fce28"
+    },
+    {
+      "file": "snow-compress-1.wav",
+      "sources": [
+        "snow"
+      ],
+      "processing": "Trim silence; 10ms edge fades; 85-8500Hz; RMS/peak normalization",
+      "loop": false,
+      "seconds": 0.195,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.14928,
+      "peak": 0.82,
+      "sha256": "02433229f06f141c1ef97f014985255c215ed69b7ed91acdcba8aec29f45e704"
+    },
+    {
+      "file": "snow-compress-2.wav",
+      "sources": [
+        "snow"
+      ],
+      "processing": "Trim silence; 10ms edge fades; 85-8500Hz; RMS/peak normalization",
+      "loop": false,
+      "seconds": 0.27631,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.11225,
+      "peak": 0.82,
+      "sha256": "53a87669c230185f825ceaa5f526b2d86db2f5a8b0431d29384f146238b54d08"
+    },
+    {
+      "file": "snow-compress-3.wav",
+      "sources": [
+        "snow"
+      ],
+      "processing": "Trim silence; 10ms edge fades; 85-8500Hz; RMS/peak normalization",
+      "loop": false,
+      "seconds": 0.21163,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.12491,
+      "peak": 0.82,
+      "sha256": "429b869917b2925ad149a2454d3701102ea69489f9ec2daa6dc8368d737327da"
+    },
+    {
+      "file": "snow-compress-4.wav",
+      "sources": [
+        "snow"
+      ],
+      "processing": "Trim silence; 10ms edge fades; 85-8500Hz; RMS/peak normalization",
+      "loop": false,
+      "seconds": 0.38994,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.10418,
+      "peak": 0.82,
+      "sha256": "f434eec49d9de68d30cd1eb6de5090e83c8b5b7a8ad4f764de6c406c4b86510e"
+    },
+    {
+      "file": "chair-contact-1.wav",
+      "sources": [],
+      "processing": "Original seeded damped inharmonic metal and rubber contact",
+      "loop": false,
+      "seconds": 0.4,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.07746,
+      "peak": 0.82,
+      "sha256": "db71b31d347e71c5d6f02f9c1fffe41685ad9224780d050859f7296bafad0f5d"
+    },
+    {
+      "file": "chair-contact-2.wav",
+      "sources": [],
+      "processing": "Original seeded damped inharmonic metal and rubber contact",
+      "loop": false,
+      "seconds": 0.4,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.08509,
+      "peak": 0.82,
+      "sha256": "823a0c4cb06d03dd621694832dec9cda7cd47794ba9036b76fc7c24856cb69a8"
+    },
+    {
+      "file": "chair-contact-3.wav",
+      "sources": [],
+      "processing": "Original seeded damped inharmonic metal and rubber contact",
+      "loop": false,
+      "seconds": 0.4,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.07227,
+      "peak": 0.82,
+      "sha256": "cc42a1c07ae845908c72e11a980f1fc26b8fcbee20f23ad311246b3532aa6738"
+    },
+    {
+      "file": "chair-creak.wav",
+      "sources": [],
+      "processing": "Original seeded band-limited stick-slip friction; shaped 720ms envelope",
+      "loop": false,
+      "seconds": 0.72,
+      "channels": 1,
+      "sampleRate": 32000,
+      "rms": 0.12121,
+      "peak": 0.82,
+      "sha256": "5fd0f6a43eb4a71ce32982498474562330defa9a675f3d0da717026ea0e98540"
+    }
+  ]
+}

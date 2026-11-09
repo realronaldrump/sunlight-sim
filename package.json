@@ -13,11 +13,12 @@
     "preview": "vite preview --config client/vite.config.ts",
     "data": "bash pipeline/run_all.sh",
     "data:snow": ".venv/bin/python pipeline/build_snow.py",
+    "data:skier": "tsx pipeline/build_skier.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:pipeline": ".venv/bin/python pipeline/test_pipeline.py",
-    "data:skier": "tsx pipeline/build_skier.ts"
+    "data:audio": ".venv/bin/python pipeline/build_audio.py"
   },
   "dependencies": {
     "three": "^0.187.0",

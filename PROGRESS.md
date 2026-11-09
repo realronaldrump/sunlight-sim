@@ -130,3 +130,9 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Inspected skiing, compact-window and lift screenshots. Tests cover movement, heading correctness, zoom limits, saved settings, full-map transitions, lift rides, multiplayer, chat input, missing hillshade and corrupt local settings.
 - Staged production deployment `dpl_CYDURad3C2f56tMGqqYuBFR2oqKY` is READY and its HTML serves the expected `index-DS4vd5br.js` bundle. Public promotion and live browser verification are the remaining release steps.
 - Integration preserved all existing unstaged work; only the minimap hunks and these notes were staged. Future deployments from master retain this feature.
+
+### Audio implementation checkpoint
+- Built 14 local PCM WAVs (5.73 MiB) from the verified CC0 sources plus original chair Foley. `npm run data:audio` regenerates the bank and provenance manifest; the full data pipeline includes it.
+- Replaced the correlated short-loop synth with a layered sample/fallback engine. Ski contact is gated by actual contact and responds to grooming, edge, skid and plow. Added softer fallen sliding, impact-dependent landings, stereo winter air, tuck-dependent airflow, spatial terminal recordings and lift-speed-scaled roller contacts.
+- Added travel-aware event tracking: teleports, initial spawn and skipped rides cannot trigger a string of tower hits or a fake landing. Queued events use the audio clock and are cancelled on mute/hidden tabs or discontinuous travel.
+- Typecheck passed. Added focused state/transition tests; next: actual Chromium/Safari audio renders, gain/silence/asset failure checks, waveform inspection, final full build/tests and committed-source release validation.

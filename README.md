@@ -119,3 +119,9 @@ It needs Python 3.12 (`uv` or `python3 -m venv`); `pipeline/run_all.sh` creates 
 The upper-left minimap follows your position while skiing and riding lifts. North stays up; the cyan arrow shows your ski heading, and nearby friends use their jacket colors. The header keeps your current run or lift visible. Difficulty-colored trails, run names, lifts and a distance scale help you choose a route.
 
 Press **V** or click the compact minimap button to hide or restore it. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **Full map (M)** opens the existing trail map for overview and travel. Clicking the minimap itself does not teleport you.
+
+## Audio
+
+Sound starts after the first key press or click. N toggles sound; P opens the volume control. Ski contact responds to speed, edge pressure, braking, grooming and airborne state. Lift machinery has direction and distance, while chair rollers follow tower crossings. All source recordings are CC0; credits and exact processing are in `CREDITS.md` and `client/public/audio/sources.json`.
+
+The committed audio bank works without external requests. Rebuild it with `npm run data:audio` (Python environment above and FFmpeg; on macOS `brew install ffmpeg`). Raw recordings are cached in `data/raw/audio/`. If an individual recording cannot load, procedural audio remains available. Audio output and state transitions have dedicated unit and browser-render checks.

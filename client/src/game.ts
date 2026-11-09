@@ -17,6 +17,7 @@ import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectQuality, PRESETS, QualityPreset, pixelRatioFor } from './quality';
 import { SkiAudio } from './audio/audio';
+import { AudioScene } from './audio/audioScene';
 import { buildBuildings, buildResortExtras } from './world/buildings';
 import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
@@ -60,8 +61,7 @@ export class Game {
   ambient: AmbientSkiers | null = null;
   private trackFade = 0;
   options!: OptionsPanel;
-  private lastMode = '';
-  private lastRideH = -1;
+  private audioScene = new AudioScene();
   input = new InputManager();
   camRig!: CameraRig;
   hud!: Hud;
@@ -542,26 +542,11 @@ export class Game {
   }
 
   private updateAudio(dt: number) {
-    const pl = this.player, st = pl.st;
-    const surf = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
-    let near = Infinity;
-    for (const l of this.resort.lifts) {
-      near = Math.min(near, Math.hypot(st.pos.x - l.bottom[0], st.pos.z - l.bottom[2]), Math.hypot(st.pos.x - l.top[0], st.pos.z - l.top[2]));
-    }
-    let towerPass = false;
-    if (pl.ride) {
-      const path = this.lifts.paths[pl.ride.lift];
-      const b = path.def.bottom;
-      const h = (st.pos.x - b[0]) * path.ax + (st.pos.z - b[2]) * path.az;
-      if (this.lastRideH >= 0) for (const sup of path.def.supports) if (sup.kind === 'tower' && this.lastRideH < sup.s && h >= sup.s) towerPass = true;
-      this.lastRideH = h;
-    } else this.lastRideH = -1;
-    const fell = st.mode === 'fallen' && this.lastMode !== 'fallen';
-    this.lastMode = st.mode;
-    this.audio.update(dt, {
-      speed: st.speed, skid: st.skid, edge: st.edge, grounded: st.grounded, groomed: surf.groomed, moguls: surf.moguls,
-      plow: st.plow, riding: !!pl.ride, nearTerminal: near, towerPass, fell, inAir: st.mode === 'air',
-    });
+    const st = this.player.st;
+    const surface = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
+    const forward = this.camera.getWorldDirection(this.tmpV2);
+    this.audio.update(dt, this.audioScene.sample(dt, st, this.player.ride,
+      this.lifts.paths, surface, forward, this.env.snowing));
   }
 
   private modeLabel() {
