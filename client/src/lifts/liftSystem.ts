@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
+import { LiftStations } from '../../../shared/liftStations';
+import type { TerrainProbe } from '../../../shared/skiPhysics';
 
 
 const steel = new THREE.MeshStandardNodeMaterial({ color: 0x6f7780, roughness: 0.45, metalness: 0.7 });
@@ -119,6 +121,25 @@ export class LiftSystem {
 
   now() { return Date.now() / 1000 + this.clockOffset; }
 
+  buildStationSurfaces(terrain: TerrainProbe) {
+    const stations = new LiftStations(this.paths, terrain);
+    const mat = new THREE.MeshStandardNodeMaterial({ color: 0xe8f0f4, roughness: 0.95 });
+    const group = new THREE.Group(); group.name = 'station-snow';
+    for (const ramp of stations.ramps) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(ramp.positions, 3));
+      geometry.setIndex(ramp.indices); geometry.computeVertexNormals();
+      const mesh = new THREE.Mesh(geometry, mat); mesh.receiveShadow = true;
+      mesh.name = `${ramp.path.def.name}-${ramp.top ? 'unload' : 'load'}-snow-ramp`;
+      group.add(mesh);
+    }
+    this.group.add(group);
+    this.group.traverse(o => {
+      if (o.userData.loadStripe) o.position.y = stations.height(o.position.x, o.position.z) + 0.025;
+    });
+    return stations;
+  }
+
   /** Re-seat ground-standing props once fine terrain is loaded (huts sit on the uphill corner of their footprint). */
   settle(height: (x: number, z: number) => number) {
     this.group.traverse((o) => {
@@ -216,6 +237,7 @@ export class LiftSystem {
     const lp = path.ropePoint(LOAD_OFFSET, 1);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.02, 0.18), new THREE.MeshStandardNodeMaterial({ color: 0xd42020, roughness: 0.6 }));
     stripe.position.set(lp.x, def.supports[0].ground + 0.03, lp.z); stripe.rotation.y = yaw;
+    stripe.userData.loadStripe = true;
     g.add(stripe);
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
     this.group.add(g);
@@ -224,25 +246,19 @@ export class LiftSystem {
   /** Seat transform of a chair at time t. Returns position of the seat surface center for seatIndex. */
   seatTransform(lift: number, chair: number, seat: number, t: number, outPos: THREE.Vector3) {
     const path = this.paths[lift];
-    const lp = path.loopPoint(path.chairU(chair, t));
-    const seats = path.def.seats;
-    const off = (seat - (seats - 1) / 2) * 0.6;
-    const h = lp.heading;
-    const rx = Math.cos(h), rz = -Math.sin(h); // right vector for heading h
-    outPos.set(lp.p.x + rx * off, lp.p.y - HANGER + 0.04, lp.p.z + rz * off);
-    // seat is slightly behind the hanger line
-    outPos.x += Math.sin(h) * 0.12; outPos.z += Math.cos(h) * 0.12;
-    return { heading: h, uphill: lp.uphill, h: lp.h };
+    const lp = path.seatPoint(chair, seat, t);
+    outPos.set(lp.p.x, lp.p.y, lp.p.z);
+    return { heading: lp.heading, uphill: lp.uphill, h: lp.h };
   }
 
-  update() {
+  update(occupied: { lift: number; chair: number }[] = []) {
     const t = this.now();
     for (let li = 0; li < this.paths.length; li++) {
       const path = this.paths[li];
       const { frame, seat } = this.chairMeshes[li];
       for (let i = 0; i < path.chairCount; i++) {
         const lp = path.loopPoint(path.chairU(i, t));
-        // gentle swing when going around the wheels
+        // Fixed-grip carriers follow the haul rope through the terminals at line speed.
         this.e.set(0, lp.heading, 0, 'YXZ');
         this.q.setFromEuler(this.e);
         this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
@@ -257,7 +273,7 @@ export class LiftSystem {
         const p = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
         R.slots.forEach((sl, k) => {
           const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
-          if (!info.uphill || info.h < 12 || info.h > path.horiz - 10) { R.mesh.setMatrixAt(k, zero); return; }
+          if (!info.uphill || info.h < 12 || info.h > path.horiz - 10 || occupied.some(o => o.lift === li && o.chair === sl.chair)) { R.mesh.setMatrixAt(k, zero); return; }
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
           this.m4.compose(p, this.q, new THREE.Vector3(1, 1, 1));
           R.mesh.setMatrixAt(k, this.m4);

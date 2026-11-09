@@ -134,6 +134,7 @@ export class Game {
     await this.hf.ensureArea(0, seg.bottom[0], -seg.bottom[2], 300);
     await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
     this.lifts.settle((x, z) => this.hf.heightAt(x, z));
+    this.probe = this.lifts.buildStationSurfaces(this.probe);
     const spawn = this.spawnPoint();
     this.setLoading(0.35, 'Loading trees');
     this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar);
@@ -340,7 +341,10 @@ export class Game {
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
       this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
     }
-    this.lifts.update();
+    this.lifts.update([
+      ...(this.player.ride ? [this.player.ride] : []),
+      ...[...(this.net?.remotes.values() ?? [])].flatMap(r => r.ride ? [r.ride] : []),
+    ]);
     this.ambient?.update(dt, this.player.position, this.camera.position);
     this.updateCamera(dt);
     for (const f of this.onFrame) f(dt);
@@ -557,12 +561,12 @@ export class Game {
     const pl = this.player;
     if (pl.ride) {
       const path = this.lifts.paths[pl.ride.lift];
-      const b = path.def.bottom;
-      const along = (pl.st.pos.x - b[0]) * path.ax + (pl.st.pos.z - b[2]) * path.az;
-      const remain = Math.max(0, (path.horiz - along) / path.def.speed);
+      const remain = path.remainingRideTime(pl.ride.chair, this.lifts.now());
       this.hud.hint(`${path.def.name} lift: ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')} to the top. Press <b>F</b> to skip.`);
     } else if (pl.inLoadZone >= 0) {
-      this.hud.hint(`Wait on the red line, the ${this.lifts.paths[pl.inLoadZone].def.name} chair is coming`);
+      const path = this.lifts.paths[pl.inLoadZone], t = this.lifts.now();
+      const wait = Math.ceil(path.nextChairAt(path.loadU, t).arrive - t);
+      this.hud.hint(`${path.def.name}: face uphill and wait at the red line. Next chair in ${wait} s.`);
     } else if (pl.st.mode === 'fallen' && pl.st.speed < 1) {
       this.hud.hint('You fell. Press <b>R</b> to get up');
     } else this.hud.hint(null);

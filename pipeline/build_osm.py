@@ -12,11 +12,13 @@ from official_runs import OFFICIAL, RENAME, BY_ID
 
 T = Transformer.from_crs(4326, 26913, always_xy=True)
 
-# Lift specs (DECISIONS.md D4). speed m/s, capacity persons/hour
+# Lift Blog's firsthand Sunlight inventory, checked 2026-11-08 (DECISIONS.md D15).
+# Convert feet/minute to SI exactly. Published capacity is nominal; installed chair count
+# and the model's measured rope loop determine actual headway, not the capacity label.
 LIFT_SPECS = {
-    "Primo": {"seats": 4, "speed": 2.3, "capacity": 1400, "type": "Fixed-grip quad chair (Leitner-Poma, 2025)"},
-    "Segundo": {"seats": 3, "speed": 2.3, "capacity": 1200, "type": "Fixed-grip triple chair (ex Arapahoe Basin, 2025)"},
-    "Tercero": {"seats": 3, "speed": 1.8, "capacity": 1000, "type": "Fixed-grip triple chair (1987)"},
+    "Primo": {"seats": 4, "speed": 2.286, "capacity": 1800, "chairCount": 115, "lengthFt": 5126, "verticalFt": 1464, "rideMinutes": 11.4, "towers": 17, "type": "Fixed-grip quad chair (Leitner-Poma, 2025)"},
+    "Segundo": {"seats": 3, "speed": 2.54, "capacity": 1400, "chairCount": 140, "lengthFt": 4492, "verticalFt": 1160, "rideMinutes": 9, "towers": 16, "type": "Fixed-grip triple chair (ex Arapahoe Basin, 2025)"},
+    "Tercero": {"seats": 3, "speed": 1.524, "capacity": 1200, "chairCount": 110, "lengthFt": 2983, "verticalFt": 500, "rideMinutes": 9.9, "towers": 20, "type": "Fixed-grip triple chair (Riblet, 1987)"},
 }
 STATION_CABLE_H = 3.6     # cable height above ground at bull wheels (m); seat ~0.6 m above snow at load
 MIN_CLEAR = 7.5           # minimum cable height above ground along spans (m)
@@ -35,7 +37,7 @@ class DEM:
         return r if r.size > 1 else r[0]
 
 
-def main():
+def main(lifts_only=False):
     dem = DEM()
     osm = json.load(open(RAW / "osm.json"))
     nodes = {e["id"]: e for e in osm["elements"] if e["type"] == "node"}
@@ -95,7 +97,8 @@ def main():
         spacing = spec["seats"] * spec["speed"] * 3600 / spec["capacity"]
         out["lifts"].append({
             "name": name, "osmId": w["id"], "kind": spec["type"], "seats": spec["seats"], "speed": spec["speed"],
-            "capacity": spec["capacity"], "chairSpacing": round(spacing, 2),
+            "capacity": spec["capacity"], "chairSpacing": round(spacing, 2), "chairCount": spec["chairCount"],
+            "reference": {"url": "https://liftblog.com/sunlight-co/", **{k: spec[k] for k in ("lengthFt", "verticalFt", "rideMinutes", "towers")}},
             "bottom": [round(A[0], 2), round(float(ground[0]), 2), round(-A[1], 2)],
             "top": [round(B[0], 2), round(float(ground[-1]), 2), round(-B[1], 2)],
             "horizontalLength": round(horiz, 1), "slopeLength": round(slope_len, 1),
@@ -105,6 +108,12 @@ def main():
         })
         print(f"lift {name}: horiz {horiz:.0f} m, slope {slope_len:.0f} m, vertical {ground[-1]-ground[0]:.0f} m, "
               f"{sum(1 for _, k in sup if k == 'tower')} towers, tower heights {np.round(top - ground, 1)[1:-1].tolist()}")
+
+    if lifts_only:
+        existing = json.loads((PUBLIC / "resort.json").read_text())
+        existing["lifts"] = out["lifts"]
+        (PUBLIC / "resort.json").write_text(json.dumps(existing, separators=(",", ":")))
+        return
 
     # ---------------- runs ----------------
     seen = set()
@@ -176,4 +185,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(lifts_only="--lifts-only" in sys.argv)

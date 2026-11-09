@@ -8,6 +8,8 @@ export interface LiftDef {
   bottom: [number, number, number]; top: [number, number, number];
   horizontalLength: number; slopeLength: number; vertical: number;
   supports: LiftSupport[];
+  chairCount?: number;
+  reference?: { url: string; lengthFt: number; verticalFt: number; rideMinutes: number; towers: number };
 }
 
 export const GAUGE = 5.2;        // m between uphill and downhill rope
@@ -15,6 +17,12 @@ export const HANGER = 3.0;       // m from rope to seat surface
 export const SAG_FRAC = 0.018;   // must match pipeline/build_osm.py
 export const LOAD_OFFSET = 7.0;  // m from bottom bull wheel center to the load line
 export const UNLOAD_OFFSET = 6.5; // m before the top bull wheel center where riders stand up
+export const SEAT_SPACING = 0.6;
+export const SEAT_TOP = 0.035;
+export const LOAD_SEAT_HEIGHT = 0.52; // estimated maintained snow-to-seat clearance, not a surveyed Sunlight dimension
+export const RIDER_ROOT_BELOW_SEAT = 0.35; // pelvis is 0.45 m above the animated model origin
+export const RIDER_ROOT_FORWARD = 0.25; // seated hips are 0.25 m behind the model origin
+export const MAX_BOARD_SPEED = 1.5;
 
 export interface P3 { x: number; y: number; z: number }
 
@@ -51,7 +59,7 @@ export class LiftPath {
     }
     this.lineLen = acc;
     this.loopLen = 2 * this.lineLen + Math.PI * GAUGE;
-    this.chairCount = Math.max(2, Math.round(this.loopLen / def.chairSpacing));
+    this.chairCount = def.chairCount ?? Math.max(2, Math.round(this.loopLen / def.chairSpacing));
     this.spacing = this.loopLen / this.chairCount;
   }
 
@@ -141,6 +149,7 @@ export class LiftPath {
   get loadU() { return this.sAtH(LOAD_OFFSET); }
   get unloadU() { return this.sAtH(this.horiz - UNLOAD_OFFSET); }
   sAtH(h: number) {
+    h = Math.max(0, Math.min(this.horiz, h));
     const T = this.sTable, H = this.hTable;
     let lo = 0, hi = H.length - 1;
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (H[m] < h) lo = m; else hi = m; }
@@ -167,9 +176,46 @@ export class LiftPath {
     const p = this.ropePoint(LOAD_OFFSET, 1);
     return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
   }
-  unloadPoint(): { x: number; z: number; heading: number } {
-    const p = this.ropePoint(this.horiz - UNLOAD_OFFSET + 3, 1);
+  unloadPoint(seat = (this.def.seats - 1) / 2): { x: number; z: number; heading: number } {
+    const p = this.ropePoint(this.horiz - UNLOAD_OFFSET, 1);
+    const off = this.seatOffset(seat);
+    p.x += this.rx * off; p.z += this.rz * off;
     return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
+  }
+
+  seatOffset(seat: number) { return (seat - (this.def.seats - 1) / 2) * SEAT_SPACING; }
+
+  /** One seat transform for rendering, player physics and the authoritative server. */
+  seatPoint(chair: number, seat: number, t: number) {
+    const lp = this.loopPoint(this.chairU(chair, t));
+    const off = this.seatOffset(seat), h = lp.heading;
+    lp.p.x += Math.cos(h) * off + Math.sin(h) * 0.12;
+    lp.p.z += -Math.sin(h) * off + Math.cos(h) * 0.12;
+    lp.p.y += -HANGER + SEAT_TOP;
+    return lp;
+  }
+
+  riderPoint(chair: number, seat: number, t: number) {
+    const lp = this.seatPoint(chair, seat, t);
+    lp.p.x -= Math.sin(lp.heading) * RIDER_ROOT_FORWARD;
+    lp.p.z -= Math.cos(lp.heading) * RIDER_ROOT_FORWARD;
+    lp.p.y -= RIDER_ROOT_BELOW_SEAT;
+    return lp;
+  }
+
+  stationHeight(top: boolean, h = top ? this.horiz - UNLOAD_OFFSET : LOAD_OFFSET) {
+    return this.cableY(Math.max(0, Math.min(this.horiz, h))) - HANGER + SEAT_TOP - LOAD_SEAT_HEIGHT;
+  }
+
+  /** Catch a chair which actually crossed the load line, including across a slow render frame. */
+  crossingChair(previousTime: number, t: number): number | null {
+    if (t < previousTime || t - previousTime > 2) return null;
+    const next = this.nextChairAt(this.loadU, previousTime);
+    return next.arrive <= t + 1e-7 ? next.index : null;
+  }
+
+  remainingRideTime(chair: number, t: number) {
+    return Math.max(0, (this.unloadU - this.chairU(chair, t)) / this.def.speed);
   }
 
   /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
@@ -178,8 +224,8 @@ export class LiftPath {
     const dx = x - b[0], dz = z - b[2];
     const along = dx * this.ax + dz * this.az;
     const across = dx * this.rx + dz * this.rz;
-    return along > LOAD_OFFSET - 4.5 && along < LOAD_OFFSET + 1.2 && Math.abs(across - GAUGE / 2) < 1.8;
+    return along > LOAD_OFFSET - 4.5 && along < LOAD_OFFSET + 1.2 && Math.abs(across - GAUGE / 2) < this.def.seats * SEAT_SPACING / 2 + 0.2;
   }
 
-  rideTime() { return this.lineLen / this.def.speed; }
+  rideTime() { return (this.unloadU - this.loadU) / this.def.speed; }
 }

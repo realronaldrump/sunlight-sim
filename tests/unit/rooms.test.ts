@@ -1,10 +1,25 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { Lobby, Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
 
 function fakeConn() {
   const msgs: ServerMsg[] = [];
   return { msgs, conn: { send: (m: ServerMsg) => msgs.push(m), close: () => {} } };
+}
+afterEach(() => vi.restoreAllMocks());
+
+function boardFixture() {
+  const lifts = loadLifts(), lift = lifts[0];
+  const chair = lift.nextChairAt(lift.loadU, 1000);
+  let clock = chair.arrive;
+  vi.spyOn(Date, 'now').mockImplementation(() => clock * 1000);
+  const room = new Room('RIDE', lifts), lp = lift.loadPoint();
+  const join = () => {
+    const c = fakeConn(), p = room.join(c.conn, 'Skier', '#123456')!;
+    room.handle(p.id, { type: 'state', s: { ...p.s, x: lp.x, z: lp.z, y: lift.stationHeight(false), heading: lp.heading } });
+    return { p, c };
+  };
+  return { room, lift, chair, join, at: (t: number) => { clock = t; } };
 }
 
 describe('multiplayer rooms', () => {
@@ -46,27 +61,61 @@ describe('multiplayer rooms', () => {
   });
 
   it('assigns seats on one chair to friends and rejects boarding a chair away from the load line', () => {
-    const lifts = loadLifts();
-    const room = new Room('Y', lifts);
-    const a = fakeConn(), b = fakeConn();
-    const pa = room.join(a.conn, 'A', '#123456')!, pb = room.join(b.conn, 'B', '#654321')!;
-    const lift = lifts[0];
-    const t = Date.now() / 1000;
-    const next = lift.nextChairAt(lift.loadU, t);
-    // the chair arriving now-ish is accepted (within tolerance)
-    room.handle(pa.id, { type: 'board', lift: 0, chair: next.index, seat: 1 });
-    room.handle(pb.id, { type: 'board', lift: 0, chair: next.index, seat: 1 });
-    const ra = room.players.get(pa.id)!.ride, rb = room.players.get(pb.id)!.ride;
-    if (next.arrive - t < 2.0) {
-      expect(ra?.chair).toBe(next.index);
-      expect(rb?.chair).toBe(next.index);
-      expect(ra?.seat).not.toBe(rb?.seat);
+    const { room, lift, chair, join } = boardFixture();
+    const a = join(), b = join();
+    for (const q of [a, b]) room.handle(q.p.id, { type: 'board', lift: 0, chair: chair.index, seat: 1 });
+    expect(a.p.ride?.chair).toBe(chair.index);
+    expect(b.p.ride?.chair).toBe(chair.index);
+    expect(a.p.ride?.seat).not.toBe(b.p.ride?.seat);
+    room.snapshot();
+    expect(Math.hypot(a.p.s.x - b.p.s.x, a.p.s.z - b.p.s.z)).toBeCloseTo(0.6, 7);
+    const far = (chair.index + Math.floor(lift.chairCount / 2)) % lift.chairCount;
+    const c = join();
+    room.handle(c.p.id, { type: 'board', lift: 0, chair: far, seat: 0 });
+    expect(c.c.msgs.some(m => m.type === 'boardRejected')).toBe(true);
+  });
+
+  it('rejects distant, fallen, airborne, fast, backward and invalid boarding requests', () => {
+    const { room, lift, chair, join } = boardFixture();
+    for (const bad of ['distance', 'height', 'fallen', 'air', 'speed', 'heading', 'chair', 'seat']) {
+      const { p, c } = join();
+      if (bad === 'distance') p.s.x += 100;
+      if (bad === 'height') p.s.y += 10;
+      if (bad === 'fallen' || bad === 'air') p.s.mode = bad;
+      if (bad === 'speed') p.s.vx = 10;
+      if (bad === 'heading') p.s.heading += Math.PI;
+      room.handle(p.id, { type: 'board', lift: 0, chair: bad === 'chair' ? lift.chairCount : chair.index, seat: bad === 'seat' ? -1 : 0 });
+      expect(p.ride, bad).toBeNull();
+      expect(c.msgs.at(-1)?.type, bad).toBe('boardRejected');
+      room.leave(p.id);
     }
-    // a chair halfway up the lift is rejected
-    const far = (next.index + Math.floor(lift.chairCount / 2)) % lift.chairCount;
-    const c = fakeConn(); const pc = room.join(c.conn, 'C', '#000000')!;
-    room.handle(pc.id, { type: 'board', lift: 0, chair: far, seat: 0 });
-    expect(c.msgs.some((m) => m.type === 'boardRejected')).toBe(true);
+  });
+
+  it('rejects a full chair, preserves existing seats, and reuses a released seat', () => {
+    const { room, lift, chair, join } = boardFixture();
+    const riders = Array.from({ length: lift.def.seats + 1 }, join);
+    for (const r of riders) room.handle(r.p.id, { type: 'board', lift: 0, chair: chair.index, seat: 0 });
+    expect(riders.at(-1)!.p.ride).toBeNull();
+    expect(new Set(riders.slice(0, -1).map(r => r.p.ride?.seat)).size).toBe(lift.def.seats);
+    const original = { ...riders[0].p.ride! };
+    room.handle(riders[0].p.id, { type: 'board', lift: 0, chair: (chair.index + 1) % lift.chairCount, seat: 0 });
+    expect(riders[0].p.ride).toEqual(original);
+    room.leave(riders[0].p.id);
+    room.handle(riders.at(-1)!.p.id, { type: 'board', lift: 0, chair: chair.index, seat: 0 });
+    expect(riders.at(-1)!.p.ride?.seat).toBe(original.seat);
+  });
+
+  it('unloads at the actual unload line, restores skiing, and releases all seat occupancy', () => {
+    const f = boardFixture(), { p } = f.join();
+    f.room.handle(p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 0 });
+    f.at(f.chair.arrive + f.lift.rideTime() - 0.1); f.room.snapshot();
+    expect(p.ride).not.toBeNull();
+    f.at(f.chair.arrive + f.lift.rideTime() + 0.1); f.room.snapshot();
+    expect(p.ride).toBeNull();
+    expect(p.s.mode).toBe('skiing');
+    expect(p.s.x).toBeCloseTo(f.lift.unloadPoint(0).x, 8);
+    expect(p.s.y).toBeCloseTo(f.lift.stationHeight(true), 8);
+    expect(f.room.seats.size).toBe(0);
   });
 
   it('relays sanitized chat', () => {

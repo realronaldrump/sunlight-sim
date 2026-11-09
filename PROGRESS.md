@@ -1,5 +1,14 @@
 # Progress
 
+## Lift mechanics audit (November 8, 2026, in progress)
+- Owner requested verification of boarding/riding, accurate Sunlight timing/physics, documentation and deployment.
+- Starting production build, 30 existing unit tests, 3 pipeline checks and 6 browser scenarios passed. Two then-untracked skier-rendering tests initially failed during concurrent character implementation; those now pass with that implementation. Preserve other chats' character/building/snow/interface work.
+- Reproduced estimated-speed mismatch and incorrect ride-time endpoints with failing tests before changing shared lift timing. Published specs and uncertainty are documented in D15. Updated all three speeds and installed chair counts in the rerunnable pipeline and resort data.
+- Added physical/rendered snow loading pads and exit ramps, shared seat transforms, actual swept chair pickup, upright/slow/uphill eligibility, same-lane unloading at chair speed, suspension recovery and cable-distance countdowns.
+- Server now validates the skier as well as the chair, assigns distinct seats, rejects full/invalid requests without losing reservations, and releases seats at the unload line. Removed optimistic boarding and prevented ambient riders overlapping player chairs.
+- Current working-tree validation: 53 unit tests and production build passed. New tests simulate complete real-time rides on all three lifts, slow frames, a full-loop suspension, snow-grid consistency, bad boarding requests, full-chair behavior, shared seat coordinates and natural unloading. No live deploy has been made for this lift change yet.
+- Next: browser boarding/riding/unloading and close-up visual review on each lift, regenerate ACCURACY.md from the shared path, finish release validation, deploy, verify the public alias, and record the result here.
+
 ## U.S. units update (November 8, 2026)
 - Owner requested U.S. units throughout the game and deployment when complete.
 - Updated the HUD to mph and feet, and both lift guidance and trail-map run lengths to feet or miles. Shared display helpers use exact conversions and U.S. number formatting; simulation and world data remain in SI units. See D14.

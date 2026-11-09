@@ -2,14 +2,14 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { LiftPath, LiftDef, LOAD_OFFSET } from '../../shared/lifts';
+import { LiftPath, LiftDef, LOAD_OFFSET, MAX_BOARD_SPEED } from '../../shared/lifts';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number }
 
 let liftCache: LiftPath[] | null = null;
 export function loadLifts(): LiftPath[] {
@@ -71,6 +71,17 @@ export class Room {
     if (m && m.get(p.ride.seat) === p.id) m.delete(p.ride.seat);
     if (m && m.size === 0) this.seats.delete(k);
     p.ride = null;
+    p.unloadAt = undefined;
+  }
+
+  private unload(p: Player) {
+    if (!p.ride) return;
+    const path = this.lifts[p.ride.lift], up = path.unloadPoint(p.ride.seat);
+    p.s = { ...p.s, x: up.x, y: path.stationHeight(true), z: up.z, heading: up.heading,
+      vx: path.ax * path.def.speed, vy: 0, vz: path.az * path.def.speed, mode: 'skiing', edge: 0, plow: 0, tuck: 0, fallen: 0 };
+    p.t = now();
+    this.freeSeat(p);
+    this.broadcast({ type: 'unloaded', id: p.id });
   }
 
   handle(id: string, msg: ClientMsg) {
@@ -99,18 +110,32 @@ export class Room {
       }
       case 'board': {
         const lift = this.lifts[msg.lift];
-        if (!lift) { p.conn.send({ type: 'boardRejected', reason: 'no such lift' }); return; }
-        // the chair must be at the load line right now (2.5 s tolerance for latency)
-        const u = lift.chairU(msg.chair | 0, t);
-        const du = Math.abs(u - lift.sAtH(LOAD_OFFSET));
-        if (this.lifts.length && du > lift.def.speed * 2.5 + 3 && du < lift.loopLen - lift.def.speed * 2.5) {
+        const reject = (reason: string) => p.conn.send({ type: 'boardRejected', reason });
+        if (!Number.isInteger(msg.lift) || !lift) { reject('no such lift'); return; }
+        if (!Number.isInteger(msg.chair) || msg.chair < 0 || msg.chair >= lift.chairCount || !Number.isInteger(msg.seat) || msg.seat < 0 || msg.seat >= lift.def.seats) {
+          reject('invalid chair or seat'); return;
+        }
+        if (p.ride) {
+          if (p.ride.lift === msg.lift && p.ride.chair === msg.chair) p.conn.send({ type: 'boarded', id: p.id, ...p.ride });
+          else reject('already riding');
+          return;
+        }
+        const along = (p.s.x - lift.def.bottom[0]) * lift.ax + (p.s.z - lift.def.bottom[2]) * lift.az;
+        if (!lift.inLoadZone(p.s.x, p.s.z) || Math.abs(along - LOAD_OFFSET) > 0.8 || Math.abs(p.s.y - lift.stationHeight(false)) > 0.8 ||
+            !['standing', 'skiing'].includes(p.s.mode) || Math.hypot(p.s.vx, p.s.vy, p.s.vz) > MAX_BOARD_SPEED ||
+            Math.cos(p.s.heading - lift.loadPoint().heading) < 0.5) {
+          reject('stand facing uphill at the load line'); return;
+        }
+        // A bounded network allowance around the load crossing, not anywhere on the loop.
+        const u = lift.chairU(msg.chair, t);
+        const delta = Math.abs(u - lift.loadU), du = Math.min(delta, lift.loopLen - delta);
+        if (du > lift.def.speed * 0.75 + 0.15) {
           p.conn.send({ type: 'boardRejected', reason: 'chair not at the load line' }); return;
         }
-        this.freeSeat(p);
-        const key = `${msg.lift}/${msg.chair | 0}`;
+        const key = `${msg.lift}/${msg.chair}`;
         let m = this.seats.get(key);
         if (!m) { m = new Map(); this.seats.set(key, m); }
-        let seat = Math.max(0, Math.min(lift.def.seats - 1, msg.seat | 0));
+        let seat = msg.seat;
         if (m.has(seat)) {
           const free = [...Array(lift.def.seats).keys()].filter((i) => !m!.has(i));
           if (!free.length) { p.conn.send({ type: 'boardRejected', reason: 'chair full' }); return; }
@@ -118,13 +143,13 @@ export class Room {
           seat = free[0];
         }
         m.set(seat, p.id);
-        p.ride = { lift: msg.lift, chair: msg.chair | 0, seat };
-        this.broadcast({ type: 'boarded', id: p.id, lift: msg.lift, chair: msg.chair | 0, seat });
+        p.ride = { lift: msg.lift, chair: msg.chair, seat };
+        p.unloadAt = t + lift.remainingRideTime(msg.chair, t);
+        this.broadcast({ type: 'boarded', id: p.id, ...p.ride });
         return;
       }
       case 'unload':
-        this.freeSeat(p);
-        this.broadcast({ type: 'unloaded', id: p.id });
+        this.unload(p);
         return;
       case 'chat': {
         const text = String(msg.text ?? '').replace(/[\u0000-\u001f]/g, '').slice(0, 200).trim();
@@ -144,10 +169,11 @@ export class Room {
       if (p.ride) {
         const lift = this.lifts[p.ride.lift];
         if (lift) {
-          const lp = lift.loopPoint(lift.chairU(p.ride.chair, t));
-          p.s = { ...p.s, x: lp.p.x, y: lp.p.y - 3.4, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
-          // auto-release at the top if the client never sent unload
-          if (!lp.uphill) { this.freeSeat(p); this.broadcast({ type: 'unloaded', id: p.id }); }
+          const lp = lift.riderPoint(p.ride.chair, p.ride.seat, t);
+          p.s = { ...p.s, x: lp.p.x, y: lp.p.y, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
+          p.t = t;
+          // Deadline also catches a suspended client which missed an entire loop.
+          if (t >= (p.unloadAt ?? Infinity) || !lp.uphill) this.unload(p);
         }
       }
     }

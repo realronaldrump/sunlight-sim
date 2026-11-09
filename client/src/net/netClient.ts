@@ -74,6 +74,7 @@ export class NetClient {
         for (const r of this.remotes.values()) this.group.remove(r.model.root);
         this.remotes.clear();
         this.player.requestBoard = undefined;
+        this.pendingBoard = null;
         done(false);
       };
       ws.onmessage = (ev) => {
@@ -99,11 +100,16 @@ export class NetClient {
     this.player.requestBoard = (lift, chair, seat) => {
       if (this.pendingBoard && performance.now() - this.pendingBoard.at < 1500) return;
       this.pendingBoard = { lift, chair, seat, at: performance.now() };
-      // board optimistically so the chair never leaves without us; the server may move us to a free seat
-      this.player.board(lift, chair, seat);
+      // Validate the current load-line position before requesting a seat. Wait for acceptance
+      // so a full chair/rejection cannot leave a player suspended in midair.
+      this.sendState();
       this.send({ type: 'board', lift, chair, seat });
     };
-    this.player.onUnload = () => this.send({ type: 'unload' });
+    this.player.onUnload = (_lift, teleport) => {
+      this.pendingBoard = null;
+      this.send({ type: 'unload' });
+      if (teleport) this.markTeleport();
+    };
     this.onStatus?.(`Joined room ${m.room}`);
   }
 
@@ -136,10 +142,11 @@ export class NetClient {
         break;
       case 'boarded':
         if (m.id === this.id) {
+          const pending = this.pendingBoard;
           this.pendingBoard = null;
-          if (this.player.ride && (this.player.ride.chair !== m.chair || this.player.ride.seat !== m.seat || this.player.ride.lift !== m.lift)) {
-            this.player.ride = { ...this.player.ride, lift: m.lift, chair: m.chair, seat: m.seat };
-          }
+          const path = this.lifts.paths[m.lift];
+          if (pending?.lift === m.lift && pending.chair === m.chair && path?.inLoadZone(this.player.st.pos.x, this.player.st.pos.z)) this.player.board(m.lift, m.chair, m.seat);
+          else if (!this.player.ride) this.send({ type: 'unload' });
         } else {
           const r = this.remotes.get(m.id);
           if (r) r.ride = { lift: m.lift, chair: m.chair, seat: m.seat };
@@ -147,10 +154,10 @@ export class NetClient {
         break;
       case 'boardRejected':
         this.pendingBoard = null;
-        if (this.player.ride) { this.player.ride = null; this.player.st.mode = 'standing'; }
         this.onStatus?.(`Could not board: ${m.reason}`);
         break;
       case 'unloaded': {
+        if (m.id === this.id && this.player.ride) this.player.unload();
         const r = this.remotes.get(m.id);
         if (r) r.ride = null;
         break;
@@ -178,20 +185,21 @@ export class NetClient {
 
   serverNow() { return Date.now() / 1000 + this.clockOffset; }
 
+  private sendState() {
+    const st = this.player.st;
+    this.send({ type: 'state', teleport: this.teleportPending || undefined, s: {
+      x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
+      mode: this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
+    } });
+    this.teleportPending = false;
+  }
+
   update(dt: number) {
     if (!this.connected) return;
     this.sendTimer += dt;
     if (this.sendTimer >= 1 / TICK_HZ) {
       this.sendTimer = 0;
-      const st = this.player.st;
-      this.send({
-        type: 'state', teleport: this.teleportPending || undefined,
-        s: {
-          x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
-          mode: this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
-        },
-      });
-      this.teleportPending = false;
+      this.sendState();
     }
     const renderT = this.serverNow() - 0.12;
     const tmp = new THREE.Vector3();
@@ -201,8 +209,8 @@ export class NetClient {
       let heading = 0;
       if (r.ride) {
         // ride exactly on the shared chair clock
-        const info = this.lifts.seatTransform(r.ride.lift, r.ride.chair, r.ride.seat, this.lifts.now(), tmp);
-        r.model.root.position.set(tmp.x, tmp.y - 0.45, tmp.z);
+        const info = this.lifts.paths[r.ride.lift].riderPoint(r.ride.chair, r.ride.seat, this.lifts.now());
+        r.model.root.position.set(info.p.x, info.p.y, info.p.z);
         heading = info.heading;
         s = r.last;
       } else {
