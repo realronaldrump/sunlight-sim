@@ -9,7 +9,7 @@ import { mx_noise_float, positionWorld, vec3 } from 'three/tsl';
 import type { ColliderGrid } from '../../../shared/collision';
 import type { BuildingDef } from './sunlightBuildings';
 
-export interface MeasuredBuilding extends BuildingDef { grade?: [number, number]; eave?: number; roofTop?: number; roofForm?: 'pitched' | 'flat' }
+export interface MeasuredBuilding extends BuildingDef { grade?: [number, number]; eave?: number; roofTop?: number; roofForm?: 'pitched' | 'flat'; sign?: { text: string; bg: string; fg: string; cross?: boolean } }
 
 function rng(seed: number) { let s = Math.abs(seed) % 2147483646 + 1; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 
@@ -109,6 +109,9 @@ export function buildGenericBuilding(b: MeasuredBuilding, height: (x: number, z:
   const trim = M.trim[Math.floor(r() * M.trim.length)], roofMat = M.roof[Math.floor(r() * M.roof.length)];
   const P = new Parts();
   const T = 0.25;
+  const balconyDepth = 1.6;
+  const firstBalconyY = gmin + 0.45 + storeyH;
+  let signPosition: { x: number; z: number; y: number; yaw: number } | undefined;
   // walls with foundation, framed windows and one door on the longest downhill-facing edge
   let doorEdge = 0, doorScore = -Infinity;
   pts.forEach((p, i) => { const q = pts[(i + 1) % pts.length], L = Math.hypot(q[0] - p[0], q[1] - p[1]); const s = L - (local((p[0] + q[0]) / 2, (p[1] + q[1]) / 2) - gmin) * 3; if (s > doorScore) { doorScore = s; doorEdge = i; } });
@@ -116,6 +119,7 @@ export function buildGenericBuilding(b: MeasuredBuilding, height: (x: number, z:
     const q = pts[(i + 1) % pts.length], dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz);
     if (L < 0.3) return;
     const ux = dx / L, uz = dz / L;
+    const hasBalcony = storeys >= 2 && L > 10 && i === doorEdge;
     const edgeGround = Math.min(local(p[0], p[1]), local(q[0], q[1]), local((p[0] + q[0]) / 2, (p[1] + q[1]) / 2));
     const sill0 = Math.max(gmin + 0.45, edgeGround + 0.35);
     P.edgeBox(M!.concrete, p[0], p[1], ux, uz, 0, L, gmin - 1.2, sill0, -T, 0.02);
@@ -149,6 +153,16 @@ export function buildGenericBuilding(b: MeasuredBuilding, height: (x: number, z:
       P.edgeBox(trim, p[0], p[1], ux, uz, o.u1, o.u1 + f, o.y0, o.y1 + f, -0.05, 0.05);
       P.edgeBox(trim, p[0], p[1], ux, uz, o.u0 - f, o.u1 + f, o.y1, o.y1 + f, -0.05, 0.06);
       if (o.door) {
+        if (b.sign) {
+          const u = (o.u0 + o.u1) / 2;
+          const depth = hasBalcony ? balconyDepth + 0.02 : 0.03;
+          signPosition = {
+            x: p[0] + ux * u - uz * depth,
+            z: p[1] + uz * u + ux * depth,
+            y: hasBalcony ? firstBalconyY + 0.5 : o.y1 + 0.85,
+            yaw: Math.atan2(-uz, ux),
+          };
+        }
         P.edgeBox(M!.door, p[0], p[1], ux, uz, o.u0, o.u1, o.y0, o.y1, -0.12, -0.08);
         P.edgeBox(M!.concrete, p[0], p[1], ux, uz, o.u0 - 0.4, o.u1 + 0.4, o.y0 - 0.2, o.y0, 0, 1.0);
         P.edgeBox(trim, p[0], p[1], ux, uz, o.u0 - 0.5, o.u1 + 0.5, o.y1 + 0.25, o.y1 + 0.35, 0, 1.0); // door canopy
@@ -160,13 +174,13 @@ export function buildGenericBuilding(b: MeasuredBuilding, height: (x: number, z:
       }
     }
     // balconies on the long, downhill-facing upper storeys of condos
-    if (storeys >= 2 && L > 10 && i === doorEdge) {
+    if (hasBalcony) {
       for (let s = 1; s < storeys; s++) {
-        const y = gmin + 0.5 + s * storeyH - 0.05;
-        P.edgeBox(M!.deck, p[0], p[1], ux, uz, 0.4, L - 0.4, y - 0.18, y, 0, 1.6);
-        P.edgeBox(trim, p[0], p[1], ux, uz, 0.4, L - 0.4, y + 0.95, y + 1.02, 1.5, 1.6);
-        for (let u = 0.45; u < L - 0.4; u += 0.14) P.edgeBox(trim, p[0], p[1], ux, uz, u, u + 0.03, y, y + 0.95, 1.53, 1.56);
-        P.edgeBox(M!.snow, p[0], p[1], ux, uz, 0.45, L - 0.45, y + 1.02, y + 1.07, 1.5, 1.6);
+        const y = firstBalconyY + (s - 1) * storeyH;
+        P.edgeBox(M!.deck, p[0], p[1], ux, uz, 0.4, L - 0.4, y - 0.18, y, 0, balconyDepth);
+        P.edgeBox(trim, p[0], p[1], ux, uz, 0.4, L - 0.4, y + 0.95, y + 1.02, balconyDepth - 0.1, balconyDepth);
+        for (let u = 0.45; u < L - 0.4; u += 0.14) P.edgeBox(trim, p[0], p[1], ux, uz, u, u + 0.03, y, y + 0.95, balconyDepth - 0.07, balconyDepth - 0.04);
+        P.edgeBox(M!.snow, p[0], p[1], ux, uz, 0.45, L - 0.45, y + 1.02, y + 1.07, balconyDepth - 0.1, balconyDepth);
       }
     }
   });
@@ -231,6 +245,19 @@ export function buildGenericBuilding(b: MeasuredBuilding, height: (x: number, z:
   }
   const group = new THREE.Group(); group.name = b.name || `building-${b.id}`;
   P.build(group);
+  if (b.sign && signPosition) {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
+    const c2 = cv.getContext('2d')!;
+    c2.fillStyle = b.sign.bg; c2.fillRect(0, 0, 512, 128);
+    if (b.sign.cross) { c2.fillStyle = '#d61f1f'; c2.fillRect(28, 44, 72, 40); c2.fillRect(44, 28, 40, 72); }
+    c2.fillStyle = b.sign.fg; c2.font = 'bold 58px Helvetica, Arial, sans-serif'; c2.textBaseline = 'middle';
+    c2.fillText(b.sign.text, b.sign.cross ? 120 : 30, 66, b.sign.cross ? 370 : 452);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.6 }));
+    m.position.set(signPosition.x, signPosition.y, signPosition.z);
+    m.rotation.y = signPosition.yaw;
+    group.add(m);
+  }
   colliders.add({ type: 'box', x: o.cx, z: o.cz, hx: o.L / 2, hz: o.W / 2, yaw: -Math.atan2(o.az, o.ax), top: ridgeTop });
   return group;
 }

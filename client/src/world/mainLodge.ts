@@ -649,7 +649,13 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
   for (const [x0, x1, z0, z1] of [[A.x0, A.x1, A.z1 - 0.05, A.z1 + 0.1], [A.x1 - 0.05, A.x1 + 0.1, A.z0, A.z1], [HX, A.x1, A.z0 - 0.1, A.z0 + 0.05]]) k.box(M.blueTrim, x0, x1, aHeight - 0.45, aHeight + 0.05, z0, z1);
   k.box(M.snow, A.x0 + 0.1, A.x1 - 0.1, aHeight - 0.1, aHeight + 0.08, A.z0 + 0.1, A.z1 - 0.1);
   const logo = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'sunlight', size: 150, y: 120, color: '#262a2e', font: 'bold 150px Helvetica, Arial, sans-serif' }], '#f3efe3', 1024, 256, true), roughness: 0.6 });
-  k.plane(logo, 4.6, 1.15, A.x1 + 0.03, 2.45, 13.6, Math.PI / 2);
+  k.plane(logo, 4.6, 1.15, A.x1 + 0.03, 2.77, 12.1, Math.PI / 2);
+  // lift ticket window beside the logo, facing the snow where skiers arrive (location is an estimate)
+  const tix = new THREE.MeshStandardNodeMaterial({ map: signTex([{ text: 'LIFT TICKETS', size: 92, y: 128, color: '#ffffff' }], '#1d3b5e', 1024, 256), roughness: 0.6 });
+  k.plane(tix, 1.9, 0.48, A.x1 + 0.04, 2.45, 15.6, Math.PI / 2);
+  k.box(M.tableTop, A.x1, A.x1 + 0.35, 0.86, 0.92, 14.75, 16.45);
+  k.box(M.steel, A.x1 + 0.01, A.x1 + 0.03, 0.92, 2.15, 15.58, 15.62);
+  poi('counter', A.x1 + 1.2, -0.1, 15.6, Math.PI / 2, null, 'tickets');
   k.box(M.concrete, A.x0, A.x1, -1.6, -0.1, A.z0, A.z1);
 
   // ---------- south sun deck at snow grade with picnic tables, steps and ski racks on the snow

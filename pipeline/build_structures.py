@@ -1,4 +1,4 @@
-"""Add reference-checked base structures missing from OSM; preserve all run/lift data.
+"""Add reference-checked structures missing from OSM; preserve all run/lift data.
 
 The lodge roof outline is traced from the already downloaded 2023 NAIP, in the same local CRS.
 See DECISIONS.md and CREDITS.md for photo references and uncertainty. Run after build_osm.py.
@@ -12,6 +12,18 @@ LODGE = {
     "id": -1001, "name": "Sunlight Mountain Main Lodge", "style": "sunlight_lodge", "levels": 2,
     "points": [[112, -978], [127, -974], [119, -944], [104, -948], [107, -960], [99, -962], [102, -972], [110, -970]],
     "provenance": "Roof footprint traced from USDA NAIP 2023, about 1-2 m uncertainty. Main roof elevation from 2016 USGS lidar returns. Facade, floor, deck and roof-plant details from photos and estimates.",
+}
+# Summit ski patrol building west of the Primo top terminal: footprint from the green metal roof in
+# NAIP 2023 (about 9 x 15 m, long axis about 69 degrees from east toward north); heights are measured by
+# lidar_massing below. Corners in local (x, z).
+_c, _s = np.cos(np.radians(69)), np.sin(np.radians(69))
+_ax, _az = _c, -_s          # long axis in game x/z (z = -north)
+_bx, _bz = _s, _c           # short axis
+PATROL = {
+    "id": -1002, "name": "Ski patrol summit building", "levels": 1,
+    "points": [[round(-15.5 + _ax * a * 7.5 + _bx * b * 4.5, 2), round(980.0 + _az * a * 7.5 + _bz * b * 4.5, 2)] for a, b in [(-1, -1), (1, -1), (1, 1), (-1, 1)]],
+    "sign": {"text": "SKI PATROL", "bg": "#ffffff", "fg": "#c21b1b", "cross": True},
+    "provenance": "Roof outline traced from USDA NAIP 2023 (about 1-2 m uncertainty); eave and ridge from 2016 USGS lidar. Use as the patrol building is an inference from its summit location and Sunlight patrol practice.",
 }
 OVERRIDES = {
     789090241: {"name": "Brettelberg Condominiums", "style": "brettelberg", "levels": 2},
@@ -29,7 +41,7 @@ def _inside(x, y, poly):
 
 
 def lidar_massing(resort, dem, chm, meta):
-    """Eave, ridge and roof form for every generic OSM building from 2016 lidar first returns.
+    """Eave, ridge and roof form for generic buildings from 2016 lidar first returns.
 
     Grade is the DEM on a 2 m ring outside the footprint. Inside the eroded footprint the surface
     (DEM + canopy/structure height) gives roof elevations: the 20th percentile approximates the eave
@@ -39,7 +51,7 @@ def lidar_massing(resort, dem, chm, meta):
     x0, n0 = meta["x0"], meta["n0"]
     H, W = dem.shape
     for b in resort["buildings"]:
-        if b.get("style") or b["id"] < 0:
+        if b.get("style"):
             continue
         pts = np.array(b["points"], float)
         xs, ns = pts[:, 0], -pts[:, 1]
@@ -63,7 +75,8 @@ def lidar_massing(resort, dem, chm, meta):
         b["roofTop"] = round(float(ridge), 2)
         b["eave"] = round(float(p20 if ridge - p20 > 1.2 else ridge), 2)
         b["roofForm"] = "pitched" if ridge - p20 > 1.2 else "flat"
-        b["heightSource"] = "2016 USGS lidar first returns inside the OSM footprint"
+        footprint_source = "NAIP" if b["id"] == PATROL["id"] else "OSM"
+        b["heightSource"] = f"2016 USGS lidar first returns inside the {footprint_source} footprint"
 
 
 def apply(resort):
@@ -74,6 +87,10 @@ def apply(resort):
     if b is None:
         b = {}; resort["buildings"].append(b)
     b.update(LODGE)
+    patrol = next((p for p in resort["buildings"] if p["id"] == PATROL["id"]), None)
+    if patrol is None:
+        patrol = {}; resort["buildings"].append(patrol)
+    patrol.update(PATROL)
     meta = json.loads((PROC / "hi_1m.json").read_text())
     dem = np.load(PROC / "hi_1m.npy", mmap_mode="r")
     chm = np.load(PROC / "chm_1m.npy", mmap_mode="r")
