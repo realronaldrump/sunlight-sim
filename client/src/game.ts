@@ -222,13 +222,22 @@ export class Game {
       this.setLoading(0.55 + 0.4 * (i / 300), 'Building terrain');
       await new Promise((r) => setTimeout(r, 16));
     }
+    // Compile carrier/character/terrain materials before play. A cold shader stall
+    // must not consume the first approaching chair after the UI reports readiness.
+    this.setLoading(.98, 'Preparing mountain graphics');
+    await this.renderer.compileAsync(this.scene, this.camera);
     this.setLoading(1, 'Ready');
     document.getElementById('loading')?.classList.add('done');
     this.chat = new ChatUI();
     const startAudio = () => { if (this.params.get('mute') !== '1') this.audio.start(); };
     window.addEventListener('keydown', startAudio);
     window.addEventListener('pointerdown', startAudio);
+    const firstFrame = new Promise<void>(resolve => {
+      const once = () => { this.onFrame.splice(this.onFrame.indexOf(once), 1); resolve(); };
+      this.onFrame.push(once);
+    });
     this.renderer.setAnimationLoop(() => this.frame());
+    await firstFrame;
     // start menu (skipped by ?autostart=1 for tests: name/color/room come from the URL)
     let choice: { name: string; color: string; room: string | null };
     if (this.params.get('autostart') === '1') {
