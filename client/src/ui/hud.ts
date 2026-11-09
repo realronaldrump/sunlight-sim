@@ -70,6 +70,7 @@ export class Hud {
       <kbd>Space</kbd>: hockey stop<br>
       <kbd>R</kbd>: get up after a fall<br>
       <kbd>C</kbd>: camera (chase, first person, side profile)<br>
+      <kbd>G</kbd>: fly a drone / return to skiing<br>
       <kbd>M</kbd>: trail map (click a run to go there)<br>
       <kbd>V</kbd>: show/hide minimap<br>
       <kbd>O</kbd>: slope angle overlay<br>

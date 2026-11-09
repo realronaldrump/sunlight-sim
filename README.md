@@ -127,3 +127,25 @@ Press **V** or click the compact minimap button to hide or restore it. **+** and
 Sound starts after the first key press or click. N toggles sound; P opens the volume control. Ski contact responds to speed, edge pressure, braking, grooming and airborne state. Lift machinery has direction and distance, while chair rollers follow tower crossings. All source recordings are CC0; credits and exact processing are in `CREDITS.md` and `client/public/audio/sources.json`.
 
 The committed audio bank works without external requests. Rebuild it with `npm run data:audio` (Python environment above and FFmpeg; on macOS `brew install ffmpeg`). Raw recordings are cached in `data/raw/audio/`. If an individual recording cannot load, procedural audio remains available. Audio output and state transitions have dedicated unit and browser-render checks.
+
+## Drone exploration
+
+Click **Fly a drone** or press **G** (gamepad L3) to launch a small camera quadcopter above your skier. Press G again to return to skiing. Your skier stays parked; an occupied chair continues its normal ride and safely unloads while you explore. The minimap follows the drone and also marks your skier. Friends in a connected room can see your aircraft.
+
+| Drone control | Action |
+|---|---|
+| W / A / S / D | Forward / left / back / right relative to the drone heading |
+| E / Q | Climb / descend |
+| Mouse drag, or arrow keys | Turn and tilt the camera |
+| Double-click the game view | Capture mouse look; Escape releases it |
+| Space | Brake into a stabilized hover |
+| Shift / Ctrl | Fast / precision flight |
+| C | Switch between stabilized FPV and chase views |
+| R | Recall the drone above your skier |
+| G | Return to skiing |
+
+Gamepad: left stick moves, right stick looks, RT climbs, LT descends, A brakes, Y changes camera, B recalls, LB selects precision speed and RB selects fast speed. Menus, chat and loss of focus suspend flight input. Opening the full map still allows normal travel to a run; choosing a destination exits drone mode.
+
+Flight stays inside the resort boundary plus a 197 ft viewing apron, with a 394 ft ceiling above local terrain. An amber grid and HUD message warn when you approach the flight limit. Snow clearance and tree, tower and building collision volumes prevent flying through the modeled terrain and solid obstacles. Distant mountain scenery remains visible from the ski area. These limits are game exploration settings, not real-world permission to fly at Sunlight.
+
+The original quadcopter includes counter-rotating rotors, a stabilized camera gimbal and navigation lights. Four synthesized motor/propeller voices follow rotor RPM; the existing N mute and Options volume apply to drone sound too. Speeds and clearances use the same U.S. display units as skiing. No batteries, scores or time limits interrupt exploration.

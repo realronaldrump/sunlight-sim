@@ -59,7 +59,7 @@ function obstacle(p: Vec3, c: Collider): boolean {
   if (p.y-DRONE.radius > c.top) return false;
   if (c.type === 'cyl') return Math.hypot(p.x-c.x,p.z-c.z) < (c.r ?? 0)+DRONE.radius;
   const co = Math.cos(c.yaw ?? 0), si = Math.sin(c.yaw ?? 0), dx = p.x-c.x, dz = p.z-c.z;
-  return Math.abs(dx*co+dz*si) < (c.hx ?? 0)+DRONE.radius && Math.abs(-dx*si+dz*co) < (c.hz ?? 0)+DRONE.radius;
+  return Math.abs(dx*co-dz*si) < (c.hx ?? 0)+DRONE.radius && Math.abs(dx*si+dz*co) < (c.hz ?? 0)+DRONE.radius;
 }
 
 export function stepDrone(s: DroneState, input: DroneInput, world: FlightWorld, area: FlightArea, elapsed: number) {

@@ -12,6 +12,7 @@ export class InputManager {
   private pressed = new Set<string>();
   private padPrev: boolean[] = [];
   enabled = true;
+  private focused = true;
   steerSmoothed = 0;
 
   constructor() {
@@ -23,7 +24,8 @@ export class InputManager {
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.clear());
+    window.addEventListener('blur', () => { this.focused = false; this.clear(); });
+    window.addEventListener('focus', () => { this.focused = true; });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.clear(); });
   }
 
@@ -36,7 +38,7 @@ export class InputManager {
   }
 
   ski(dt: number): SkiInput {
-    if (!this.enabled) return { steer: 0, tuck: false, push: false, plow: 0, stop: true };
+    if (!this.enabled || !this.focused) return { steer: 0, tuck: false, push: false, plow: 0, stop: true };
     const k = this.keys;
     let steer = 0, fwd = 0, back = 0;
     if (k.has('KeyA') || k.has('ArrowLeft')) steer -= 1;
@@ -66,7 +68,7 @@ export class InputManager {
   }
 
   drone(): DroneInput {
-    if (!this.enabled || document.hidden) return { ...NO_DRONE_INPUT, brake: true };
+    if (!this.enabled || !this.focused || document.hidden) return { ...NO_DRONE_INPUT, brake: true };
     const k = this.keys, p = this.pad();
     const dead = (v = 0) => Math.abs(v) < .14 ? 0 : Math.sign(v)*(Math.abs(v)-.14)/.86;
     const key = (code: string) => Number(k.has(code));

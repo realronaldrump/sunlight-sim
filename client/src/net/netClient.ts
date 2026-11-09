@@ -1,12 +1,13 @@
 // Multiplayer client: sends the local skier at 15 Hz, interpolates remote skiers ~120 ms in the past,
 // asks the server for chair seats, syncs the lift clock, and relays chat.
 import * as THREE from 'three/webgpu';
-import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier } from '../../../shared/protocol';
+import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
 import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
 import type { Player } from '../skier/player';
 import type { LiftSystem } from '../lifts/liftSystem';
+import { DroneModel } from '../drone/droneModel';
 
 interface Sample { t: number; s: NetSkier }
 
@@ -17,6 +18,10 @@ export class RemoteSkier {
   label: THREE.Sprite;
   fallen = 0; sit = 0; time = 0;
   heading = 0;
+  drone: DroneModel | null = null;
+  flight: NetDrone | null = null;
+  flightPos = new THREE.Vector3();
+  flightYaw = 0;
   constructor(public id: string, public name: string, public color: string) {
     this.model = new SkierModel(new THREE.Color(color));
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
@@ -38,6 +43,7 @@ export class NetClient {
   id: string | null = null;
   room: string | null = null;
   connected = false;
+  localDrone: (() => NetDrone | null) | null = null;
   remotes = new Map<string, RemoteSkier>();
   readonly group = new THREE.Group();
   private sendTimer = 0;
@@ -73,7 +79,7 @@ export class NetClient {
       ws.onclose = () => {
         this.connected = false;
         this.onStatus?.('Disconnected from multiplayer server');
-        for (const r of this.remotes.values()) this.group.remove(r.model.root);
+        for (const r of this.remotes.values()) { this.group.remove(r.model.root); r.drone?.dispose(); }
         this.remotes.clear();
         this.player.requestBoard = undefined;
         this.pendingBoard = null;
@@ -122,6 +128,14 @@ export class NetClient {
     r.ride = p.ride;
     this.remotes.set(p.id, r);
     this.group.add(r.model.root);
+    this.setRemoteDrone(r,p.drone ?? null);
+  }
+
+  private setRemoteDrone(r: RemoteSkier,flight: NetDrone | null) {
+    if (flight && !r.drone) { r.drone=new DroneModel();this.group.add(r.drone.root); }
+    if (flight && !r.flight) { r.flightPos.set(flight.x,flight.y,flight.z);r.flightYaw=flight.yaw; }
+    r.flight=flight;
+    if(r.drone)r.drone.root.visible=!!flight;
   }
 
   private onMessage(m: ServerMsg) {
@@ -129,7 +143,7 @@ export class NetClient {
       case 'joined': this.addRemote(m.player); this.onChat?.('', `${m.player.name} joined`); break;
       case 'left': {
         const r = this.remotes.get(m.id);
-        if (r) { this.group.remove(r.model.root); this.remotes.delete(m.id); this.onChat?.('', `${r.name} left`); }
+        if (r) { this.group.remove(r.model.root); r.drone?.dispose(); this.remotes.delete(m.id); this.onChat?.('', `${r.name} left`); }
         break;
       }
       case 'snapshot':
@@ -140,6 +154,7 @@ export class NetClient {
           r.samples.push({ t: m.serverTime, s: p.s });
           if (r.samples.length > 30) r.samples.shift();
           r.ride = p.ride;
+          this.setRemoteDrone(r,p.drone ?? null);
         }
         break;
       case 'boarded':
@@ -189,7 +204,7 @@ export class NetClient {
 
   private sendState() {
     const st = this.player.st;
-    this.send({ type: 'state', teleport: this.teleportPending || undefined, s: {
+    this.send({ type: 'state', teleport: this.teleportPending || undefined, drone: this.localDrone?.() ?? null, s: {
       x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
       mode: this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
     } });
@@ -207,6 +222,13 @@ export class NetClient {
     const tmp = new THREE.Vector3();
     for (const r of this.remotes.values()) {
       r.time += dt;
+      if(r.flight && r.drone) {
+        const f=r.flight,k=1-Math.exp(-12*dt);
+        if(r.flightPos.distanceTo(new THREE.Vector3(f.x,f.y,f.z))>12)r.flightPos.set(f.x,f.y,f.z);
+        else r.flightPos.lerp(new THREE.Vector3(f.x,f.y,f.z),k);
+        r.flightYaw+=Math.atan2(Math.sin(f.yaw-r.flightYaw),Math.cos(f.yaw-r.flightYaw))*k;
+        r.drone.update(dt,{pos:r.flightPos,yaw:r.flightYaw,pitch:f.pitch,bank:f.bank,tilt:f.tilt,rpm:f.rpm});
+      }
       let s: NetSkier | undefined;
       let heading = 0;
       if (r.ride) {

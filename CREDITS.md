@@ -57,3 +57,8 @@ All recordings below are [CC0 1.0](https://creativecommons.org/publicdomain/zero
 - Original seeded chair contacts, friction creaks and procedural airflow are dedicated to CC0. No voice or music assets are used.
 - `pipeline/build_audio.py` rebuilds 14 PCM WAVs with NumPy, SciPy and FFmpeg. Run `npm run data:audio`; macOS needs `brew install ffmpeg` if it is not installed. Source downloads are cached in gitignored `data/raw/audio/`. Committed game-ready audio is 5.73 MiB and is fetched only after the audio gesture, independently of world loading.
 - `client/public/audio/sources.json` records source URLs, author, license, SHA-256, crop/processing steps, output hashes, duration, RMS and peak. The transformed textures preserve source detail but are artistic approximations of snow and machinery, not measurements of this resort's acoustics.
+
+## Camera drone
+- Quadcopter body, arms, motors, two-blade propellers, gimbal, lens, landing feet, LEDs and flight-boundary graphics: original procedural geometry in `client/src/drone/`. No third-party drone model, texture, logo or recording is shipped.
+- Motor and propeller Foley: original Web Audio synthesis in `client/src/drone/droneAudio.ts`, using RPM-dependent blade-passage harmonics and seeded stereo noise. Existing environmental recordings retain their credits above.
+- Reference only: DJI Mini 4 Pro official specifications, https://www.dji.com/mini-4-pro/specs (normal/sport/vertical speed envelope; consulted November 8, 2026). The in-game aircraft is an original generic model, not a branded replica. Three.js and Web Audio APIs retain the existing software licenses.

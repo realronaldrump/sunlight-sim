@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { LiftPath, LiftDef, LOAD_OFFSET, MAX_BOARD_SPEED } from '../../shared/lifts';
+import { DRONE, FlightArea } from '../../shared/dronePhysics';
+import type { NetDrone } from '../../shared/protocol';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
@@ -12,6 +14,7 @@ export interface Conn { send(msg: ServerMsg): void; close(): void }
 interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number }
 
 let liftCache: LiftPath[] | null = null;
+let droneArea: FlightArea | null = null;
 export function loadLifts(): LiftPath[] {
   if (liftCache) return liftCache;
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +26,7 @@ export function loadLifts(): LiftPath[] {
   for (const c of candidates) {
     try {
       const resort = JSON.parse(readFileSync(c, 'utf8'));
+      if (resort.boundary?.length >= 3) droneArea = new FlightArea(resort.boundary);
       liftCache = (resort.lifts as LiftDef[]).map((d) => new LiftPath(d));
       return liftCache;
     } catch { /* try next */ }
@@ -39,7 +43,7 @@ export class Room {
   players = new Map<string, Player>();
   // seat occupancy: `${lift}/${chair}` -> seat -> player id
   seats = new Map<string, Map<number, string>>();
-  constructor(public code: string, private lifts: LiftPath[]) {}
+  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea) {}
 
   get size() { return this.players.size; }
 
@@ -93,6 +97,8 @@ export class Room {
       case 'state': {
         const s = msg.s;
         if (!s || ![s.x, s.y, s.z, s.heading, s.vx, s.vy, s.vz].every(Number.isFinite)) return;
+        if (msg.drone == null) p.drone = null;
+        else if (this.validDrone(msg.drone,p,t)) p.drone = { ...msg.drone, rpm: [...msg.drone.rpm] };
         if (p.ride) { p.s = { ...p.s, mode: 'riding' }; p.t = t; return; } // chair position is server-derived
         const dt = Math.max(0.02, t - p.t);
         const dist = Math.hypot(s.x - p.s.x, s.z - p.s.z);
@@ -162,6 +168,16 @@ export class Room {
     }
   }
 
+  private validDrone(d: NetDrone,p: Player,t: number) {
+    if (![d.x,d.y,d.z,d.yaw,d.pitch,d.bank,d.tilt].every(Number.isFinite) ||
+      !Array.isArray(d.rpm) || d.rpm.length !== 4 || !d.rpm.every(v => Number.isFinite(v) && v >= 0 && v <= 12000)) return false;
+    if (!this.flightArea?.contains(d.x,d.z) || d.y < 2000 || d.y > 3500 || Math.abs(d.pitch) > Math.PI/2 || Math.abs(d.bank) > .7 || Math.abs(d.tilt) > .7 || Math.abs(d.yaw)>1e6) return false;
+    // First launch and recall must stay near the parked skier. Normal updates are speed-limited.
+    const nearSkier = Math.hypot(d.x-p.s.x,d.z-p.s.z) < 70 && Math.abs(d.y-p.s.y) < 80;
+    if (!p.drone) return nearSkier;
+    return nearSkier || Math.hypot(d.x-p.drone.x,d.y-p.drone.y,d.z-p.drone.z) <= (DRONE.fastSpeed+DRONE.climbSpeed)*Math.max(.02,t-p.t)+4;
+  }
+
   /** Authoritative snapshot (riders are placed on their chair by the server's lift clock). */
   snapshot(): ServerMsg {
     const t = now();
@@ -192,7 +208,7 @@ export class Room {
 }
 
 function info(p: Player): PlayerInfo {
-  return { id: p.id, name: p.name, color: p.color, s: p.s, ride: p.ride, t: p.t };
+  return { id: p.id, name: p.name, color: p.color, s: p.s, ride: p.ride, t: p.t, drone: p.drone ?? null };
 }
 
 export class Lobby {

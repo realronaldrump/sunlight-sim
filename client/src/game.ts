@@ -30,11 +30,13 @@ import { SurfaceMap } from '../../shared/surface';
 import type { TerrainProbe, Vec3 } from '../../shared/skiPhysics';
 import type { LiftDef } from '../../shared/lifts';
 import { mogulOffset } from '../../shared/moguls';
+import { FlightArea } from '../../shared/dronePhysics';
+import { DroneSystem } from './drone/droneSystem';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
 export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][]; outline?: number[][][] }
-export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[]; map?: { x0: number; x1: number; z0: number; z1: number } }
+export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[]; boundary?: number[][]; map?: { x0: number; x1: number; z0: number; z1: number } }
 
 export class Game {
   renderer!: THREE.WebGPURenderer;
@@ -66,6 +68,7 @@ export class Game {
   input = new InputManager();
   camRig!: CameraRig;
   hud!: Hud;
+  drone!: DroneSystem;
   params = new URLSearchParams(location.search);
   timer = new THREE.Timer();
   fps = 60;
@@ -173,6 +176,16 @@ export class Game {
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.camRig.blocked = (x, z) => this.colliders.query(x, z).some((c) => c.type === 'box' && Math.hypot(c.x - x, c.z - z) < 12);
     this.hud = new Hud();
+    this.drone = new DroneSystem(new FlightArea(this.resort.boundary ?? [
+      [-1200,0,-1200],[1200,0,-1200],[1200,0,1200],[-1200,0,1200],
+    ]), {
+      height: (x,z) => this.probe.height(x,z),
+      ready: (x,z) => { const level = this.hf.bestLevel(x,-z); return level >= 0 && level <= 1; },
+      obstacles: (x,z) => this.colliders.query(x,z),
+    }, this.camera,this.renderer.domElement,this.scene);
+    this.drone.hud.onToggle = () => this.toggleDrone();
+    this.drone.hud.onCamera = () => this.drone.cycleCamera();
+    this.drone.hud.onRecall = () => this.recallDrone();
 
     this.flyMode = this.params.get('fly') === '1';
     const cam = this.params.get('cam');
@@ -256,10 +269,36 @@ export class Game {
   }
 
   respawn() {
+    if (this.drone?.active) this.toggleDrone();
     const s = this.spawnPoint();
     this.player.teleport(s.x, s.z, s.heading);
     this.net?.markTeleport();
     this.hud.toast('Back at the base area');
+  }
+
+  toggleDrone() {
+    if (!this.ready || this.chat?.open) return;
+    if (this.drone.active) {
+      this.drone.exit(); this.camRig.enabled = true; this.camRig.reset();
+      this.audioScene = new AudioScene();
+      this.hud.toast('Back on skis');
+    } else {
+      this.flyMode = false;
+      const st = this.player.st;
+      if (!this.player.ride) { this.player.teleport(st.pos.x,st.pos.z,st.heading); this.net?.markTeleport(); }
+      this.drone.enter(this.player.st.pos,this.player.st.heading);
+      this.camRig.enabled = false;
+      this.audioScene = new AudioScene();
+      this.hud.toast('Drone ready. WASD to fly, E / Q up and down.',4);
+    }
+    this.input.clear(); this.tracks.break();
+  }
+
+  recallDrone() {
+    if (!this.drone.active) return;
+    this.drone.recall(this.player.st.pos,this.player.st.heading);
+    this.input.clear(); this.audioScene = new AudioScene();
+    this.hud.toast('Drone recalled above your skier');
   }
 
   private onResize() {
@@ -302,6 +341,7 @@ export class Game {
   }
 
   private updateCamera(dt: number) {
+    if (this.drone?.active) return;
     if (this.flyMode) { this.updateFlyCamera(dt); return; }
     const st = this.player.st;
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
@@ -318,28 +358,37 @@ export class Game {
     const t0 = performance.now();
     const dt = Math.min(this.timer.getDelta(), 0.1);
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
+    this.input.enabled = this.ready && !this.chat?.open && !this.trailMap?.visible && !this.options?.visible;
     const actions = this.input.actions();
-    this.input.enabled = !this.chat?.open;
+    if (actions.drone && this.ready && !this.chat?.open && !this.trailMap.visible && !this.options.visible) this.toggleDrone();
     if (actions.chat && this.net?.connected) this.chat.openInput();
     if (!this.flyMode) {
+      if (this.drone.active) {
+        if (actions.camera && this.input.enabled) this.drone.cycleCamera();
+        if (actions.getUp && this.input.enabled) this.recallDrone();
+        this.drone.controlsEnabled = this.input.enabled;
+        this.drone.update(dt,this.input.drone());
+        this.player.update(dt,{steer:0,tuck:false,plow:0,push:false,stop:true},true);
+      } else {
       const inp = this.input.ski(dt);
-      if (actions.getUp) this.player.getUp();
-      if (actions.skipLift) this.player.skipRide();
-      if (actions.respawn) this.respawn();
-      if (actions.camera) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
-      this.player.update(dt, inp);
+      if (actions.getUp && this.input.enabled) this.player.getUp();
+      if (actions.skipLift && this.input.enabled) this.player.skipRide();
+      if (actions.respawn && this.input.enabled) this.respawn();
+      if (actions.camera && this.input.enabled) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
+      this.player.update(dt, inp, !this.ready);
+      }
       if (this.net) {
-        if (this.net.collideLocal()) { this.player.st.mode = 'fallen'; this.player.st.modeTime = 0; }
+        if (!this.drone.active && this.net.collideLocal()) { this.player.st.mode = 'fallen'; this.player.st.modeTime = 0; }
         this.net.update(dt);
       }
     }
-    if (actions.help) this.hud.toggleHelp();
+    if (actions.help) { if (this.drone.active) this.drone.hud.help(); else this.hud.toggleHelp(); }
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
     if (actions.minimap) this.minimap.toggle();
     if (actions.options) this.options.toggle();
     if (this.trailMap.visible) {
-      const st2 = this.player.st;
+      const st2 = this.drone.state ? {pos:this.drone.state.pos,heading:this.drone.state.yaw} : this.player.st;
       this.trailMap.players = [{ name: this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true }, ...this.remoteMapPlayers()];
       if (Math.random() < 0.2) this.trailMap.draw();
     }
@@ -351,28 +400,31 @@ export class Game {
     this.lifts.update([
       ...(this.player.ride ? [this.player.ride] : []),
       ...[...(this.net?.remotes.values() ?? [])].flatMap(r => r.ride ? [r.ride] : []),
-    ]);
+    ], this.camera.position);
     this.ambient?.update(dt, this.player.position, this.camera.position);
     this.updateCamera(dt);
     for (const f of this.onFrame) f(dt);
-    const p = this.flyMode ? this.camera.position : this.player.position;
+    const p = this.drone.state?.pos ?? (this.flyMode ? this.camera.position : this.player.position);
     void this.hf.ensureArea(0, p.x, -p.z, 160);
     if (Math.random() < 0.01) this.hf.evict(p.x, -p.z, 900);
     this.trees.update(this.camera.position);
     if (this.snowfall.mesh.visible) this.snowfall.update(this.camera.position);
     this.terrainMat.viewer.value.copy(this.camera.position);
     this.terrain.update(this.camera.position);
-    this.env.update(p);
+    this.tmpV.set(p.x,p.y,p.z); this.env.update(this.tmpV);
 
     const st = this.player.st;
-    const run = this.player.ride ? null : (this.runAt(st.pos.x, st.pos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
+    const mapPos = this.drone.state?.pos ?? st.pos;
+    const run = this.player.ride && !this.drone.active ? null : (this.runAt(mapPos.x, mapPos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
     this.minimap.update(dt, {
-      self: { name: this.playerName, color: this.playerColor, x: st.pos.x, z: st.pos.z, heading: st.heading, self: true },
-      others: this.remoteMapPlayers(), run,
-      lift: this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
+      self: { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true },
+      others: [...this.remoteMapPlayers(), ...(this.drone.active ? [{name:'Your skier',color:this.playerColor,x:st.pos.x,z:st.pos.z,heading:st.heading}] : [])], run,
+      lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: this.ready && !this.trailMap.visible,
     });
     this.hud.update(dt, st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
+    this.drone.hud.update(dt,this.drone.state,this.drone.fpv,Math.hypot(mapPos.x-st.pos.x,mapPos.z-st.pos.z),
+      this.drone.area.nearest(mapPos.x,mapPos.z).remaining,this.ready,this.trailMap.visible || this.options.visible,!this.input.enabled);
     this.updateHints();
     this.updateLiftArrow();
     this.updateAudio(dt);
@@ -423,6 +475,10 @@ export class Game {
 
   async joinRoom(room: string) {
     this.net = new NetClient(this.player, this.lifts);
+    this.net.localDrone = () => {
+      const s=this.drone.state;
+      return s ? {x:s.pos.x,y:s.pos.y,z:s.pos.z,yaw:s.yaw,pitch:s.pitch,bank:s.bank,tilt:s.tilt,rpm:s.rpm} : null;
+    };
     this.scene.add(this.net.group);
     this.net.onChat = (n, t) => this.chat.add(n, t);
     this.net.onStatus = (t) => this.hud.toast(t, 3);
@@ -445,6 +501,7 @@ export class Game {
 
   /** Test hook: put a free camera at (x, y, z) looking along yaw/pitch (degrees). y < 0 = meters above ground. */
   async setView(x: number, y: number, z: number, yawDeg: number, pitchDeg: number) {
+    if (this.drone?.active) this.toggleDrone();
     this.flyMode = true;
     await this.hf.ensureArea(0, x, -z, 250);
     const gy = this.hf.heightAt(x, z);
@@ -480,6 +537,7 @@ export class Game {
   async joinFriend(name: string) {
     const r = this.net ? [...this.net.remotes.values()].find((x) => x.name === name) : null;
     if (!r) return;
+    if (this.drone.active) this.toggleDrone();
     let x: number, z: number, heading: number;
     if (r.ride) {
       const up = this.lifts.paths[r.ride.lift].unloadPoint();
@@ -498,6 +556,7 @@ export class Game {
   async teleportToRun(name: string) {
     const top = this.runs.runTops().get(name);
     if (!top) return;
+    if (this.drone.active) this.toggleDrone();
     // start a few meters down the run, facing down it
     const x = top.x + top.dx * 4, z = top.z + top.dz * 4;
     await this.hf.ensureArea(0, x, -z, 200);
@@ -508,7 +567,7 @@ export class Game {
 
   private updateLiftArrow() {
     const st = this.player.st;
-    if (this.player.ride || this.flyMode) { this.hud.hideLiftDirection(); return; }
+    if (this.player.ride || this.flyMode || this.drone.active) { this.hud.hideLiftDirection(); return; }
     let best: { name: string; d: number; x: number; z: number } | null = null;
     for (const p of this.lifts.paths) {
       const lp = p.loadPoint();
@@ -524,7 +583,7 @@ export class Game {
 
   private updateTracks(dt: number) {
     const st = this.player.st;
-    if (this.player.ride || st.mode === 'fallen' || st.mode === 'air' || st.speed < 1.2 || !st.grounded) { this.tracks.break(); }
+    if (this.drone.active || this.player.ride || st.mode === 'fallen' || st.mode === 'air' || st.speed < 1.2 || !st.grounded) { this.tracks.break(); }
     else {
       const d = new THREE.Vector3(-Math.sin(st.heading), 0, -Math.cos(st.heading));
       const r = new THREE.Vector3(-d.z, 0, d.x);
@@ -542,7 +601,9 @@ export class Game {
   }
 
   private updateAudio(dt: number) {
-    const st = this.player.st;
+    const flight = this.drone.state;
+    const st = flight ? { ...this.player.st, pos:{x:this.camera.position.x,y:this.camera.position.y-1.6,z:this.camera.position.z},
+      vel:flight.vel,speed:flight.speed,mode:'air' as const,grounded:false,edge:0,skid:0,plow:0,tuck:0,lastImpact:0 } : this.player.st;
     const surface = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
     const forward = this.camera.getWorldDirection(this.tmpV2);
     const neighbors = this.ambient?.soundSources() ?? [];
@@ -553,8 +614,9 @@ export class Game {
         groomed: this.surface?.at(pos.x, pos.z).groomed ?? 1,
         active: !r.ride && state.mode !== 'air' && state.mode !== 'riding' });
     }
-    this.audio.update(dt, this.audioScene.sample(dt, st, this.player.ride,
+    this.audio.update(dt, this.audioScene.sample(dt, st, flight ? null : this.player.ride,
       this.lifts.paths, surface, forward, this.env.snowing, neighbors));
+    this.drone.audio.update(this.audio.ctx,flight,this.audio.volume,this.audio.enabled,this.drone.fpv);
   }
 
   private modeLabel() {
@@ -564,6 +626,7 @@ export class Game {
   }
 
   private updateHints() {
+    if (this.drone.active) { this.hud.hint(null); return; }
     const pl = this.player;
     if (pl.ride) {
       const path = this.lifts.paths[pl.ride.lift];
