@@ -53,7 +53,7 @@ export class Game {
   quality!: QualityPreset;
   audio = new SkiAudio();
   snowfall = new Snowfall();
-  tracks = new SkiTracks();
+  tracks = new SkiTracks((x, z) => this.hf.heightAt(x, z));
   ambient: AmbientSkiers | null = null;
   private trackFade = 0;
   options!: OptionsPanel;
@@ -115,7 +115,7 @@ export class Game {
     };
 
     this.terrainMat = createTerrainMaterial();
-    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.material);
+    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.material, this.resort.runs);
     this.terrain.splitFactor = Q.terrainSplit;
     this.scene.add(this.terrain.group);
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });
@@ -154,7 +154,7 @@ export class Game {
       tex.needsUpdate = true;
       this.terrainMat.setSurface(tex, s.x0, s.n0, s.w * s.res, s.h * s.res);
     }
-    await Promise.all([this.loadBaseMask(), this.loadLandcover()]);
+    await Promise.all([this.loadBaseMask(), this.loadLandcover(), this.terrainMat.ready]);
     await this.hf.ensureArea(0, 0, 1000, 450);
     const staticGroup = new THREE.Group(); staticGroup.name = 'static';
     staticGroup.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
@@ -520,6 +520,7 @@ export class Game {
       this.tracks.add(l, rr, d, 0.1 + 0.25 * st.skid, 0.6 + 0.6 * (1 - surf.groomed) + 0.4 * st.skid);
     }
     this.trackFade += dt;
+    this.tracks.update(dt);
     if (this.trackFade > 1) { this.tracks.fade(this.trackFade); this.trackFade = 0; }
   }
 

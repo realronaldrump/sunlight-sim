@@ -72,3 +72,11 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - The game displays speed only in mph, elevation only in feet, and lift distances and trail-map run lengths in feet below one mile or miles at and above one mile. Number formatting uses U.S. separators.
 - All player-facing measurement conversions are centralized in `client/src/ui/units.ts`. Slope angles remain in degrees.
 - Terrain data, physics, lift movement and multiplayer coordinates retain their existing SI units for accuracy and compatibility. Convert only at the display boundary; do not retune movement or relabel metric values as U.S. values.
+
+## Snow surface realism (November 8, 2026)
+
+- Use the CC0 Poly Haven Snow 02 scan as linear height/grain/roughness/occlusion data. Two world-anchored projections at 2 m and about 7.3 m prevent a single obvious repeat; macro variation is procedural. The enlarged layer is an artistic wind-deposition approximation, not a surveyed snow depth.
+- Corduroy uses signed distance to resampled, lightly smoothed groomed run centerlines. The old dot(world position, varying fall-line direction) introduced origin-dependent distortion. Ridges use estimated 32 mm spacing, about 1.7 mm shading relief, and subtle 4.8 m grooming-pass overlaps. These are visual estimates, not measurements of Sunlight grooming equipment.
+- Crystal glints extend Three.js PhysicalLightingModel.direct and multiply the actual light color after shadow attenuation. They vary continuously with view and sun directions, fade below pixel resolution and have no emissive term. Grazing scattering is a bounded visual approximation, not a volumetric snow simulation.
+- Preserve DEM heights and ski physics. Snow detail changes material normals only; ski grooves sit 8 to 20 mm above the heightfield to avoid z-fighting and represent compacted trough shading and displaced shoulders. Powder spray is transient visual geometry and has no collision.
+- Keep this pass scoped to terrain material, snow weather, ski tracks and spray. Other agents concurrently own character, lift, building and interface changes.

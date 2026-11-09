@@ -84,3 +84,14 @@ Live client (solo): https://sunlight-sim.vercel.app (multiplayer server not host
 - Tree species are a k-means split of fall NAIP colours (74% deciduous); no ground truth. Aspen share may be overestimated.
 - OSM centerlines sometimes cross road-cut banks of the summer DEM (bare earth has no snow fill), giving short steep lips.
 - The headless test browser caps at 60 fps; uncapped numbers come from a separate run with --disable-gpu-vsync.
+
+## Snow realism pass (Codex, November 8, 2026)
+- Replaced weak procedural snow with a CC0 scanned material: powder grain, shallow drift relief, variable roughness, cavity shelter, and subtle wind packing. All relief is in shading; DEM heights and physics are unchanged.
+- Fixed corduroy coordinates to follow groomed run centerlines without world-origin distortion. Added fine 32 mm ridges and subdued grooming overlaps with pixel-footprint filtering.
+- Replaced emissive square glitter with continuous crystal reflections in the actual direct-light/shadow calculation. Snow responds to time of day and overcast illumination.
+- Ski tracks now conform across sloped terrain, have connected feathered shoulders and compacted troughs, break on teleports/air/lifts, and fade. Added short ballistic powder spray from the ski edges.
+- Falling snow now uses softly shaped flakes with varied size, settling and wind drift, with fades at the lens and particle-volume edges.
+- Rebuild committed texture with `npm run data:snow`; full data pipeline includes it. Source URLs, author, CC0 license and hashes are recorded in CREDITS.md and the texture source manifest. Packed texture is 6.46 MiB.
+- Verification: build passed; 7 new grooming/track unit tests plus 5 existing terrain tests passed; all 3 pipeline checks passed. Fixed production-snapshot browser review passed 4 scenarios: Chromium smoke, WebGPU snow, WebGL2 snow, Safari smoke. Inspected screenshots `snow_webgpu_midway_11.png`, `snow_webgpu_midway_15.5.png`, `snow_webgpu_segundo_11.png`, `snow_webgpu_falling.png`, and `snow_webgpu_tracks.png`.
+- Parallel-work caveat: a shared-checkout full unit run caught a lift-spacing failure during another agent's active lift refactor. A dev-server browser run was also interrupted by concurrent hot reload. Snow-specific checks pass; use a frozen production preview for reliable visual review while agents edit the shared checkout.
+- Next in this graphics pass: improve the stretched sheet-like conifer branches and snow distribution, then review the required scenery viewpoints. Character, lift and building changes remain owned by the other active work.
