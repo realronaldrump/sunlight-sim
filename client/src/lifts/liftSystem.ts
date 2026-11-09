@@ -40,6 +40,8 @@ export class LiftSystem {
   readonly clocks: LiftClock[] = [];
   private frameTimes: number[] | null = null;
   clockOffset = 0; // test-time offset; network synchronization uses clock
+  /** Outside Resort Day operating hours: nobody boards, the chairs run empty. */
+  closed = false;
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
@@ -107,7 +109,7 @@ export class LiftSystem {
 
   /** Seats taken by ambient riders on a chair (the crowd queue boards exactly these). */
   riderSeats(li: number, chair: number) {
-    if ((this.reservedTrips.get(`${li}/${chair}`) ?? 0) > this.now(li)) return [];
+    if (this.closed || (this.reservedTrips.get(`${li}/${chair}`) ?? 0) > this.now(li)) return [];
     const R = this.riders[li];
     return R ? R.slots.filter((s) => s.chair === chair).map((s) => s.seat) : [];
   }
@@ -326,7 +328,8 @@ export class LiftSystem {
       models.labels.instanceMatrix.needsUpdate = true;
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];
-      if (R) {
+      if (R && this.closed) R.mesh.count = 0;
+      else if (R) {
         const p = new THREE.Vector3();
         const looks = (R.mesh.geometry.getAttribute('riderColor') as THREE.InterleavedBufferAttribute).data;
         const c = new THREE.Color(), scale = new THREE.Vector3();

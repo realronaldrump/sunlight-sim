@@ -450,8 +450,13 @@ export class LessonGroup {
     return [this.toLift.route.pts, [lp, top], this.descent.route.pts];
   }
 
+  /** Whether the lesson is out on the mountain (Resort Day keeps it to lesson hours). */
+  out = true;
+
   update(dt: number, now: number, camera: THREE.Vector3) {
     if (!this.ready) return;
+    this.group.visible = this.out;
+    if (!this.out) return;
     this.compute(now);
     const p = this.path;
     for (let i = 0; i < this.members.length; i++) {

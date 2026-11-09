@@ -32,6 +32,8 @@ import { SkiTracks } from './skier/tracks';
 import { SnowState } from './terrain/snowState';
 import { SnowMemory } from './terrain/snowMemory';
 import { Snowcats } from './world/snowcats';
+import { Patrol, PATROL_CALL } from './world/patrol';
+import { crowdLevel, liftsOpen, resortDayHour, savedClockMode, saveClockMode, HOURS, type ClockMode } from './world/resortDay';
 import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
@@ -94,6 +96,10 @@ export class Game {
   snowState: SnowState | null = null;
   snowMemory: SnowMemory | null = null;
   snowcats: Snowcats | null = null;
+  patrol: Patrol | null = null;
+  /** Free Explore (you set the time, lifts always run) or Resort Day (shared clock, operating hours). */
+  clockMode: ClockMode = savedClockMode();
+  private dayTimer = 0;
   private snowNote: string | null = null;
   /** Hours of a normal day's traffic since the runs were groomed (lifts open at 9). */
   get skiedHours() { return this.snowHoursOverride ?? Math.max(0, Math.min(7, (this.env?.hour ?? 11) - 9)); }
@@ -326,13 +332,17 @@ export class Game {
       this.tracks.clearNear(x, z, half + 0.3); this.crowdTracks.clearNear(x, z, half + 0.3);
     };
     this.scene.add(this.snowcats.group);
+    // ski patrol sweeps the mountain at closing and ropes off the runs
+    this.patrol = new Patrol(this.resort.runs, this.probe, this.runs.runTops(), this.resort.lifts);
+    this.scene.add(this.patrol.group);
     // mountain status board at the Lesson Line-Up Area, facing skiers leaving the lodge racks
     this.board = new ConditionsBoard(LINEUP.x - 6, LINEUP.z + 8, 0.67, (x, z) => this.probe.height(x, z), this.colliders);
     this.scene.add(this.board.group);
     if (this.params.get('snow') === '1') this.setSnow(true);
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
-      setHour: (h) => this.env.setHour(h), setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
+      setHour: (h) => { if (this.clockMode === 'explore') this.env.setHour(h); }, setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
+      clock: this.droneOnly ? undefined : { mode: this.clockMode, setMode: (m) => this.setClockMode(m) },
       resume: () => this.options.toggle(false),
       base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
       travel: () => { if (this.options.visible) this.trailMap.toggle(true, true); },
@@ -689,8 +699,14 @@ export class Game {
     this.ambient?.update(dt, this.player.position, this.camera.position);
     this.baseLife?.update(dt, this.camera.position, this.onFoot.active ? -1 : this.player.inLoadZone);
     this.updateLesson(dt, actions.lesson && this.input.enabled);
+    this.updateResortDay(dt);
     this.updateBoard(dt);
     this.recordSkiing(dt);
+    if (this.patrol) {
+      this.patrol.update(dt, resortClock.now(), this.clockMode, this.env.hour, this.camera.position);
+      const me = this.player.st.pos, pat = this.patrol.nearby(me.x, me.z);
+      if (pat) this.lessonHud?.say(`patrol/${Math.floor(resortClock.now() / 90)}`, 'Ski patrol', PATROL_CALL);
+    }
     if (this.snowcats) {
       this.snowcats.update(dt, resortClock.now(), this.env.hour, this.env.night.value, this.camera.position);
       // a groomer is a big, slow machine: skiing into one stops you
@@ -913,6 +929,34 @@ export class Game {
     } finally { this.launchingDrone = false; }
   }
 
+  /** Test hook: the shared resort clock. */
+  get resortClock() { return resortClock; }
+
+  setClockMode(mode: ClockMode) {
+    this.clockMode = mode; saveClockMode(mode); this.dayTimer = 0;
+    this.hud.toast(mode === 'day' ? 'Resort day: the clock runs (an hour every six minutes) and the lifts open 9 AM to 4 PM' : 'Free explore: set any time, the lifts run at every hour', 4);
+  }
+
+  /** Resort Day runs the shared clock; either way the hour decides lifts, crowds, the lesson and the patrol. */
+  private updateResortDay(dt: number) {
+    if ((this.dayTimer -= dt) > 0) return;
+    this.dayTimer = 0.5;
+    const day = this.clockMode === 'day';
+    if (day) {
+      const h = resortDayHour(resortClock.now());
+      if (Math.abs(h - this.env.hour) > 0.05) this.env.setHour(h);
+    }
+    const hour = this.env.hour, open = liftsOpen(this.clockMode, hour), level = crowdLevel(this.clockMode, hour);
+    this.lifts.closed = !open;
+    this.baseLife?.setOperating(open, level);
+    if (this.ambient) this.ambient.level = level;
+    if (this.lesson) {
+      this.lesson.out = !day || (hour >= HOURS.open + 0.25 && hour < HOURS.lastChair - 0.25);
+      if (!this.lesson.out && this.tagging) { this.tagging = false; this.hud.toast('The Snowriders\' Club is done for the day'); }
+    }
+    this.options?.showClock(this.env.hour, day);
+  }
+
   /** Feed the ski log with real (unscaled) frame time. */
   private recordSkiing(dt: number) {
     const log = this.skiLog;
@@ -939,14 +983,14 @@ export class Game {
     this.boardTimer = 1;
     const now = resortClock.now();
     let lesson = 'Snowriders\' Club (ages 7 to 12) meets here at 9:30 AM and 12:30 PM';
-    if (this.lesson?.ready) {
+    if (this.lesson?.ready && this.lesson.out) {
       const T = this.lesson.timeline!, { tau } = this.lesson.clock(now), left = T.period - tau;
       const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
       lesson = tau < T.lineup ? `${LESSON_NAME} lining up now with ${INSTRUCTOR_NAME}. Leaves for Segundo in ${mmss(T.lineup - tau)}`
         : tau < T.lineup + T.toLift + T.lift ? `${LESSON_NAME} is riding Segundo. Back here in about ${Math.ceil(left / 60)} min`
         : `${LESSON_NAME} is skiing Ute. Back here in about ${Math.ceil(left / 60)} min`;
     }
-    this.board.update(conditionsFor({ now, hour: this.env.hour, snowing: this.env.snowing, runs: this.resort.runs, liftNames: ['Primo', 'Segundo', 'Tercero'], lesson }));
+    this.board.update(conditionsFor({ now, hour: this.env.hour, snowing: this.env.snowing, runs: this.resort.runs, liftNames: ['Primo', 'Segundo', 'Tercero'], lesson, resortDay: this.clockMode === 'day' }));
   }
 
   /** The lesson group: move them on the shared clock, tag along with L, captions and the panel. */
@@ -1094,6 +1138,8 @@ export class Game {
     if (pl.ride) {
       const path = this.lifts.paths[pl.ride.lift];
       this.hud.hint(null);
+    } else if (pl.inLoadZone >= 0 && this.lifts.closed) {
+      this.hud.hint(`${this.lifts.paths[pl.inLoadZone].def.name} is closed. In Resort Day the lifts run 9 AM to 4 PM; choose Free explore in the pause menu to ride at any hour.`);
     } else if (pl.inLoadZone >= 0) {
       const path = this.lifts.paths[pl.inLoadZone], t = this.lifts.now(pl.inLoadZone);
       const along = (pl.st.pos.x - path.def.bottom[0]) * path.ax + (pl.st.pos.z - path.def.bottom[2]) * path.az;

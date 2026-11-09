@@ -38,6 +38,8 @@ export interface SkiInput {
   plow: number;    // 0..1 wedge / brake
   stop: boolean;   // hockey stop
   push: boolean;   // pole/skate push on flats (same key as tuck at low speed)
+  /** Standing in a lift line: poles planted to hold position on the sloped loading snow. */
+  hold?: boolean;
 }
 
 export type SkierMode = 'skiing' | 'air' | 'fallen' | 'gettingUp' | 'riding' | 'standing';
@@ -227,7 +229,7 @@ function substep(st: SkierState, input: SkiInput, terrain: TerrainProbe, dt: num
     } else {
       // static friction: hold still unless gravity along the skis exceeds it
       const gAlong = -m * P.g * ski.y; // gravity component along ski axis
-      if (Math.abs(gAlong) < (P.muStatic + 0.35 * st.plow) * Nmag) {
+      if (Math.abs(gAlong) < (P.muStatic + 0.35 * st.plow + (input.hold ? 0.25 : 0)) * Nmag) {
         F.x += ski.x * -gAlong; F.y += ski.y * -gAlong; F.z += ski.z * -gAlong;
       }
     }

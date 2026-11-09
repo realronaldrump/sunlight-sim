@@ -125,9 +125,13 @@ interface Person {
   queue?: { q: LiftQueue; row: number; seat: number; boarding: number };
   guest?: Guest;
   skis: 'shoulder' | 'feet' | 'planted' | 'none'; outdoorSkis: 'shoulder' | 'feet' | 'planted' | 'none'; visible: boolean; frame: number;
+  /** Guests come and go with the day: present while the day's crowd level exceeds this. */
+  presence: number;
+  /** Lift operator: which line they run, and their signal arm (0..1). */
+  operates?: LiftQueue; signal?: number;
 }
 
-interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number; boarding: Map<number, Person[]>; arrivals: Person[] }
+interface LiftQueue { li: number; path: LiftPath; rows: number; seats: number; members: (Person | null)[][]; lastT: number; heading: number; boarding: Map<number, Person[]>; arrivals: Person[]; closure?: THREE.Group; rope?: Collider }
 
 export class BaseLife {
   readonly group = new THREE.Group();
@@ -140,6 +144,9 @@ export class BaseLife {
   private clock = 0;
   private frameNo = 0;
   private r = rng(4217);
+  /** Resort Day: 0..1 share of the usual crowd at this hour. */
+  private level = 1;
+  private open = true;
 
   constructor(private lifts: LiftSystem, private terrain: Terrain, private colliders: ColliderGrid,
     private budget: { seated: number; walkers: number; groups: number; queueRows: number }) {
@@ -155,7 +162,7 @@ export class BaseLife {
     model.root.visible = false;
     this.group.add(model.root);
     const p: Person = { kind, model, st: createWalker(x, y, z, heading), time: this.r() * 100, lookYaw: 0, lookTimer: this.r() * 5,
-      wait: this.r() * 8, stuck: 0, lastD: Infinity, skis, outdoorSkis: skis, visible: false, frame: Math.floor(this.r() * 3) };
+      wait: this.r() * 8, stuck: 0, lastD: Infinity, skis, outdoorSkis: skis, visible: false, frame: Math.floor(this.r() * 3), presence: this.r() * 0.98 };
     this.people.push(p);
     return p;
   }
@@ -213,8 +220,49 @@ export class BaseLife {
       const lp = path.loadPoint();
       const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(li), heading: lp.heading, boarding: new Map(), arrivals: [] };
       this.group.add(this.mazeGeo(path, rows));
+      this.buildClosure(q);
       this.queues.push(q);
     });
+  }
+
+  /** A rope across both lanes at the back of the maze with a LIFT CLOSED sign, raised outside operating hours. */
+  private buildClosure(q: LiftQueue) {
+    const path = q.path, lp = path.loadPoint(), w = this.laneShift(path), half = w / 2;
+    const d = 2 + q.rows * 1.75 + 3.4;
+    const g = new THREE.Group(); g.name = `${path.def.name}-closed`;
+    const pts: THREE.Vector3[] = [];
+    for (const lat of [-half - 0.3, half + w + 0.3]) {
+      const x = lp.x - path.ax * d + path.rx * lat, z = lp.z - path.az * d + path.rz * lat, y = this.terrain(x, z);
+      if (!Number.isFinite(y)) return;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 1.2, 8), new THREE.MeshStandardNodeMaterial({ color: 0x2c8a3c, roughness: 0.6 }));
+      post.position.set(x, y + 0.55, z); g.add(post);
+      pts.push(new THREE.Vector3(x, y + 1.0, z));
+    }
+    const mid = pts[0].clone().add(pts[1]).multiplyScalar(0.5); mid.y -= 0.08;
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(pts[0], mid, pts[1]), 12, 0.012, 5), new THREE.MeshStandardNodeMaterial({ color: 0xf4a300, roughness: 0.7 })));
+    const cv = document.createElement('canvas'); cv.width = 384; cv.height = 128;
+    const c2 = cv.getContext('2d')!;
+    c2.fillStyle = '#c8202a'; c2.fillRect(0, 0, 384, 128); c2.strokeStyle = '#fff'; c2.lineWidth = 8; c2.strokeRect(6, 6, 372, 116);
+    c2.fillStyle = '#fff'; c2.font = 'bold 52px Helvetica, Arial, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText('LIFT CLOSED', 192, 52);
+    c2.font = '24px Helvetica, Arial, sans-serif'; c2.fillText('Open 9 AM to 4 PM', 192, 98);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.37), new THREE.MeshStandardNodeMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.7 }));
+    sign.position.set(mid.x, mid.y - 0.25, mid.z); sign.rotation.y = lp.heading; g.add(sign);
+    g.visible = false;
+    this.group.add(g);
+    q.closure = g;
+    // the rope blocks the lanes only while it is up (its top sits below the snow otherwise)
+    q.rope = { type: 'box', x: mid.x, z: mid.z, hx: pts[0].distanceTo(pts[1]) / 2, hz: 0.1, yaw: Math.atan2(-(pts[1].z - pts[0].z), pts[1].x - pts[0].x), top: -1e9 };
+    this.colliders.add(q.rope);
+  }
+
+  /** Resort Day: whether the lifts run, and how busy the base is at this hour. */
+  setOperating(open: boolean, level: number) {
+    this.open = open; this.level = level;
+    for (const q of this.queues) {
+      if (q.closure) q.closure.visible = !open;
+      if (q.rope) q.rope.top = open ? -1e9 : this.terrain(q.rope.x, q.rope.z) + 1.0;
+    }
   }
 
   /** Row 0 waits at the merge; boarding skiers step diagonally into their seat lane just behind the line. */
@@ -308,7 +356,8 @@ export class BaseLife {
       const y = this.terrain(x, z);
       if (!Number.isFinite(y)) continue;
       const look = appearance(r); look.jacket = new THREE.Color(0x1b1d22); look.hat = 'beanie'; look.hatColor = new THREE.Color(0xb3262e);
-      this.person('staff', look, x, y, z, Math.atan2(q.path.rx, q.path.rz) + Math.PI, 'none');
+      const op = this.person('staff', look, x, y, z, Math.atan2(q.path.rx, q.path.rz) + Math.PI, 'none');
+      op.operates = q; op.signal = 0;
     }
     // lift lines: rows of skiers standing on their skis, facing uphill
     for (const q of this.queues) {
@@ -460,7 +509,9 @@ export class BaseLife {
       const dx = p.st.pos.x - camera.x, dz = p.st.pos.z - camera.z, dist = Math.hypot(dx, dz);
       const indoorPerson = p.kind === 'seated' && !!walkable.surfaces.indoor(p.st.pos.x, p.st.pos.y + 0.9, p.st.pos.z);
       const camIn = walkable.surfaces.indoor(camera.x, camera.y, camera.z);
-      const visible = dist < (indoorPerson ? (camIn ? 45 : 30) : 160);
+      // the day's crowd: guests beyond today's level have gone home (staff stay); lines empty when the lifts close
+      const here = p.kind === 'staff' || p.model.root.name === LODGE_SIGN_WALKER || (p.presence < this.level && (p.kind !== 'queue' || this.open));
+      const visible = here && dist < (indoorPerson ? (camIn ? 45 : 30) : 160);
       // movement continues off screen so the base stays consistent
       let inputX = 0, inputZ = 0, moving = false;
       if (p.kind === 'walker') {
@@ -504,6 +555,13 @@ export class BaseLife {
         p.st.heading = p.queue.q.heading;
       }
       p.visible = visible; p.model.root.visible = visible;
+      if (p.operates) {
+        // watch the incoming chairs; raise an arm as one with riders (or you) comes into the load line
+        const q = p.operates, t = this.lifts.now(q.li), next = q.path.nextChairAt(q.path.loadU, t);
+        const loaded = this.open && next.arrive - t < 3.2 && (this.lifts.riderSeats(q.li, next.index).length > 0 || playerLoadLift === q.li);
+        p.signal! += ((loaded ? 1 : 0) - p.signal!) * Math.min(1, dt * 4);
+        p.lookYaw = loaded ? 0.6 : p.lookYaw;
+      }
       if (!visible) continue;
       // head turns: talk to neighbours, glance around
       if ((p.lookTimer -= dt) < 0) { p.lookTimer = 1.5 + this.r() * 5; p.lookYaw = (this.r() - 0.5) * (p.kind === 'group' || p.kind === 'seated' ? 1.4 : 0.8); }
@@ -512,7 +570,8 @@ export class BaseLife {
         p.model.root.position.set(p.st.pos.x, p.st.pos.y, p.st.pos.z);
         p.model.root.rotation.set(0, p.st.heading, 0);
         const mode = p.kind === 'seated' ? 'sit' : (moving && p.st.speed > 0.1) ? 'walk' : 'stand';
-        p.model.update({ mode, stride: p.st.stride, speed: p.st.speed, time: p.time, skis: p.skis, seat: p.seatH, handsOnTable: p.tableH, lookYaw: p.lookYaw * 0.6 });
+        p.model.update({ mode, stride: p.st.stride, speed: p.st.speed, time: p.time, skis: p.skis, seat: p.seatH, handsOnTable: p.tableH, lookYaw: p.lookYaw * 0.6,
+          gesture: p.signal ? { kind: 'signal', amount: p.signal } : undefined });
       }
       p.model.human.mesh.castShadow = dist < 45;
       if (dist < 110 && p.model.look.instancedGear) p.model.pushGear(this.gear, dist < 50);

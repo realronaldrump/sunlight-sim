@@ -157,6 +157,8 @@ export class Player {
       else if (released) this.fallFromLift();
     } else if (!parked || this.tumble) {
       const from = { ...st.pos };
+      // waiting in a loading lane: plant the poles and hold the spot on the sloped loading snow
+      if (!input.push && st.speed < 1.5 && this.lifts.paths.some((p) => p.inBoardingApproach(st.pos.x, st.pos.z))) input = { ...input, hold: true };
       stepSkier(st, input, this.probe, dt);
       this.colliders.collide(st);
       this.inLoadZone = -1;
@@ -171,7 +173,7 @@ export class Player {
           const next = path.nextChairAt(path.sAtH(Math.max(0, along)), t);
           if (facing) this.liftPreparation = Math.max(0, 1 - (next.arrive - t) / 1.4);
           const contact = path.boardingContact(from, st.pos, previous, t);
-          if (contact && facing) {
+          if (contact && facing && !this.lifts.closed) {
             if (this.requestBoard) this.requestBoard(li, contact.chair, contact.seat);
             else this.board(li, contact.chair, contact.seat);
           } else if (contact) {

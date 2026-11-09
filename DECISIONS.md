@@ -303,3 +303,9 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 - Grooming times follow resort practice (after the patrol sweep at close, before opening) on the in-game hour. The cats use three busy groomed runs near the base so players can find them; real Sunlight grooming routes and fleet are not public. The PistenBully-style look is an estimate.
 - At night the directional light becomes moonlight (0.42 intensity, cool) from a fixed southeast-high direction; there is no lunar ephemeris. Stars are procedural.
 - Uphill touring was removed from the roadmap at the owner's request (November 9, 2026).
+
+## D27. Resort Day, crews and lift-line holding (November 9, 2026)
+- Resort Day compresses the day to six real minutes per hour so a session sees opening, the lunchtime crowd, last chair, the sweep and the cats; real operating hours (9 AM to 4 PM) come from Sunlight's published schedule. The cycle is derived from the shared resort clock, so it needs no server change; each player chooses the mode, and two players in Resort Day agree on the hour.
+- Closing does not stop the shared lift clocks (that would desync the authoritative server); the lifts keep turning empty, nobody can board, and the mazes are roped. Ambient chair riders disappear at closing rather than finishing their ride; a small simplification.
+- Patrol sweep routes, times and look are estimates for the sim. In Free Explore the sweep repeats every eight minutes while the slider sits between 3:57 and 4:42 PM so it can be watched; in Resort Day it runs once, paced to finish by the end of the window.
+- Waiting in a boarding approach without pushing adds 0.25 to static friction (poles planted). The loading snow's 9 to 11 degree grade follows the modelled rope height at the load line; flattening the pads would change carefully verified chair-to-seat clearances, so the hold is the less invasive fix.

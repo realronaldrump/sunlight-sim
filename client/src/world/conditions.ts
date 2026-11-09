@@ -37,7 +37,7 @@ export function formatClock(hour: number) {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-export function conditionsFor(o: { now: number; hour: number; snowing: boolean; runs: RunInfo[]; liftNames: string[]; lesson: string; fallenToday?: number }): Conditions {
+export function conditionsFor(o: { now: number; hour: number; snowing: boolean; runs: RunInfo[]; liftNames: string[]; lesson: string; fallenToday?: number; resortDay?: boolean }): Conditions {
   const day = dayNumber(o.now);
   const today = overnightSnow(day), yesterday = overnightSnow(day - 1);
   // a storm passing over the mountain adds to today's total while it snows
@@ -59,7 +59,7 @@ export function conditionsFor(o: { now: number; hour: number; snowing: boolean; 
     snow: { since4: Math.round(today + falling), day: Math.round(today + falling), twoDay: Math.round(today + yesterday + falling), season: Math.round(season) },
     baseIn: base,
     surface: today + falling >= 3 ? ['Powder', 'Packed powder'] : today > 0 ? ['Packed powder', 'Groomed'] : ['Groomed', 'Packed powder'],
-    lifts: o.liftNames.map((name) => ({ name, open: true, status: open ? 'Open' : 'Free explore' })),
+    lifts: o.liftNames.map((name) => ({ name, open: open || !o.resortDay, status: open ? 'Open' : o.resortDay ? (o.hour < 9 ? 'Opens 9 AM' : 'Closed') : 'Free explore' })),
     trailsOpen: lineRuns.size, trailsTotal: lineRuns.size,
     groomed: groomedRuns(o.runs, day), groomedAt: 'overnight',
     lesson: o.lesson,

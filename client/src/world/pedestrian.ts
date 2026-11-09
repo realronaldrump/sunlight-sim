@@ -16,6 +16,8 @@ export interface PedestrianPose {
   skis?: 'shoulder' | 'feet' | 'planted' | 'none'; // overrides `carry`: on the feet in a lift line, planted beside a group
   handsOnTable?: number; // table height above the feet, when seated at one
   lookYaw?: number;  // head turn, rad
+  /** Right arm: wave beside the head, point toward `yaw` (local, 0 = ahead), or a lift operator's raised-arm signal. */
+  gesture?: { kind: 'wave' | 'point' | 'signal'; amount: number; yaw?: number };
 }
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -149,6 +151,15 @@ export class PedestrianModel {
     solveIK(hipL, ankleL, 0.46, 0.46, hipL.clone().add(kneePole), kneeL);
     solveIK(hipR, ankleR, 0.46, 0.46, hipR.clone().add(kneePole), kneeR);
     const shL = chest.clone().add(V(-0.19, 0.06, 0)), shR = chest.clone().add(V(0.19, 0.06, 0));
+    if (p.gesture && p.gesture.amount > 0) {
+      const k = Math.min(1, p.gesture.amount);
+      if (p.gesture.kind === 'signal') handR.lerp(shR.clone().add(V(0.08, 0.55, -0.08)), k);
+      else if (p.gesture.kind === 'wave') handR.lerp(head.clone().add(V(0.3 + Math.sin(t * 9) * 0.13, 0.22, -0.04)), k);
+      else {
+        const yaw = p.gesture.yaw ?? 0, dir = V(-Math.sin(yaw), -0.15, -Math.cos(yaw)).normalize();
+        handR.lerp(shR.clone().addScaledVector(dir, 0.57), k);
+      }
+    }
     const elL = new THREE.Vector3(), elR = new THREE.Vector3();
     solveIK(shL, handL, 0.3, 0.28, shL.clone().add(V(-0.3, -0.5, 0.4)), elL);
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.35, -0.5, 0.3)), elR);

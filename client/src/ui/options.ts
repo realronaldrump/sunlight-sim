@@ -4,6 +4,7 @@ import { IPHONE } from '../platform';
 
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
+  clock?: { mode: 'explore' | 'day'; setMode(mode: 'explore' | 'day'): void };
   hour: number; snow: boolean; volume: number;
   resume(): void; base(): void; travel(): void; recall(): void; log?(): void;
   phone?: { map(): void; view(): void; chat(): void; share(): void };
@@ -56,6 +57,7 @@ export class OptionsPanel {
       <button id="pause-log" type="button" ${h.log ? '' : 'hidden'}>Ski log and mountain progress</button><hr>
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
       <input type="range" id="o-hour" min="7" max="20" step="0.25" value="${h.hour}">
+      ${h.clock ? `<label>Clock</label><select id="o-clock"><option value="explore">Free explore: you set the time, lifts run any hour</option><option value="day">Resort day: time passes, lifts 9 AM to 4 PM, shared in a room</option></select>` : ''}
       <label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
@@ -84,6 +86,8 @@ export class OptionsPanel {
     hour.onchange = () => h.setHour(Number(hour.value));
     (this.el.querySelector('#o-snow') as HTMLInputElement).onchange = (e) => h.setSnow((e.target as HTMLInputElement).checked);
     (this.el.querySelector('#o-vol') as HTMLInputElement).oninput = (e) => h.setVolume(Number((e.target as HTMLInputElement).value));
+    const clock = this.el.querySelector('#o-clock') as HTMLSelectElement | null;
+    if (clock && h.clock) { clock.value = h.clock.mode; clock.onchange = () => h.clock!.setMode(clock.value as 'explore' | 'day'); }
     const q = this.el.querySelector('#o-q') as HTMLSelectElement;
     q.value = savedQuality();
     q.onchange = () => { saveQuality(q.value as QualityName | 'auto'); location.reload(); };
@@ -99,4 +103,11 @@ export class OptionsPanel {
     }
   }
   get visible() { return this.el.classList.contains('show'); }
+
+  /** Show the running Resort Day clock (slider locked) or hand the time back to the player. */
+  showClock(hour: number, locked: boolean) {
+    const slider = this.el.querySelector('#o-hour') as HTMLInputElement, label = this.el.querySelector('#o-hl') as HTMLElement;
+    if (slider.disabled !== locked) slider.disabled = locked;
+    if (locked || document.activeElement !== slider) { slider.value = String(hour); label.textContent = fmtHour(hour) + (locked ? ' (resort day)' : ''); }
+  }
 }

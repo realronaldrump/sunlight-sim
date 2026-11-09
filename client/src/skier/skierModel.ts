@@ -19,6 +19,8 @@ export interface SkierPose {
   footGroundPitch?: number;
   airborne?: boolean;
   rockX?: number; rockZ?: number; slipping?: number;
+  /** A wave (pole hand up beside the helmet) or a point (arm out toward `yaw`, local, 0 = straight ahead). */
+  gesture?: { kind: 'wave' | 'point'; amount: number; yaw?: number };
 }
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -149,6 +151,14 @@ export class SkierModel {
       handL.lerp(V(-0.25, 0.65, -0.1), sit); handR.lerp(V(0.25, 0.65, -0.1), sit);
     }
     if (p.airborne) { handL = chest.clone().add(V(-.5, -.08, -.15)); handR = chest.clone().add(V(.48, .12, -.24)); }
+    if (p.gesture && p.gesture.amount > 0 && !p.airborne && p.fallen < 0.5) {
+      const k = Math.min(1, p.gesture.amount);
+      if (p.gesture.kind === 'wave') handR.lerp(head.clone().add(V(0.3 + Math.sin(t * 9) * 0.13, 0.2, -0.04)), k);
+      else {
+        const yaw = p.gesture.yaw ?? 0, dir = V(-Math.sin(yaw), -0.2, -Math.cos(yaw)).normalize();
+        handR.lerp(shR.clone().addScaledVector(dir, 0.57), k);
+      }
+    }
     const elL = new THREE.Vector3(), elR = new THREE.Vector3();
     solveIK(shL, handL, 0.3, 0.28, shL.clone().add(V(-0.4, -0.4, 0.4)), elL);
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.4, -0.4, 0.4)), elR);

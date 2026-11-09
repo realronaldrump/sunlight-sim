@@ -21,6 +21,8 @@ export class AmbientSkiers {
   private lastLiftT: number[] = [];
   /** A skier finished their run at the bottom. Return true when the base area takes them (into a lift line). */
   onFinish: ((guest: Guest, st: SkierState) => boolean) | null = null;
+  /** Share of the usual number of skiers on the hill (Resort Day: quiet early, busy midday, none after the sweep). */
+  level = 1;
 
   constructor(runs: RunInfo[], private probe: TerrainProbe, private count = 8, private lifts: LiftSystem | null = null) {
     this.group.name = 'ambient-skiers';
@@ -120,7 +122,7 @@ export class AmbientSkiers {
           if (Math.hypot(top.x - player.x, top.z - player.z) > 1600) return;
           for (const chair of this.lifts!.chairsPassing(li, path.unloadU, previous, t)) {
             for (const seat of this.lifts!.riderSeats(li, chair)) {
-              if (this.agents.length >= this.count) return;
+              if (this.agents.length >= Math.round(this.count * this.level)) return;
               const a = this.fromLiftTop(li, chair, seat);
               if (a) this.agents.push(a);
             }
@@ -129,7 +131,8 @@ export class AmbientSkiers {
       }
     }
     // half the budget belongs to riders arriving off the lifts; the rest keep the slopes near the player busy
-    while (this.agents.filter((a) => !a.fromLift).length < Math.ceil(this.count / 2) && this.agents.length < this.count) {
+    const budget = Math.round(this.count * this.level);
+    while (this.agents.filter((a) => !a.fromLift).length < Math.ceil(budget / 2) && this.agents.length < budget) {
       const a = this.onSlopeNear(player);
       if (!a) break;
       this.agents.push(a);
