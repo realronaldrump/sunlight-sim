@@ -13,6 +13,7 @@ import { DroneModel } from '../drone/droneModel';
 interface Sample { t: number; s: NetSkier }
 
 export class RemoteSkier {
+  droneOnly = false;
   model: SkierModel;
   samples: Sample[] = [];
   ride: PlayerInfo['ride'] = null;
@@ -56,9 +57,23 @@ export class NetClient {
   onStatus?: (text: string) => void;
   private teleportPending = false;
   private pendingBoard: { lift: number; chair: number; seat: number; at: number; saved: SkierState } | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private pingTimer: ReturnType<typeof setInterval> | undefined;
+  private retry = 0;
+  private stopped = false;
+  private lastMessage = 0;
+  private session: {url:string;room:string;name:string;color:string} | null = null;
+  private resume = () => {
+    if (!document.hidden && this.connected && Date.now()-this.lastMessage > 15000) this.ws?.close();
+    if (!document.hidden && !this.connected && this.session && !this.stopped && this.ws?.readyState !== WebSocket.CONNECTING) {
+      clearTimeout(this.reconnectTimer); void this.open();
+    }
+  };
 
-  constructor(private player: Player, private lifts: LiftSystem) {
+  constructor(private player: Player, private lifts: LiftSystem, readonly droneOnly = false) {
     this.group.name = 'remote-players';
+    window.addEventListener('online',this.resume);
+    document.addEventListener('visibilitychange',this.resume);
   }
 
   static defaultUrl() {
@@ -71,31 +86,63 @@ export class NetClient {
   }
 
   connect(url: string, room: string, name: string, color: string): Promise<boolean> {
+    this.session = {url,room,name,color}; this.room=room; this.stopped=false;
+    return this.open();
+  }
+
+  private open(): Promise<boolean> {
+    const session = this.session!;
+    clearTimeout(this.reconnectTimer);
     return new Promise((resolve) => {
       let settled = false;
       const done = (ok: boolean) => { if (!settled) { settled = true; resolve(ok); } };
-      try { this.ws = new WebSocket(url); } catch { done(false); return; }
+      try { this.ws = new WebSocket(session.url); } catch { done(false); this.scheduleReconnect(); return; }
       const ws = this.ws;
       const timer = setTimeout(() => { done(false); ws.close(); }, 6000);
-      ws.onopen = () => this.send({ type: 'join', room, name, color });
+      ws.onopen = () => this.send({ type: 'join', room:session.room, name:session.name, color:session.color, controlMode:this.droneOnly ? 'drone' : 'skier' });
       ws.onerror = () => { clearTimeout(timer); done(false); };
       ws.onclose = () => {
+        clearTimeout(timer);
+        if (this.ws !== ws) return;
         this.connected = false;
-        this.onStatus?.('Disconnected from multiplayer server');
-        for (const r of this.remotes.values()) { this.group.remove(r.model.root); r.drone?.dispose(); }
-        this.remotes.clear();
+        clearInterval(this.pingTimer);
+        if (!this.stopped) this.onStatus?.('Connection interrupted. Reconnecting…');
+        this.clearRemotes();
         this.player.requestBoard = undefined;
         this.pendingBoard = null;
+        this.player.onUnload = undefined;
         done(false);
+        this.scheduleReconnect();
       };
       ws.onmessage = (ev) => {
+        this.lastMessage=Date.now();
         let m: ServerMsg;
         try { m = JSON.parse(ev.data); } catch { return; }
-        if (m.type === 'welcome') { clearTimeout(timer); this.onWelcome(m); done(true); }
-        else if (m.type === 'error') { clearTimeout(timer); this.onStatus?.(m.reason); done(false); }
+        if (this.ws !== ws) return;
+        if (m.type === 'welcome') { clearTimeout(timer); this.retry=0; this.onWelcome(m); done(true); }
+        else if (m.type === 'error') { clearTimeout(timer); this.onStatus?.(m.reason); done(false); ws.close(); }
         else this.onMessage(m);
       };
     });
+  }
+
+  private scheduleReconnect() {
+    if (this.stopped || !this.session) return;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer=setTimeout(() => { void this.open(); },Math.min(10000,750*2**Math.min(4,this.retry++)));
+  }
+
+  private removeRemote(r: RemoteSkier) {
+    this.group.remove(r.model.root);
+    if (r.drone) { this.group.remove(r.drone.root); r.drone.dispose(); }
+    (r.label.material as THREE.SpriteMaterial).map?.dispose(); r.label.material.dispose();
+  }
+  private clearRemotes() { for(const r of this.remotes.values())this.removeRemote(r); this.remotes.clear(); }
+  disconnect() {
+    this.stopped=true; clearTimeout(this.reconnectTimer); clearInterval(this.pingTimer);
+    this.ws?.close(); this.connected=false; this.clearRemotes();
+    window.removeEventListener('online',this.resume); document.removeEventListener('visibilitychange',this.resume);
+    this.player.requestBoard=undefined; this.player.onUnload=undefined;
   }
 
   private send(m: ClientMsg) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }
@@ -104,11 +151,18 @@ export class NetClient {
     this.id = m.id; this.room = m.room; this.connected = true;
     this.clockOffset = m.serverTime - Date.now() / 1000;
     this.lifts.clockOffset = this.clockOffset;
+    this.rttBest=Infinity;
     for (const p of m.players) this.addRemote(p);
-    for (let i = 0; i < 5; i++) setTimeout(() => this.send({ type: 'ping', t: Date.now() / 1000 }), 200 * i);
-    setInterval(() => this.send({ type: 'ping', t: Date.now() / 1000 }), 10000);
+    this.send({ type: 'ping', t: Date.now() / 1000 });
+    clearInterval(this.pingTimer);
+    this.pingTimer=setInterval(() => {
+      if (Date.now()-this.lastMessage > 20000) { this.ws?.close(); return; }
+      this.send({ type: 'ping', t: Date.now() / 1000 });
+    }, 10000);
+    this.markTeleport(); this.sendState();
     // the server assigns chair seats
     this.player.requestBoard = (lift, chair, seat) => {
+      if (this.droneOnly) return;
       if (this.pendingBoard && performance.now() - this.pendingBoard.at < 1500) return;
       this.pendingBoard = { lift, chair, seat, at: performance.now(), saved: structuredClone(this.player.st) };
       // Start the physical pickup at contact, without waiting for a round trip.
@@ -128,6 +182,8 @@ export class NetClient {
   private addRemote(p: PlayerInfo) {
     if (p.id === this.id || this.remotes.has(p.id)) return;
     const r = new RemoteSkier(p.id, p.name, p.color);
+    r.droneOnly=p.controlMode==='drone';
+    r.model.root.visible=!r.droneOnly;
     r.samples.push({ t: p.t, s: p.s });
     r.ride = p.ride;
     this.remotes.set(p.id, r);
@@ -140,6 +196,7 @@ export class NetClient {
     if (flight && !r.flight) { r.flightPos.set(flight.x,flight.y,flight.z);r.flightYaw=flight.yaw; }
     r.flight=flight;
     if(r.drone)r.drone.root.visible=!!flight;
+    if (r.droneOnly && r.drone) { r.drone.root.add(r.label); r.label.position.y=.8; r.label.scale.set(2.4,.6,1); }
   }
 
   private onMessage(m: ServerMsg) {
@@ -147,7 +204,7 @@ export class NetClient {
       case 'joined': this.addRemote(m.player); this.onChat?.('', `${m.player.name} joined`); break;
       case 'left': {
         const r = this.remotes.get(m.id);
-        if (r) { this.group.remove(r.model.root); r.drone?.dispose(); this.remotes.delete(m.id); this.onChat?.('', `${r.name} left`); }
+        if (r) { this.removeRemote(r); this.remotes.delete(m.id); this.onChat?.('', `${r.name} left`); }
         break;
       }
       case 'snapshot':
@@ -163,6 +220,7 @@ export class NetClient {
         break;
       case 'boarded':
         if (m.id === this.id) {
+          if (this.droneOnly) break;
           const pending = this.pendingBoard;
           this.pendingBoard = null;
           if (pending?.lift === m.lift && pending.chair === m.chair && this.player.ride?.chair === m.chair && this.player.ride.lift === m.lift) this.player.confirmSeat(m.seat);
@@ -215,7 +273,7 @@ export class NetClient {
     const st = this.player.st;
     this.send({ type: 'state', teleport: this.teleportPending || undefined, drone: this.localDrone?.() ?? null, s: {
       x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
-      mode: this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
+      mode: this.droneOnly ? 'drone' : this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
     } });
     this.teleportPending = false;
   }
@@ -286,7 +344,7 @@ export class NetClient {
     if (this.player.ride) return false;
     let hit = false;
     for (const r of this.remotes.values()) {
-      if (r.ride) continue;
+      if (r.ride || r.droneOnly) continue;
       const p = r.model.root.position;
       const dx = st.pos.x - p.x, dz = st.pos.z - p.z, d = Math.hypot(dx, dz);
       if (d < 0.8 && d > 1e-3 && Math.abs(st.pos.y - p.y) < 1.5) {
@@ -304,7 +362,7 @@ export class NetClient {
 
   mapPlayers() {
     return [...this.remotes.values()].map((r) => ({
-      name: r.name, color: r.color, x: r.model.root.position.x, z: r.model.root.position.z, heading: r.heading,
+      name: r.name, color: r.color, x: r.flight ? r.flightPos.x : r.model.root.position.x, z: r.flight ? r.flightPos.z : r.model.root.position.z, heading: r.flight ? r.flightYaw : r.heading,
     }));
   }
 }

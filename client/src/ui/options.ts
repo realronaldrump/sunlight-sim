@@ -1,5 +1,6 @@
 // Options panel (P): time of day, snowfall, sound volume, graphics quality.
 import { QualityName, savedQuality, saveQuality } from '../quality';
+import { IPHONE } from '../platform';
 
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
@@ -27,15 +28,16 @@ export class OptionsPanel {
   constructor(h: OptionsHandlers) {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.el = document.createElement('div'); this.el.id = 'opts';
-    this.el.innerHTML = `<h3>Options</h3>
+    this.el.innerHTML = `${IPHONE ? '<button class="options-close" type="button">Done</button>' : ''}<h3>Options</h3>
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
       <input type="range" id="o-hour" min="7.5" max="17" step="0.25" value="${h.hour}">
       <label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
-      <label>Graphics quality (reloads)</label>
+      <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
-      <p style="opacity:.7;margin:10px 0 0">Press P to close.</p>`;
+      </div><p style="opacity:.7;margin:10px 0 0">${IPHONE ? 'Graphics optimized for iPhone.' : 'Press P to close.'}</p>`;
     document.body.appendChild(this.el);
+    this.el.querySelector('.options-close')?.addEventListener('click', () => this.toggle());
     const hour = this.el.querySelector('#o-hour') as HTMLInputElement;
     hour.oninput = () => { (this.el.querySelector('#o-hl') as HTMLElement).textContent = fmtHour(Number(hour.value)); };
     hour.onchange = () => h.setHour(Number(hour.value));

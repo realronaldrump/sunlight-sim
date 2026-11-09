@@ -1,4 +1,5 @@
 // Graphics quality presets and auto-detection.
+import { IPHONE } from './platform';
 export type QualityName = 'low' | 'medium' | 'high' | 'ultra';
 
 export interface QualityPreset {
@@ -29,6 +30,7 @@ export function saveQuality(q: QualityName | 'auto') {
 
 /** Pick a preset from the device: WebGPU on a desktop GPU -> high; WebGL2 fallback -> medium; small/mobile -> low. */
 export async function detectQuality(forceWebGL = false): Promise<QualityName> {
+  if (IPHONE) return 'low';
   const url = new URLSearchParams(location.search).get('quality') as QualityName | null;
   if (url && url in PRESETS) return url;
   const saved = savedQuality();

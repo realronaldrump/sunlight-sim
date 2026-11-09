@@ -4,6 +4,7 @@ import type { ResortData, RunInfo } from '../game';
 import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
+import { IPHONE } from '../platform';
 
 export interface MapPlayer { name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 
@@ -37,12 +38,12 @@ export class TrailMap {
   constructor(private resort: ResortData, base: string) {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.root = document.createElement('div'); this.root.id = 'tmap';
-    this.root.innerHTML = `<div class="title">Sunlight Mountain trail map <span style="font-weight:400;font-size:13px;opacity:.8">(viewed from the base, like the resort map)</span></div><button class="close">Close (M)</button><button class="close orient" style="right:130px">North up</button><div class="tip"></div>
+    this.root.innerHTML = `<div class="title">Sunlight Mountain trail map <span style="font-weight:400;font-size:13px;opacity:.8">(viewed from the base, like the resort map)</span></div><button class="close">${IPHONE ? 'Close' : 'Close (M)'}</button><button class="close orient" style="right:130px">North up</button><div class="tip"></div>
       <div class="legend">
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
         <div><span class="diff park"></span>Terrain Park</div><div style="color:#ff6b6b">&#9473; Chairlift</div>
-        <div>Click a run to go to its top, or a friend to join them. Scroll to zoom, drag to pan.</div></div>`;
+        <div>${IPHONE ? 'Tap a run or friend to fly there. Pinch to zoom, drag to pan.' : 'Click a run to go to its top, or a friend to join them. Scroll to zoom, drag to pan.'}</div></div>`;
     this.cv = document.createElement('canvas');
     this.root.prepend(this.cv);
     document.body.appendChild(this.root);
@@ -96,39 +97,59 @@ export class TrailMap {
   }
 
   private bindEvents() {
-    let drag = false, moved = false, lx = 0, ly = 0;
-    this.cv.addEventListener('mousedown', (e) => { drag = true; moved = false; lx = e.clientX; ly = e.clientY; });
-    window.addEventListener('mouseup', (e) => {
-      if (drag && !moved && this.visible && e.target === this.cv) {
-        const friend = this.pickPlayer(e.clientX, e.clientY);
-        if (friend && this.onJoinPlayer) { this.onJoinPlayer(friend.name); this.toggle(false); drag = false; return; }
-        const r = this.pick(e.clientX, e.clientY);
-        if (r && this.onTeleport) { this.onTeleport(r.name); this.toggle(false); }
-      }
-      drag = false;
-    });
-    this.cv.addEventListener('mousemove', (e) => {
-      if (drag) {
-        if (Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 3) moved = true;
-        this.ox += e.clientX - lx; this.oy += e.clientY - ly; lx = e.clientX; ly = e.clientY;
-        this.draw(); return;
-      }
-      const r = this.pick(e.clientX, e.clientY);
-      if (r !== this.hover) { this.hover = r; this.draw(); }
-      if (r) {
-        this.tip.style.display = 'block';
-        this.tip.style.left = e.clientX + 14 + 'px'; this.tip.style.top = e.clientY + 10 + 'px';
-        this.tip.innerHTML = `<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${DIFF_LABEL[r.difficulty] ?? ''}${(r as any).stats ? ` &middot; ${formatDistance((r as any).stats.lengthM)}, avg ${(r as any).stats.avgDeg}&deg;, max ${(r as any).stats.maxDeg}&deg;` : ''}`;
-      } else this.tip.style.display = 'none';
-    });
-    this.cv.addEventListener('wheel', (e) => {
-      const [wx, wz] = this.toWorld(e.clientX, e.clientY);
-      this.scale *= e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      this.scale = Math.max(0.1, Math.min(8, this.scale));
-      this.ox = e.clientX - wx * this.scale; this.oy = e.clientY - wz * this.scale;
-      this.draw();
+    const pointers = new Map<number, {x:number;y:number}>();
+    let moved=false, travel=0;
+    const zoomAt = (x:number,y:number,factor:number) => {
+      const [wx,wz]=this.toWorld(x,y), f=this.flip ? -1 : 1;
+      this.scale=Math.max(.04,Math.min(8,this.scale*factor));
+      this.ox=x-f*wx*this.scale; this.oy=y-f*wz*this.scale;
+    };
+    this.cv.style.touchAction='none';
+    this.cv.addEventListener('pointerdown',e => {
       e.preventDefault();
-    }, { passive: false });
+      if(!pointers.size) { moved=false;travel=0; }
+      else moved=true;
+      pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      this.cv.setPointerCapture(e.pointerId);
+    });
+    this.cv.addEventListener('pointermove',e => {
+      const old=pointers.get(e.pointerId);
+      if(old) {
+        const before=[...pointers.values()];
+        pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+        const after=[...pointers.values()];
+        if(before.length===2) {
+          const bx=(before[0].x+before[1].x)/2, by=(before[0].y+before[1].y)/2;
+          const ax=(after[0].x+after[1].x)/2, ay=(after[0].y+after[1].y)/2;
+          const bd=Math.hypot(before[0].x-before[1].x,before[0].y-before[1].y);
+          const ad=Math.hypot(after[0].x-after[1].x,after[0].y-after[1].y);
+          zoomAt(bx,by,ad/Math.max(1,bd)); this.ox+=ax-bx;this.oy+=ay-by; moved=true;
+        } else {
+          const dx=e.clientX-old.x,dy=e.clientY-old.y;
+          travel+=Math.hypot(dx,dy); if(travel>6)moved=true;
+          this.ox+=dx;this.oy+=dy;
+        }
+        this.tip.style.display='none';this.draw();return;
+      }
+      if(e.pointerType==='touch')return;
+      const r=this.pick(e.clientX,e.clientY);
+      if(r!==this.hover){this.hover=r;this.draw();}
+      if(r){
+        this.tip.style.display='block';this.tip.style.left=e.clientX+14+'px';this.tip.style.top=e.clientY+10+'px';
+        this.tip.innerHTML=`<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${DIFF_LABEL[r.difficulty] ?? ''}${(r as any).stats ? ` &middot; ${formatDistance((r as any).stats.lengthM)}, avg ${(r as any).stats.avgDeg}&deg;, max ${(r as any).stats.maxDeg}&deg;` : ''}`;
+      }else this.tip.style.display='none';
+    });
+    this.cv.addEventListener('pointerup',e => {
+      const existed=pointers.delete(e.pointerId);
+      if(existed && !moved && !pointers.size && this.visible){
+        const friend=this.pickPlayer(e.clientX,e.clientY), run=this.pick(e.clientX,e.clientY);
+        if(friend && this.onJoinPlayer){this.onJoinPlayer(friend.name);this.toggle(false);}
+        else if(run && this.onTeleport){this.onTeleport(run.name);this.toggle(false);}
+      }
+    });
+    for(const event of ['pointercancel','lostpointercapture']) this.cv.addEventListener(event,e => {pointers.delete((e as PointerEvent).pointerId);moved=true;});
+    this.cv.addEventListener('wheel',e => {e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0 ? 1.15 : 1/1.15);this.draw();},{passive:false});
+    window.addEventListener('resize',() => {pointers.clear();if(this.visible){this.fit();this.toggle(true);}});
   }
 
   /** Another player's marker under a screen point (within 14 px). */
@@ -136,7 +157,7 @@ export class TrailMap {
     for (const p of this.players) {
       if (p.self) continue;
       const [px, py] = this.toScreen(p.x, p.z);
-      if (Math.hypot(px - sx, py - sy) < 14) return p;
+      if (Math.hypot(px - sx, py - sy) < (IPHONE ? 24 : 14)) return p;
     }
     return null;
   }
@@ -144,7 +165,7 @@ export class TrailMap {
   /** Run under a screen point: inside an outline, or within 12 m of a centerline. */
   pick(sx: number, sy: number): RunInfo | null {
     const [x, z] = this.toWorld(sx, sy);
-    let best: RunInfo | null = null, bestD = 14;
+    let best: RunInfo | null = null, bestD = IPHONE ? Math.max(14, 16 / this.scale) : 14;
     for (const r of this.resort.runs) {
       const pts = r.points;
       for (let i = 0; i < pts.length - 1; i++) {

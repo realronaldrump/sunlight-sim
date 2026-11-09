@@ -11,7 +11,7 @@ import {
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean }
 
 let liftCache: LiftPath[] | null = null;
 let droneArea: FlightArea | null = null;
@@ -47,11 +47,11 @@ export class Room {
 
   get size() { return this.players.size; }
 
-  join(conn: Conn, name: string, color: string): Player | null {
+  join(conn: Conn, name: string, color: string, controlMode: 'skier' | 'drone' = 'skier'): Player | null {
     if (this.players.size >= MAX_PLAYERS) return null;
     const id = 'p' + (nextId++).toString(36);
     const p: Player = {
-      id, name: sanitizeName(name), color: sanitizeColor(color), conn, lastRx: now(), t: now(), ride: null,
+      id, name: sanitizeName(name), color: sanitizeColor(color), conn, lastRx: now(), t: now(), ride: null, controlMode, initialized:false,
       s: { x: 0, y: 0, z: 0, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0 },
     };
     this.players.set(id, p);
@@ -97,12 +97,22 @@ export class Room {
       case 'state': {
         const s = msg.s;
         if (!s || ![s.x, s.y, s.z, s.heading, s.vx, s.vy, s.vz].every(Number.isFinite)) return;
+        if (p.controlMode === 'drone') {
+          const anchor = !p.initialized || msg.teleport ? s : p.s;
+          const parked = {...anchor, mode:'drone', vx:0, vy:0, vz:0, edge:0, plow:0, tuck:0, fallen:0};
+          if (msg.drone && this.validDrone(msg.drone,{...p,s:parked},t)) {
+            p.drone = {...msg.drone,rpm:[...msg.drone.rpm]};
+            p.s = parked; p.initialized = true;
+          }
+          // No skier motion, falling, boarding or flight exit can be requested by this session.
+          p.t = t; return;
+        }
         if (msg.drone == null) p.drone = null;
         else if (this.validDrone(msg.drone,p,t)) p.drone = { ...msg.drone, rpm: [...msg.drone.rpm] };
         if (p.ride) { p.s = { ...p.s, mode: 'riding' }; p.t = t; return; } // chair position is server-derived
         const dt = Math.max(0.02, t - p.t);
         const dist = Math.hypot(s.x - p.s.x, s.z - p.s.z);
-        const first = p.s.x === 0 && p.s.z === 0;
+        const first = !p.initialized;
         if (!first && !msg.teleport && dist > MAX_SPEED * dt + 5) {
           // implausible jump: keep the authoritative position and tell the client
           p.conn.send({ type: 'correct', s: p.s });
@@ -111,12 +121,14 @@ export class Room {
         const sp = Math.hypot(s.vx, s.vy, s.vz);
         const k = sp > MAX_SPEED ? MAX_SPEED / sp : 1;
         p.s = { ...s, vx: s.vx * k, vy: s.vy * k, vz: s.vz * k, mode: String(s.mode).slice(0, 12) };
+        p.initialized = true;
         p.t = t;
         return;
       }
       case 'board': {
         const lift = this.lifts[msg.lift];
         const reject = (reason: string) => p.conn.send({ type: 'boardRejected', reason });
+        if (p.controlMode === 'drone') { reject('drone-only session'); return; }
         if (!Number.isInteger(msg.lift) || !lift) { reject('no such lift'); return; }
         if (!Number.isInteger(msg.chair) || msg.chair < 0 || msg.chair >= lift.chairCount || !Number.isInteger(msg.seat) || msg.seat < 0 || msg.seat >= lift.def.seats) {
           reject('invalid chair or seat'); return;
@@ -167,6 +179,7 @@ export class Room {
     if (![d.x,d.y,d.z,d.yaw,d.pitch,d.bank,d.tilt].every(Number.isFinite) ||
       !Array.isArray(d.rpm) || d.rpm.length !== 4 || !d.rpm.every(v => Number.isFinite(v) && v >= 0 && v <= 12000)) return false;
     if (!this.flightArea?.contains(d.x,d.z) || d.y < 2000 || d.y > 3500 || Math.abs(d.pitch) > Math.PI/2 || Math.abs(d.bank) > .7 || Math.abs(d.tilt) > .7 || Math.abs(d.yaw)>1e6) return false;
+    if (!p.initialized && p.controlMode === 'drone') return true; // A reconnect resumes the aircraft within the validated flight area.
     // First launch and recall must stay near the parked skier. Normal updates are speed-limited.
     const launch = {x:p.s.x,y:p.s.y,z:p.s.z}; this.flightArea.constrain(launch);
     const nearSkier = Math.hypot(d.x-launch.x,d.z-launch.z) < 70;
@@ -204,19 +217,19 @@ export class Room {
 }
 
 function info(p: Player): PlayerInfo {
-  return { id: p.id, name: p.name, color: p.color, s: p.s, ride: p.ride, t: p.t, drone: p.drone ?? null };
+  return { id: p.id, name: p.name, color: p.color, s: p.s, ride: p.ride, t: p.t, drone: p.drone ?? null, controlMode:p.controlMode };
 }
 
 export class Lobby {
   rooms = new Map<string, Room>();
   constructor(private lifts: LiftPath[] = loadLifts()) {}
 
-  join(conn: Conn, room: string, name: string, color: string) {
+  join(conn: Conn, room: string, name: string, color: string, controlMode: 'skier' | 'drone' = 'skier') {
     const code = sanitizeRoom(room);
     if (!code) { conn.send({ type: 'error', reason: 'bad room code' }); return null; }
     let r = this.rooms.get(code);
     if (!r) { r = new Room(code, this.lifts); this.rooms.set(code, r); }
-    const p = r.join(conn, name, color);
+    const p = r.join(conn, name, color, controlMode);
     if (!p) { conn.send({ type: 'error', reason: 'room is full (8 players)' }); return null; }
     return { room: r, id: p.id };
   }

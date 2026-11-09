@@ -35,7 +35,7 @@ wss.on('connection', (ws: WebSocket) => {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'join') {
       if (room) return;
-      const r = lobby.join(conn, String(msg.room ?? ''), String(msg.name ?? ''), String(msg.color ?? ''));
+      const r = lobby.join(conn, String(msg.room ?? ''), String(msg.name ?? ''), String(msg.color ?? ''), msg.controlMode === 'drone' ? 'drone' : 'skier');
       if (r) { room = r.room.code; id = r.id; console.log(`join ${room} ${id}`); }
       return;
     }

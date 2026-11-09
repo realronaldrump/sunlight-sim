@@ -19,7 +19,7 @@ export class DroneSystem {
   private wall: THREE.LineSegments;
   private cameraPosition = new THREE.Vector3();
   private cameraReady = false;
-  constructor(readonly area: FlightArea,readonly world: FlightWorld,private camera: THREE.PerspectiveCamera,private dom: HTMLElement,scene: THREE.Scene) {
+  constructor(readonly area: FlightArea,readonly world: FlightWorld,private camera: THREE.PerspectiveCamera,private dom: HTMLElement,scene: THREE.Scene, readonly droneOnly = false) {
     this.model.root.visible = false; scene.add(this.model.root);
     const lines: number[] = [];
     for (let x = -18; x <= 18; x += 3) lines.push(x,-4,0,x,8,0);
@@ -27,7 +27,7 @@ export class DroneSystem {
     this.wall = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(lines,3)),
       new THREE.LineBasicNodeMaterial({color:0xffb465,transparent:true,opacity:0,depthWrite:false}));
     this.wall.name = 'drone-flight-boundary'; this.wall.visible = false; scene.add(this.wall);
-    dom.addEventListener('pointerdown',e => { if (!this.state || !this.controlsEnabled || e.button !== 0) return; this.dragging = true; this.lastX=e.clientX;this.lastY=e.clientY; });
+    dom.addEventListener('pointerdown',e => { if (this.droneOnly || !this.state || !this.controlsEnabled || e.button !== 0) return; this.dragging = true; this.lastX=e.clientX;this.lastY=e.clientY; });
     window.addEventListener('pointerup',() => { this.dragging=false; });
     window.addEventListener('blur',() => { this.dragging=false; if(this.state) this.state.vel={x:0,y:0,z:0}; });
     window.addEventListener('pointermove',e => {
@@ -39,7 +39,7 @@ export class DroneSystem {
       this.state.pitch=THREE.MathUtils.clamp(this.state.pitch-dy*.003,-Math.PI*.49,Math.PI*.38);
     });
     dom.addEventListener('dblclick',() => {
-      if (!this.state || !this.controlsEnabled || !dom.requestPointerLock) return;
+      if (this.droneOnly || !this.state || !this.controlsEnabled || !dom.requestPointerLock) return;
       try { const pending = dom.requestPointerLock(); if (pending) void pending.catch(() => {}); } catch { /* Drag look works without pointer lock. */ }
     });
   }
@@ -57,11 +57,18 @@ export class DroneSystem {
     this.cameraReady=false;
   }
   exit() {
+    if (this.droneOnly) return;
     this.state=null;this.model.root.visible=false;this.wall.visible=false;this.dragging=false;
     if(document.pointerLockElement===this.dom) document.exitPointerLock();
     this.camera.fov=this.oldFov;this.camera.near=this.oldNear;this.camera.updateProjectionMatrix();
   }
   cycleCamera() { this.fpv=!this.fpv;this.cameraReady=false; }
+  hold() { if (this.state) { this.state.vel = {x:0,y:0,z:0}; this.state.speed = 0; } }
+  look(dx: number, dy: number) {
+    if (!this.state || !this.controlsEnabled) return;
+    this.state.yaw -= dx * .004;
+    this.state.pitch = THREE.MathUtils.clamp(this.state.pitch - dy * .004, -Math.PI*.49, Math.PI*.38);
+  }
   update(dt: number,input: DroneInput) {
     const s=this.state;if(!s)return;
     if(!this.controlsEnabled) { this.dragging=false;if(document.pointerLockElement===this.dom)document.exitPointerLock(); }

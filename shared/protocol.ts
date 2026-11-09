@@ -16,10 +16,11 @@ export interface NetDrone { x: number; y: number; z: number; yaw: number; pitch:
 export interface PlayerInfo {
   id: string; name: string; color: string;
   s: NetSkier; ride: NetRide | null; t: number; drone?: NetDrone | null;
+  controlMode?: 'skier' | 'drone';
 }
 
 export type ClientMsg =
-  | { type: 'join'; room: string; name: string; color: string }
+  | { type: 'join'; room: string; name: string; color: string; controlMode?: 'skier' | 'drone' }
   | { type: 'state'; s: NetSkier; teleport?: boolean; drone?: NetDrone | null }
   | { type: 'board'; lift: number; chair: number; seat: number }
   | { type: 'unload' }
