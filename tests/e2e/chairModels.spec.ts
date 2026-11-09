@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test('Sunlight chair close-ups, occupied seats and distinct carrier designs', async ({ page }) => {
+for (const webgl of [false, true]) test(`Sunlight chair close-ups and occupied seats (${webgl ? 'WebGL2' : 'WebGPU'})`, async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('/?autostart=1&ambient=0&mute=1');
+  await page.goto(`/?autostart=1&ambient=0&mute=1${webgl ? '&webgl=1' : ''}`);
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
   for (const name of ['Primo', 'Segundo', 'Tercero']) {
     const model = await page.evaluate(name => {
@@ -26,7 +26,7 @@ test('Sunlight chair close-ups, occupied seats and distinct carrier designs', as
     expect(model.bar).toBe(name !== 'Tercero');
     expect(model.count).toBe(({ Primo: 115, Segundo: 140, Tercero: 110 })[name]);
     await page.waitForTimeout(1200);
-    await page.screenshot({ path: `screenshots/chair-${name}-front.png` });
+    await page.screenshot({ path: `screenshots/chair-${name}-front${webgl ? '-webgl' : ''}.png` });
     await page.evaluate(name => {
       const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === name);
       g.player.board(li, 0, Math.floor(g.lifts.paths[li].def.seats / 2));
@@ -38,7 +38,7 @@ test('Sunlight chair close-ups, occupied seats and distinct carrier designs', as
       g.player.model.root.visible = true;
     }, name);
     await page.waitForTimeout(300);
-    await page.screenshot({ path: `screenshots/chair-${name}-occupied.png` });
+    await page.screenshot({ path: `screenshots/chair-${name}-occupied${webgl ? '-webgl' : ''}.png` });
   }
   expect(errors).toEqual([]);
 });
