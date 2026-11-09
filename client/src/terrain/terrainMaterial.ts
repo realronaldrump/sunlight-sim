@@ -20,6 +20,12 @@ export interface TerrainMaterialHandles {
   setLandcover(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setLandcoverMid(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
   setBase(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
+  /** What the snow remembers (snowState.ts): wear, tonight's grooming, popularity. */
+  setSnowState(tex: THREE.Texture, x0: number, n0: number, sizeX: number, sizeN: number): void;
+  /** Hours of a normal day's traffic on the busy lines since grooming. */
+  skiedHours: { value: number };
+  /** 0..1 cover of new snow. */
+  freshCover: { value: number };
   /** Hide snow inside building footprints below their floors (oriented rectangles in game x/z). */
   setCutouts(list: { cx: number; cz: number; yaw: number; hx: number; hz: number; y: number }[]): void;
 }
@@ -44,6 +50,9 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const landBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
   const baseBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
   const midBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
+  const stateBounds = uniform(new THREE.Vector4(0, 0, 1, 1));
+  const skiedHours = uniform(2);
+  const freshCover = uniform(0);
 
   mat.positionNode = curvedPosition();
 
@@ -77,7 +86,10 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     return ov;
   });
   const overlay = overlayColor();
-  const snowDetail = createSnowSurface(surf, dist, plowed);
+  const stateUV = xn.sub(stateBounds.xy).div(stateBounds.zw);
+  const inState = step(0.0, stateUV.x).mul(step(stateUV.x, 1.0)).mul(step(0.0, stateUV.y)).mul(step(stateUV.y, 1.0));
+  const stateTex = texture(placeholder, stateUV);
+  const snowDetail = createSnowSurface(surf, dist, plowed, { sample: stateTex.mul(inState), hours: skiedHours, fresh: freshCover });
   // Keep exposed faces and distant canopy out of the snow reflection model.
   const rockT = mix(float(48.0), float(33.0), smoothstep(1500.0, 15000.0, dist));
   const rock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(float(1.0).sub(surf.g)).mul(0.85);
@@ -139,6 +151,12 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     setSurface(tex, x0, n0, sx, sn) {
       surfTex.value = tex;
       surfBounds.value.set(x0, n0, sx, sn);
+    },
+    skiedHours,
+    freshCover,
+    setSnowState(tex, x0, n0, sx, sn) {
+      stateTex.value = tex;
+      stateBounds.value.set(x0, n0, sx, sn);
     },
     setBase(tex, x0, n0, sx, sn) {
       baseTex.value = tex;

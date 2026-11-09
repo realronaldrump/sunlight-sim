@@ -27,6 +27,9 @@ export class AmbientSkiers {
     this.runs = runs.filter((r) => r.kind === 'line' && ['green', 'blue', 'black'].includes(r.difficulty) && r.points.length > 3);
   }
 
+  /** Skiers on the snow right now (for their tracks and wear). */
+  skiers() { return this.agents.map((a) => ({ id: a.guest.id, st: a.st })); }
+
   /** Read-only contacts for spatial pass-by sound; uses the same state as the visible skiers. */
   soundSources() {
     return this.agents.map(a => ({ pos: a.st.pos, speed: a.st.speed, skid: a.st.skid,

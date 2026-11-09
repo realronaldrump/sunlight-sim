@@ -8,7 +8,7 @@ import {
 } from 'three/tsl';
 
 /** A scanned, world-anchored snow surface. All heights are shading relief, never DEM offsets. */
-export function createSnowSurface(surf, dist, plowed) {
+export function createSnowSurface(surf, dist, plowed, state) {
   const fallback = new THREE.DataTexture(new Uint8Array([128, 128, 230, 255]), 1, 1);
   fallback.needsUpdate = true;
   const scan = texture(fallback);
@@ -47,7 +47,18 @@ export function createSnowSurface(surf, dist, plowed) {
   const seamDistance = abs(fract(across.div(4.8).add(0.5)).sub(0.5)).mul(4.8);
   const seam = float(1).sub(smoothstep(0.025, 0.10, seamDistance));
   const wear = smoothstep(-0.32, 0.5, driftNoise).mul(0.28);
-  const fresh = groomed.mul(wear.oneMinus());
+  // What the snow remembers (snowState.ts): skier traffic, tonight's grooming, a normal day's busy lines,
+  // and new snow on top of it all.
+  const memory = state.sample;
+  const baseline = memory.b.mul(state.hours.div(6).clamp(0, 1)).mul(memory.g.oneMinus());
+  const worn = memory.r.add(baseline.mul(0.85)).clamp(0, 1).mul(state.fresh.oneMinus());
+  const hardpack = worn.mul(groomed);          // scraped, polished main line on a groomed run
+  const chop = worn.mul(powder);               // skied-out chop off the groomers
+  const fresh = groomed.mul(wear.oneMinus()).mul(hardpack.mul(0.9).oneMinus()).mul(state.fresh.mul(0.9).oneMinus());
+  const along = grooming.y;
+  // scrape streaks stretched along the run, read from the scanned snow (cheaper than procedural noise)
+  const streaks = scan.sample(vec2(across.mul(0.55), along.mul(0.025))).r;
+  const chopNoise = drifts.r.sub(0.5).mul(2.0);
   const grainFade = float(1).sub(smoothstep(0.012, 0.05, max(length(dFdx(p)), length(dFdy(p)))));
 
   const height = Fn(() => {
@@ -56,7 +67,12 @@ export function createSnowSurface(surf, dist, plowed) {
     relief.addAssign(wind.mul(powder).mul(mix(0.004, 0.017, windExposure)));
     relief.addAssign(scanned.g.sub(0.5).mul(0.0028).mul(grainFade));
     relief.addAssign(cord.mul(0.0017).mul(cordFade).mul(fresh));
-    relief.addAssign(seam.mul(0.003).mul(groomed));
+    relief.addAssign(seam.mul(0.003).mul(groomed).mul(hardpack.oneMinus()));
+    // scraped streaks along the run where traffic has polished it; lumpy chop where powder was skied out
+    relief.addAssign(streaks.sub(0.5).mul(0.006).mul(hardpack));
+    relief.addAssign(chopNoise.mul(0.03).mul(chop));
+    // a new layer of snow softens everything underneath
+    relief.mulAssign(float(1).sub(state.fresh.mul(0.55)));
     return relief.mul(near).mul(plowed.mul(0.85).oneMinus());
   })();
 
@@ -75,10 +91,16 @@ export function createSnowSurface(surf, dist, plowed) {
     .mul(float(0.99).add(driftNoise.mul(0.018)))
     .mul(microShade.oneMinus())
     .mul(mix(vec3(1), vec3(0.73, 0.84, 0.97), cavity))
-    .mul(float(1).sub(seam.mul(groomed).mul(near).mul(0.018)));
+    .mul(float(1).sub(seam.mul(groomed).mul(near).mul(0.018)))
+    // packed, scraped snow reads a little grey-blue; fresh snow a little brighter
+    .mul(mix(vec3(1), vec3(0.85, 0.895, 0.945), hardpack.mul(streaks.mul(0.55).add(0.45))))
+    .mul(mix(vec3(1), vec3(0.95, 0.965, 0.98), chop.mul(0.6)))
+    .mul(float(1).add(state.fresh.mul(0.02)));
   const roughness = mix(0.84, 0.65, groomed)
     .add(scanned.b.sub(0.5).mul(0.13).mul(near))
-    .sub(windExposure.mul(0.08)).clamp(0.5, 0.93);
+    .sub(windExposure.mul(0.08))
+    // polished hardpack throws a sheen in the sun; new snow is matte
+    .sub(hardpack.mul(0.17)).add(state.fresh.mul(0.12)).clamp(0.45, 0.95);
   // Ambient shelter darkens hollows without baking a light direction into the albedo.
   const ao = float(1).sub(cavity.mul(0.42)).sub(surf.b.mul(0.16)).clamp(0.68, 1);
   return { color, normal, roughness, ao, ready };

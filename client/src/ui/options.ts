@@ -55,7 +55,7 @@ export class OptionsPanel {
       <button id="pause-recall" type="button" hidden>Recall drone to ${IPHONE ? 'launch point' : 'skier'}</button>
       <button id="pause-log" type="button" ${h.log ? '' : 'hidden'}>Ski log and mountain progress</button><hr>
       <label class="row"><span>Time of day (mid January)</span><b id="o-hl">${fmtHour(h.hour)}</b></label>
-      <input type="range" id="o-hour" min="7.5" max="17" step="0.25" value="${h.hour}">
+      <input type="range" id="o-hour" min="7" max="20" step="0.25" value="${h.hour}">
       <label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>

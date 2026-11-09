@@ -29,6 +29,9 @@ import { mergeStatic } from './world/mergeStatic';
 import { AmbientSkiers } from './world/ambient';
 import { Snowfall } from './sky/snowfall';
 import { SkiTracks } from './skier/tracks';
+import { SnowState } from './terrain/snowState';
+import { SnowMemory } from './terrain/snowMemory';
+import { Snowcats } from './world/snowcats';
 import { OptionsPanel } from './ui/options';
 import { ColliderGrid } from '../../shared/collision';
 import { SurfaceMap } from '../../shared/surface';
@@ -85,7 +88,17 @@ export class Game {
   quality!: QualityPreset;
   audio = new SkiAudio();
   snowfall = new Snowfall();
-  tracks = new SkiTracks((x, z) => this.probe.height(x, z));
+  // your own tracks last about an hour of skiing; everyone else's are lighter and longer chords
+  tracks = new SkiTracks((x, z) => this.probe.height(x, z), { max: 8000, life: 3600 });
+  crowdTracks = new SkiTracks((x, z) => this.probe.height(x, z), { max: 6000, life: 2400, spray: false });
+  snowState: SnowState | null = null;
+  snowMemory: SnowMemory | null = null;
+  snowcats: Snowcats | null = null;
+  private snowNote: string | null = null;
+  /** Hours of a normal day's traffic since the runs were groomed (lifts open at 9). */
+  get skiedHours() { return this.snowHoursOverride ?? Math.max(0, Math.min(7, (this.env?.hour ?? 11) - 9)); }
+  /** Test hook: hours of traffic regardless of the time of day. */
+  snowHoursOverride: number | null = null;
   ambient: AmbientSkiers | null = null;
   private trackFade = 0;
   options!: OptionsPanel;
@@ -165,7 +178,12 @@ export class Game {
     this.probe = {
       height: (x, z) => this.hf.heightAt(x, z),
       normal: (x, z, out: Vec3) => { const n = this.hf.normalAt(x, z, 1); out.x = n.x; out.y = n.y; out.z = n.z; return out; },
-      surface: (x, z) => this.surface ? this.surface.at(x, z) : { groomed: 1, piste: 1, moguls: 0 },
+      surface: (x, z) => {
+        const s = this.surface ? this.surface.at(x, z) : { groomed: 1, piste: 1, moguls: 0 };
+        // what the snow remembers: traffic-polished main lines and new snow on top
+        if (this.snowState) { s.worn = this.snowState.wornAt(x, z, this.skiedHours); s.fresh = this.snowState.freshCover; }
+        return s;
+      },
     };
 
     this.terrainMat = createTerrainMaterial();
@@ -273,6 +291,16 @@ export class Game {
     if (this.params.get('hour')) this.env.setHour(Number(this.params.get('hour')));
     this.scene.add(this.snowfall.mesh);
     this.scene.add(this.tracks.mesh);
+    this.scene.add(this.crowdTracks.mesh);
+    this.snowState = new SnowState(this.resort.runs, this.resort.lifts);
+    this.terrainMat.setSnowState(this.snowState.texture, this.snowState.x0, this.snowState.n0, this.snowState.sizeX, this.snowState.sizeN);
+    if (this.params.get('snowmemory') !== '0') {
+      this.snowMemory = new SnowMemory(this.snowState, this.tracks, this.crowdTracks, this.surface);
+      this.snowNote = this.snowMemory.load(resortClock.now());
+      const flush = () => this.snowMemory?.save(resortClock.now());
+      window.addEventListener('pagehide', flush);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+    }
     if (this.params.get('ambient') !== '0') {
       this.ambient = new AmbientSkiers(this.resort.runs, this.probe, { low: 4, medium: 8, high: 12, ultra: 16 }[this.quality.name] ?? 8, this.lifts);
       // people around the base area, lodge and lift lines
@@ -291,6 +319,13 @@ export class Game {
       this.scene.add(this.lesson.group);
       this.lessonHud = new LessonHud();
     }
+    // groomers work the runs after last chair, restoring corduroy behind the tiller
+    this.snowcats = new Snowcats(this.resort.runs, this.probe);
+    this.snowcats.onGroom = (x, z, half) => {
+      this.snowState?.groom(x, z, half);
+      this.tracks.clearNear(x, z, half + 0.3); this.crowdTracks.clearNear(x, z, half + 0.3);
+    };
+    this.scene.add(this.snowcats.group);
     // mountain status board at the Lesson Line-Up Area, facing skiers leaving the lodge racks
     this.board = new ConditionsBoard(LINEUP.x - 6, LINEUP.z + 8, 0.67, (x, z) => this.probe.height(x, z), this.colliders);
     this.scene.add(this.board.group);
@@ -361,6 +396,7 @@ export class Game {
     if (!this.droneOnly && this.params.get('onfoot') === '1') this.startOnFoot();
     if (choice.room) await this.joinRoom(choice.room);
     this.ready = true;
+    if (this.snowNote) { const note = this.snowNote; setTimeout(() => this.hud.toast(note, 7), 2500); }
   }
 
   /** Step out of the bindings (stopped, on snow, not on a lift) or click back in (on open snow). */
@@ -655,6 +691,13 @@ export class Game {
     this.updateLesson(dt, actions.lesson && this.input.enabled);
     this.updateBoard(dt);
     this.recordSkiing(dt);
+    if (this.snowcats) {
+      this.snowcats.update(dt, resortClock.now(), this.env.hour, this.env.night.value, this.camera.position);
+      // a groomer is a big, slow machine: skiing into one stops you
+      if (!this.player.ride && !this.onFoot.active) for (const c of this.snowcats.cats) {
+        if (c.active && Math.abs(c.x - this.player.st.pos.x) < 4 && Math.abs(c.z - this.player.st.pos.z) < 4) collideCylinder(this.player.st, c.x, c.z, 2.6);
+      }
+    }
     this.updateCamera(dt);
     for (const remote of this.net?.remotes.values() ?? []) {
       fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
@@ -964,11 +1007,49 @@ export class Game {
       l.y = this.probe.height(l.x, l.z); rr.y = this.probe.height(rr.x, rr.z);
       const surf = this.surface ? this.surface.at(st.pos.x, st.pos.z) : { groomed: 1, piste: 1, moguls: 0 };
       // deeper, wider tracks in soft snow and when skidding
-      this.tracks.add(l, rr, d, 0.1 + 0.25 * st.skid, 0.6 + 0.6 * (1 - surf.groomed) + 0.4 * st.skid);
+      // chords lengthen with speed (about a meter at 25 mph) so the buffer holds several laps
+      this.tracks.add(l, rr, d, 0.1 + 0.25 * st.skid, 0.6 + 0.6 * (1 - surf.groomed) + 0.4 * st.skid, 0, Math.max(0.3, st.speed * 0.09));
     }
+    if (!this.drone.active && !this.player.ride && st.grounded && st.speed > 0.5 && !this.onFoot.active) this.snowState?.deposit(st.pos.x, st.pos.z, 0.01 * st.speed * dt);
+    this.updateCrowdTracks(dt);
     this.trackFade += dt;
     this.tracks.update(dt);
-    if (this.trackFade > 1) { this.tracks.fade(this.trackFade); this.trackFade = 0; }
+    if (this.trackFade > 10) { this.tracks.fade(this.trackFade); this.crowdTracks.fade(this.trackFade); this.trackFade = 0; }
+    if (this.snowState) {
+      this.snowMemory?.update(dt, this.env.snowing, resortClock.now());
+      if (!this.snowMemory) this.snowState.update(dt);
+      this.terrainMat.skiedHours.value = this.skiedHours;
+      this.terrainMat.freshCover.value = this.snowState.freshCover;
+    }
+  }
+
+  /** Everyone else on the snow leaves tracks near you and wears the snow wherever they ski. */
+  private updateCrowdTracks(dt: number) {
+    const cam = this.camera.position, T = this.crowdTracks;
+    const d = new THREE.Vector3(), r = new THREE.Vector3(), l = new THREE.Vector3(), rr = new THREE.Vector3();
+    const write = (id: number, x: number, z: number, heading: number, speed: number, plow: number, skid: number, onSnow: boolean) => {
+      if (onSnow && speed > 0.5) this.snowState?.deposit(x, z, 0.01 * speed * dt);
+      if (!onSnow || speed < 1.2 || Math.hypot(x - cam.x, z - cam.z) > 220) { T.break(id); return; }
+      d.set(-Math.sin(heading), 0, -Math.cos(heading)); r.set(-d.z, 0, d.x);
+      const w = 0.14 + 0.2 * plow;
+      l.set(x - r.x * w, 0, z - r.z * w); rr.set(x + r.x * w, 0, z + r.z * w);
+      l.y = this.probe.height(l.x, l.z); rr.y = this.probe.height(rr.x, rr.z);
+      const groomed = this.surface ? this.surface.at(x, z).groomed : 1;
+      T.add(l, rr, d, 0.1 + 0.25 * skid, 0.45 + 0.5 * (1 - groomed) + 0.3 * skid, id, Math.max(0.6, speed * 0.12));
+    };
+    for (const a of this.ambient?.skiers() ?? []) {
+      const st = a.st;
+      write(a.id, st.pos.x, st.pos.z, st.heading, st.speed, st.plow, st.skid, st.grounded && st.mode !== 'fallen' && st.mode !== 'air');
+    }
+    const L = this.lesson;
+    if (L?.ready) L.poses.forEach((p, i) => write(900001 + i, p.x, p.z, p.heading, p.speed, p.plow, 0.15, !p.ride && p.sit === 0 && !p.skate));
+    for (const rem of this.net?.remotes.values() ?? []) {
+      const s = rem.last, pos = rem.model.root.position;
+      let id = 1_000_000; for (const ch of rem.id) id = (id * 31 + ch.charCodeAt(0)) % 2_000_000_000;
+      const speed = s ? Math.hypot(s.vx, s.vz) : 0;
+      write(id, pos.x, pos.z, rem.heading, speed, s?.plow ?? 0, 0, !!s && !rem.ride && !rem.flight && !s.tumble && s.mode !== 'air' && s.mode !== 'riding' && !s.fallen);
+    }
+    T.update(dt);
   }
 
   private updateAudio(dt: number) {

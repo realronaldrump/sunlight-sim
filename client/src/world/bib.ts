@@ -18,6 +18,8 @@ export interface BibPrint {
   frontTitle?: string;
   /** 'bib': front and back panels with open sides. 'uniform': the whole torso. */
   cut: 'bib' | 'uniform';
+  /** Ski patrol: a white cross on the back and a small one on the chest. */
+  cross?: boolean;
 }
 
 function printTexture(p: BibPrint) {
@@ -38,6 +40,11 @@ function printTexture(p: BibPrint) {
   if (p.backTitle) { ctx.font = font(30); ctx.fillText(p.backTitle, 768, p.backName ? 300 : 120); }
   if (p.backName) { ctx.font = font(62); ctx.fillText(p.backName, 768, 220); }
   if (p.number) { ctx.font = font(190); ctx.fillText(p.number, 768, 300); }
+  if (p.cross) {
+    ctx.fillStyle = p.ink;
+    ctx.fillRect(768 - 34, 250, 68, 200); ctx.fillRect(768 - 100, 316, 200, 68);
+    ctx.fillRect(140 - 12, 190, 24, 70); ctx.fillRect(140 - 35, 213, 70, 24);
+  }
   if (p.cut === 'bib') {
     // hemmed edges of the panels
     ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 8;

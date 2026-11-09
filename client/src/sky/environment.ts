@@ -5,7 +5,7 @@ import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 import {
   Fn, uniform, vec3, float, exp, abs, select, positionWorld, cameraPosition, normalize, dot, max, pow, mix,
-  fog, length, clamp,
+  fog, length, clamp, smoothstep, floor, hash,
 } from 'three/tsl';
 import { sunPosition, januaryMST } from './sun';
 import { LAT, LON } from '../../../shared/world';
@@ -21,6 +21,14 @@ export class Environment {
   readonly sunDir = uniform(new THREE.Vector3(0, 1, 0));
   readonly hazeColor = uniform(new THREE.Color(0.66, 0.75, 0.88));
   readonly hazeDensity = uniform(1.1e-5);
+  /** 0 by day, 1 at full night (sun 12 degrees below the horizon). */
+  readonly night = uniform(0);
+  /** Moonlight direction: a first-quarter moon high in the southeast evening sky (an estimate, not an ephemeris). */
+  readonly moonDir = new THREE.Vector3(0.55, 0.62, 0.56).normalize();
+  /** Direction of the light that casts shadows: the sun, or the moon after dusk. */
+  readonly lightDir = new THREE.Vector3(0, 1, 0);
+  private nightDome: THREE.Mesh;
+  private dayHaze = new THREE.Color(0.66, 0.75, 0.88);
   hour = 11;
   snowing = false;
   csm: CSMShadowNode | null = null;
@@ -49,6 +57,10 @@ export class Environment {
     (this.sky.material as THREE.Material).fog = false;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
+    // Twilight and night sky over the daytime scattering sky: deep blue gradient, the afterglow on the
+    // horizon below the set sun, stars and the moon. Kept inside the camera's far plane.
+    this.nightDome = this.makeNightDome(250000);
+    scene.add(this.nightDome);
     scene.add(this.hemi);
     scene.add(this.sun);
     scene.add(this.sun.target);
@@ -84,11 +96,34 @@ export class Environment {
     this.setHour(11);
   }
 
+  private makeNightDome(radius: number) {
+    const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false });
+    mat.fog = false;
+    const sunDir = this.sunDir, night = this.night, moon = uniform(this.moonDir);
+    const v = normalize(positionWorld.sub(cameraPosition));
+    const alt = v.y;
+    const twilight = smoothstep(0.0, 0.55, night).mul(float(1).sub(smoothstep(0.55, 1.0, night)));
+    const base = mix(vec3(0.05, 0.075, 0.15), vec3(0.008, 0.014, 0.04), smoothstep(-0.02, 0.6, alt));
+    const sunFlat = normalize(vec3(sunDir.x, 0, sunDir.z));
+    const glow = pow(max(dot(v, sunFlat), 0), 3).mul(float(1).sub(smoothstep(0.0, 0.32, alt))).mul(twilight);
+    const cell = floor(v.mul(700));
+    const star = smoothstep(0.9988, 0.9998, hash(dot(cell, vec3(1.0, 157.0, 113.0)))).mul(smoothstep(0.03, 0.25, alt)).mul(smoothstep(0.55, 1.0, night));
+    const moonDisc = smoothstep(0.99994, 0.99997, dot(v, moon));
+    const moonHalo = pow(max(dot(v, moon), 0), 220).mul(0.08);
+    mat.colorNode = base.add(vec3(0.62, 0.34, 0.24).mul(glow).mul(0.55)).add(vec3(0.85, 0.9, 1.0).mul(star))
+      .add(vec3(0.95, 0.93, 0.86).mul(moonDisc)).add(vec3(0.5, 0.58, 0.75).mul(moonHalo));
+    mat.opacityNode = clamp(night.mul(1.15), 0, 1).mul(this.snowing ? 0.85 : 1);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 32), mat);
+    dome.frustumCulled = false; dome.renderOrder = -1;
+    dome.name = 'night-sky';
+    return dome;
+  }
+
   /** Weather: clear (default) or light snowfall (lower visibility, overcast light). */
   setSnowing(on: boolean) {
     this.snowing = on;
     this.hazeDensity.value = on ? 3.2e-4 : 1.1e-5;
-    this.hazeColor.value.setRGB(on ? 0.78 : 0.66, on ? 0.8 : 0.75, on ? 0.84 : 0.88);
+    this.dayHaze.setRGB(on ? 0.78 : 0.66, on ? 0.8 : 0.75, on ? 0.84 : 0.88);
     const sky = this.sky as unknown as { cloudCoverage?: { value: number }; cloudDensity?: { value: number } };
     if (sky.cloudCoverage) sky.cloudCoverage.value = on ? 0.95 : 0.15;
     if (sky.cloudDensity) sky.cloudDensity.value = on ? 0.9 : 0.4;
@@ -104,22 +139,37 @@ export class Environment {
     const el = this.sunInfo.elevation;
     // warmer, dimmer light when the sun is low
     const t = THREE.MathUtils.clamp((el - 2) / 25, 0, 1);
-    this.sun.color.setRGB(1.0, 0.78 + 0.18 * t, 0.6 + 0.32 * t);
-    this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (this.snowing ? 0.25 : 1);
-    this.hemi.intensity = (0.1 + 0.08 * t) * (this.snowing ? 3.2 : 1);
+    const night = THREE.MathUtils.smoothstep(-el, -1, 12);
+    this.night.value = night;
+    // by day the night dome would only cost a transparent full-sky pass
+    this.nightDome.visible = night > 0.002;
+    // after dusk the shadow-casting light becomes cool moonlight on the snow
+    const moonlit = el < -1;
+    this.lightDir.copy(moonlit ? this.moonDir : this.sunDir.value);
+    if (moonlit) {
+      this.sun.color.setRGB(0.62, 0.72, 1.0);
+      this.sun.intensity = 0.42 * night * (this.snowing ? 0.3 : 1);
+    } else {
+      this.sun.color.setRGB(1.0, 0.78 + 0.18 * t, 0.6 + 0.32 * t);
+      this.sun.intensity = 3.4 * THREE.MathUtils.clamp((el + 1) / 12, 0, 1) * (this.snowing ? 0.25 : 1);
+    }
+    this.hemi.intensity = THREE.MathUtils.lerp((0.1 + 0.08 * t) * (this.snowing ? 3.2 : 1), 0.07, night);
+    this.hemi.color.setRGB(THREE.MathUtils.lerp(0.706, 0.32, night), THREE.MathUtils.lerp(0.816, 0.42, night), THREE.MathUtils.lerp(1, 0.75, night));
+    this.hazeColor.value.copy(this.dayHaze).lerp(new THREE.Color(0.035, 0.05, 0.095), night);
     this.envDirty = true;
   }
 
   /** Keep the shadow light centered on the viewer. */
   update(target: THREE.Vector3) {
-    const d = this.sunDir.value;
+    const d = this.lightDir;
     this.sun.position.set(target.x + d.x * 2000, target.y + d.y * 2000, target.z + d.z * 2000);
     this.sun.target.position.copy(target);
     this.sun.target.updateMatrixWorld();
     if (this.envDirty) this.updateEnvMap();
   }
 
-  get exposure() { return this.baseExposure * this.adaptation; }
+  /** The eye opens up at dusk so moonlit snow reads as blue-grey rather than black. */
+  get exposure() { return this.baseExposure * this.adaptation * (1 + 2.2 * this.night.value); }
 
   /**
    * Gradual eye adaptation. Samples the terrain the camera is looking at and compares its direct plus
@@ -136,7 +186,7 @@ export class Environment {
       const dir = new THREE.Vector3(); cam.getWorldDirection(dir);
       const fx = dir.x, fz = dir.z, fl = Math.hypot(fx, fz) || 1;
       const ux = fx / fl, uz = fz / fl;
-      const s = this.sunDir.value;
+      const s = this.lightDir;
       const fill = 0.19;
       let key = 0, weight = 0;
       for (const d of [3, 8, 18, 40, 90, 180]) {
@@ -173,6 +223,7 @@ export class Environment {
       sky2.showSunDisc.value = 0;
       this.skyScene.clear();
       this.skyScene.add(sky2);
+      if (this.night.value > 0.01) { const dome = this.nightDome.clone(); dome.scale.setScalar(900 / 250000); this.skyScene.add(dome); }
       const rt = this.pmrem.fromScene(this.skyScene, 0, 0.1, 2000);
       this.envRT?.dispose();
       this.envRT = rt;

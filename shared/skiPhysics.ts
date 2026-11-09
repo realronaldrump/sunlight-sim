@@ -20,6 +20,10 @@ export interface SurfaceInfo {
   groomed: number; // 0..1 groomed corduroy
   piste: number;   // 0..1 inside a marked run (packed by skier traffic)
   moguls: number;  // 0..1 mogul field
+  /** 0..1 traffic-polished hardpack (optional: client snow memory). Faster, and edges hold less. */
+  worn?: number;
+  /** 0..1 cover of new snow over the base (optional). Slower, softer. */
+  fresh?: number;
 }
 
 export interface TerrainProbe {
@@ -117,7 +121,8 @@ export function snowMu(speed: number, s: SurfaceInfo) {
   const P = PARAMS;
   const base = P.muGroomedFast + (P.muGroomedSlow - P.muGroomedFast) * Math.exp(-speed / 5);
   const packed = Math.max(s.groomed, s.piste * 0.7);
-  return base + P.muPowderExtra * (1 - packed) + 0.02 * s.moguls;
+  // Scraped hardpack glides about 10% faster; a few inches of new snow add resistance.
+  return base + P.muPowderExtra * (1 - packed) + 0.02 * s.moguls - 0.006 * (s.worn ?? 0) * packed + 0.025 * (s.fresh ?? 0);
 }
 
 /** Advance the skier by dt seconds (call with dt <= 1/60; internally substeps). */
@@ -257,6 +262,8 @@ function substep(st: SkierState, input: SkiInput, terrain: TerrainProbe, dt: num
     const hard = Math.max(surf.groomed, surf.piste * 0.7);
     let grip = P.gripFlat + (P.gripEdged - P.gripFlat) * Math.min(1, edgeAbs / 0.35);
     grip *= 0.75 + 0.25 * hard;
+    // polished, icy main lines: edges hold less and skids start sooner
+    grip *= 1 - 0.2 * (surf.worn ?? 0) * hard;
     if (input.stop) grip = P.stopMu;
     const maxDv = grip * (Nmag / m) * dt; // lateral velocity the edges can remove this step
     let skid = 0;

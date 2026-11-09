@@ -160,6 +160,7 @@ export class LessonGroup {
   hold = 0;
   private holdStop = '';
   private holdUsed = 0;
+  private lastWaitNow = 0;
   ready = false;
   readonly poses: LessonPose[] = [];
 
@@ -430,6 +431,10 @@ export class LessonGroup {
 
   /** Solo: hold the lesson at a stop while a tag-along player catches up (at most two minutes per stop). */
   waitFor(now: number, dt: number, behind: boolean) {
+    // hold by real elapsed time: the lesson clock is real time, frame time can be clamped when slow
+    const real = this.lastWaitNow ? Math.min(1, Math.max(0, now - this.lastWaitNow)) : dt;
+    this.lastWaitNow = now;
+    dt = real;
     const point = this.waitingPoint(now);
     if (!point || !behind) return false;
     if (point !== this.holdStop) { this.holdStop = point; this.holdUsed = 0; }
