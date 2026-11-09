@@ -33,7 +33,7 @@ export class DroneHud {
   private heading: HTMLElement;
   private distance: HTMLElement;
   private elapsed = 0;
-  onToggle?: () => void; onCamera?: () => void; onRecall?: () => void;
+  onToggle?: () => void; onCamera?: () => void; onMarker?: () => void;
   constructor() {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.toggle.id = 'drone-toggle'; this.toggle.className = 'drone-button'; this.toggle.type = 'button'; this.toggle.hidden = true;
@@ -42,12 +42,13 @@ export class DroneHud {
     this.panel.id = 'drone-panel'; this.panel.hidden = true; this.panel.setAttribute('aria-label','Drone flight controls');
     this.panel.innerHTML = `<header><strong>DRONE FLIGHT</strong><span id="drone-view-label">CHASE</span></header>
       <p>Explore Sunlight from above.<br>Your skier stays on the mountain.</p>
-      <div class="drone-buttons"><button type="button" class="drone-button" id="drone-camera" aria-label="Switch FPV and chase view (C)">View · C</button><button type="button" class="drone-button" id="drone-recall">Recall · R</button></div>
+      <div class="drone-buttons"><button type="button" class="drone-button" id="drone-camera" aria-label="Switch FPV and chase view (C)">View · C</button><button type="button" class="drone-button" id="drone-marker" aria-pressed="false">Show my skier</button></div>
       <p id="drone-status" role="status">Stabilized hover</p>
       <details open><summary>Flight controls</summary><kbd>W A S D</kbd> Move · <kbd>E / Q</kbd> Up / down<br>
       Drag to look · Double-click for mouse look<br><kbd>← → ↑ ↓</kbd> Look · <kbd>Space</kbd> Brake<br>
       <kbd>Shift</kbd> Fast · <kbd>Ctrl</kbd> Precision<br><kbd>G</kbd> Return to skiing · <kbd>H</kbd> Help<br>
-      Gamepad: left stick move, right stick look,<br>triggers up/down, A brake, Y camera,<br>LB precision, RB fast, B recall, L3 exit.<br>
+      Gamepad: left stick move, right stick look,<br>triggers up/down, A brake, Y camera,<br>LB precision, RB fast, L3 exit.<br>
+      <kbd>Esc</kbd> Pause menu · <kbd>F</kbd> Lift speed<br>
       Ski-area limit · ${formatFeet(DRONE.ceiling)} above ground</details>`;
     this.telemetry.id = 'drone-telemetry'; this.telemetry.hidden = true; this.telemetry.setAttribute('aria-label','Drone telemetry');
     this.telemetry.innerHTML = `<div><span>AIRSPEED</span><b id="drone-speed"></b></div><div><span>ABOVE GROUND</span><b id="drone-height"></b></div><div><span>HEADING</span><b id="drone-heading"></b></div><div><span>FROM SKIER</span><b id="drone-distance"></b></div>`;
@@ -56,8 +57,13 @@ export class DroneHud {
     this.speed = this.telemetry.querySelector('#drone-speed')!; this.height = this.telemetry.querySelector('#drone-height')!;
     this.heading = this.telemetry.querySelector('#drone-heading')!; this.distance = this.telemetry.querySelector('#drone-distance')!;
     (this.panel.querySelector('#drone-camera') as HTMLButtonElement).onclick = () => this.onCamera?.();
-    (this.panel.querySelector('#drone-recall') as HTMLButtonElement).onclick = () => this.onRecall?.();
+    (this.panel.querySelector('#drone-marker') as HTMLButtonElement).onclick = () => this.onMarker?.();
     for (const el of [this.panel,this.toggle]) el.addEventListener('click',e => { if(e.detail > 0 && e.target instanceof HTMLElement) e.target.closest('button')?.blur(); });
+  }
+  marker(enabled: boolean) {
+    const button = this.panel.querySelector('#drone-marker')!;
+    button.setAttribute('aria-pressed', String(enabled));
+    this.text(button as HTMLElement, enabled ? 'Hide my skier' : 'Show my skier');
   }
   help() { const details = this.panel.querySelector('details')!; details.open = !details.open; }
   private text(el: HTMLElement,value: string) { if (el.textContent !== value) el.textContent=value; }

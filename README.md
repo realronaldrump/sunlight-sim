@@ -30,9 +30,9 @@ An iPhone always starts as a drone. Skiing, walking and lift boarding are unavai
 
 - **Tap a destination** in the scenery to fly there. Tap the mountain to fly above it; tap the sky to climb toward it. The marker shows where you are heading.
 - **Drag to look around.** Dragging pauses flight, so you can aim before choosing your next destination.
-- **Hold** stops immediately. **Home** returns to your current launch point. **View** switches between chase and the drone camera.
+- **Hold** stops immediately. **Return…** opens the pause menu, where you can recall to your launch point. **View** switches between chase and the drone camera.
 - Choose **Gentle**, **Cruise** or **Fast**. Flight accelerates and slows smoothly, climbs for nearby terrain and obstacles, and stops with a message if the path stays blocked. Pick a closer or higher destination to go around dense obstacles.
-- **Map** lets you tap a run or friend to fly there. Pinch to zoom and drag to pan. **Chat**, **Options** and **?** are available without a keyboard.
+- **Map** shows runs and friends. Pinch to zoom and drag to pan. Open **Pause → Teleport to a run or friend…** for instant travel. **Chat**, **Pause** and **?** are available without a keyboard.
 - Backgrounding Safari, losing focus, rotating, opening a panel or losing the multiplayer connection stops flight. Rejoining your room is automatic; movement does not resume by itself.
 
 Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail range and no shadows. Real terrain and Mount Sopris detail remain. Physical iPhone GPU performance still depends on the device and thermal state; browser emulation is not a hardware benchmark.
@@ -48,17 +48,21 @@ Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail r
 | R | Get up after a fall |
 | C | Camera: chase, first person, side profile (best for judging steepness) |
 | G | Launch a camera drone / return to skiing |
-| M | Trail map; click a run to go to its top |
+| M | View the trail map |
 | O | Slope angle overlay (green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 degrees) |
-| F | Skip the rest of a lift ride |
-| B | Back to the base area |
+| F | Toggle the occupied lift between 1× and 8× speed |
+| Esc / P | Pause menu, teleport destinations and options |
 | T | Chat (multiplayer) |
 | N | Sound on/off |
 | H | Show/hide help |
 
-Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, RB skip lift, Start back to base.
+Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, Start opens the pause menu.
 
-To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Press F to skip the ride. See ACCURACY.md for the remaining geometry and operating-speed limitations.
+Teleportation is available only in the pause menu: return to base, choose a run or friend on the travel map, or recall your drone. B has no binding. The normal map is for navigation and inspection.
+
+In drone mode, **Show my skier** adds an optional marker that tracks your skier on the moving chair, with distance and an off-screen direction cue. Toggle it off for an unobstructed view.
+
+To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Press F or the lift-speed button to ride at 8× speed, then again for 1×. Only the occupied lift speeds up: other lifts, skiers, drone flight, scenery and daylight keep their normal timing. Speed resets at unloading, on pause, and on focus loss. In multiplayer the selected lift is shared, so its chairs and all riders stay synchronized. See ACCURACY.md for the remaining geometry and operating-speed limitations.
 
 ## Explore with a friend (share a link)
 

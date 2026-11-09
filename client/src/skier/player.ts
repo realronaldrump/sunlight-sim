@@ -23,7 +23,7 @@ export class Player {
   onBoard?: (ride: RideState) => void;
   requestBoard?: (lift: number, chair: number, seat: number) => void; // multiplayer hook
   private tmp = new THREE.Vector3();
-  private previousLiftTime: number | null = null;
+  private previousLiftTimes: number[] = [];
   private pickupOffset: THREE.Vector3 | null = null;
   private pickupHeading = 0;
   private pickupStartedAt = 0;
@@ -41,7 +41,7 @@ export class Player {
     if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l, true); }
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, heading);
     this.sitBlend = 0; this.fallenBlend = 0; this.pickupOffset = null; this.inLoadZone = -1;
-    this.previousLiftTime = this.lifts.now();
+    this.previousLiftTimes = this.lifts.paths.map((_, i) => this.lifts.now(i));
   }
 
   getUp() { return getUp(this.st); }
@@ -51,7 +51,7 @@ export class Player {
   terrainNormal(x: number, z: number) { return this.probe.normal(x, z, { x: 0, y: 1, z: 0 }); }
 
   board(lift: number, chair: number, seat: number) {
-    const path = this.lifts.paths[lift], t = this.lifts.now();
+    const path = this.lifts.paths[lift], t = this.lifts.now(lift);
     if (!path || !Number.isInteger(chair) || chair < 0 || chair >= path.chairCount || !Number.isInteger(seat) || seat < 0 || seat >= path.def.seats) return;
     const target = path.riderPoint(chair, seat, t).p;
     this.pickupOffset = this.position.sub(new THREE.Vector3(target.x, target.y, target.z));
@@ -94,7 +94,7 @@ export class Player {
   confirmSeat(seat: number) {
     if (!this.ride || this.ride.seat === seat) return;
     this.ride.seat = seat;
-    const t = this.lifts.now(), p = this.lifts.paths[this.ride.lift].riderPoint(this.ride.chair, seat, t).p;
+    const t = this.lifts.now(this.ride.lift), p = this.lifts.paths[this.ride.lift].riderPoint(this.ride.chair, seat, t).p;
     this.pickupOffset = this.position.sub(new THREE.Vector3(p.x, p.y, p.z));
     this.pickupHeading = this.st.heading; this.pickupStartedAt = t; this.pickupSitStart = this.sitBlend;
   }
@@ -106,9 +106,10 @@ export class Player {
     this.time += dt;
     this.lastInput = input;
     let st = this.st;
-    const t = this.lifts.now();
-    const previous = this.previousLiftTime ?? t - dt;
-    this.previousLiftTime = t;
+    const times = this.lifts.paths.map((_, i) => this.lifts.now(i));
+    const previousTimes = this.previousLiftTimes;
+    this.previousLiftTimes = times;
+    const t = times[this.ride?.lift ?? 0];
     if (this.ride) {
       const r = this.ride;
       const path = this.lifts.paths[r.lift];
@@ -127,7 +128,7 @@ export class Player {
       this.liftPreparation = 0;
       if (st.mode === 'standing' || st.mode === 'skiing' || st.mode === 'air') {
         for (let li = 0; li < this.lifts.paths.length; li++) {
-          const path = this.lifts.paths[li];
+          const path = this.lifts.paths[li], t = times[li], previous = previousTimes[li] ?? t - dt;
           if (!path.inBoardingApproach(st.pos.x, st.pos.z) && !path.inBoardingApproach(from.x, from.z)) continue;
           this.inLoadZone = li;
           const facing = Math.cos(st.heading - path.loadPoint().heading) >= BOARD_FACING_COS;

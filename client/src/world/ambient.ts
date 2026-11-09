@@ -20,7 +20,7 @@ export class AmbientSkiers {
   private agents: Agent[] = [];
   private spare: SkierModel[] = [];
   private runs: RunInfo[];
-  private lastLiftT: number | null = null;
+  private lastLiftT: number[] = [];
 
   constructor(runs: RunInfo[], private probe: TerrainProbe, private count = 8, private lifts: LiftSystem | null = null) {
     this.group.name = 'ambient-skiers';
@@ -103,12 +103,13 @@ export class AmbientSkiers {
 
   update(dt: number, player: THREE.Vector3, camera: THREE.Vector3) {
     if (this.lifts) {
-      const t = this.lifts.now();
-      if (this.lastLiftT !== null) {
+      {
         this.lifts.paths.forEach((path, li) => {
+          const t = this.lifts!.now(li), previous = this.lastLiftT[li] ?? t;
+          this.lastLiftT[li] = t;
           const top = path.unloadPoint();
           if (Math.hypot(top.x - player.x, top.z - player.z) > 1600) return;
-          for (const chair of this.lifts!.chairsPassing(li, path.unloadU, this.lastLiftT!, t)) {
+          for (const chair of this.lifts!.chairsPassing(li, path.unloadU, previous, t)) {
             for (const seat of this.lifts!.riderSeats(li, chair)) {
               if (this.agents.length >= this.count) return;
               const a = this.fromLiftTop(li, seat);
@@ -117,7 +118,6 @@ export class AmbientSkiers {
           }
         });
       }
-      this.lastLiftT = t;
     }
     // half the budget belongs to riders arriving off the lifts; the rest keep the slopes near the player busy
     while (this.agents.filter((a) => !a.fromLift).length < Math.ceil(this.count / 2) && this.agents.length < this.count) {

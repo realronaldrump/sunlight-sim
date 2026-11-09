@@ -1,5 +1,5 @@
 // Trail map overlay generated from the game's own data (DEM hillshade, lidar forest, run outlines).
-// Click a run to teleport to its top. Shows the local player and other players.
+// Travel is enabled only when opened through the pause menu.
 import type { ResortData, RunInfo } from '../game';
 import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
@@ -29,6 +29,7 @@ export class TrailMap {
   /** true = view from the base looking up the mountain (south up), like the official trail map */
   flip = true;
   visible = false;
+  travelEnabled = false;
   players: MapPlayer[] = [];
   onTeleport?: (runName: string) => void;
   onJoinPlayer?: (name: string) => void;
@@ -43,7 +44,7 @@ export class TrailMap {
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
         <div><span class="diff park"></span>Terrain Park</div><div style="color:#ff6b6b">&#9473; Chairlift</div>
-        <div>${IPHONE ? 'Tap a run or friend to fly there. Pinch to zoom, drag to pan.' : 'Click a run to go to its top, or a friend to join them. Scroll to zoom, drag to pan.'}</div></div>`;
+        <div class="map-instructions"></div></div>`;
     this.cv = document.createElement('canvas');
     this.root.prepend(this.cv);
     document.body.appendChild(this.root);
@@ -84,8 +85,14 @@ export class TrailMap {
     return [f * (sx - this.ox) / this.scale, f * (sy - this.oy) / this.scale];
   }
 
-  toggle(force?: boolean) {
+  toggle(force?: boolean, travel = false) {
+    const wasVisible = this.visible;
     this.visible = force ?? !this.visible;
+    if (!this.visible) this.travelEnabled = false;
+    else if (!wasVisible) this.travelEnabled = travel;
+    this.root.querySelector('.map-instructions')!.textContent = this.travelEnabled
+      ? `${IPHONE ? 'Tap' : 'Click'} a run or friend to teleport there.`
+      : `${IPHONE ? 'Pinch' : 'Scroll'} to zoom, drag to pan. Teleport from the pause menu.`;
     this.root.classList.toggle('show', this.visible);
     if (this.visible) {
       const dpr = Math.min(2, devicePixelRatio);
@@ -141,7 +148,7 @@ export class TrailMap {
     });
     this.cv.addEventListener('pointerup',e => {
       const existed=pointers.delete(e.pointerId);
-      if(existed && !moved && !pointers.size && this.visible){
+      if(existed && !moved && !pointers.size && this.visible && this.travelEnabled){
         const friend=this.pickPlayer(e.clientX,e.clientY), run=this.pick(e.clientX,e.clientY);
         if(friend && this.onJoinPlayer){this.onJoinPlayer(friend.id ?? friend.name);this.toggle(false);}
         else if(run && this.onTeleport){this.onTeleport(run.name);this.toggle(false);}

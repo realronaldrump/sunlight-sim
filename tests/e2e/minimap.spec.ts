@@ -69,7 +69,9 @@ test('minimap follows skiing and lift rides, zooms, collapses and opens the trai
   await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride), { timeout: 30_000 }).toBe(true);
   await expect(minimap.locator('.mm-run')).toHaveText('Tercero lift');
   await page.screenshot({ path: `screenshots/minimap_lift_${browserName}.png` });
+  await page.evaluate(() => { const g = (window as any).game; g.lifts.clockOffset += g.player.ride.unloadAt - g.lifts.now(g.player.ride.lift) - 8; });
   await page.keyboard.press('KeyF');
+  await expect.poll(() => page.evaluate(() => (window as any).game.player.ride), { timeout: 10000 }).toBeNull();
   await expect(minimap.locator('.mm-run')).not.toHaveText('Tercero lift');
   expect(errors, failedRequests.join('\n')).toEqual([]);
 });

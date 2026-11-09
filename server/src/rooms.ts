@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
+import { LiftClock, LIFT_FAST_RATE } from '../../shared/liftClock';
 import type { NetDrone } from '../../shared/protocol';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
@@ -11,7 +12,7 @@ import {
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; fastLift?: boolean }
 
 let liftCache: LiftPath[] | null = null;
 let droneArea: FlightArea | null = null;
@@ -40,10 +41,13 @@ let nextId = 1;
 export const now = () => Date.now() / 1000;
 
 export class Room {
+  readonly liftClocks: LiftClock[];
   players = new Map<string, Player>();
   // seat occupancy: `${lift}/${chair}` -> seat -> player id
   seats = new Map<string, Map<number, string>>();
-  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea) {}
+  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea) {
+    this.liftClocks = lifts.map(() => new LiftClock());
+  }
 
   get size() { return this.players.size; }
 
@@ -55,7 +59,7 @@ export class Room {
       s: { x: 0, y: 0, z: 0, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0 },
     };
     this.players.set(id, p);
-    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
+    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
     return p;
   }
@@ -70,12 +74,21 @@ export class Room {
 
   private freeSeat(p: Player) {
     if (!p.ride) return;
-    const k = `${p.ride.lift}/${p.ride.chair}`;
+    const lift = p.ride.lift;
+    const k = `${lift}/${p.ride.chair}`;
     const m = this.seats.get(k);
     if (m && m.get(p.ride.seat) === p.id) m.delete(p.ride.seat);
     if (m && m.size === 0) this.seats.delete(k);
     p.ride = null;
     p.unloadAt = undefined;
+    p.fastLift = false;
+    this.updateLiftSpeed(lift);
+  }
+
+  private updateLiftSpeed(lift: number) {
+    const clock = this.liftClocks[lift];
+    const deadlines = [...this.players.values()].filter(p => p.ride?.lift === lift && p.fastLift && p.unloadAt! > clock.now()).map(p => p.unloadAt!);
+    clock.setRate(deadlines.length ? LIFT_FAST_RATE : 1, deadlines.length ? Math.min(...deadlines) : undefined);
   }
 
   private unload(p: Player) {
@@ -142,8 +155,9 @@ export class Room {
             Math.cos(p.s.heading - lift.loadPoint().heading) < BOARD_FACING_COS) {
           reject('face uphill in the loading approach'); return;
         }
+        const clock = this.liftClocks[msg.lift], liftTime = clock.now();
         const point = { x: p.s.x, y: p.s.y, z: p.s.z };
-        const contact = lift.boardingContact(point, point, t - .75, t + .1, msg.chair);
+        const contact = lift.boardingContact(point, point, liftTime - .75 * clock.rate, liftTime + .1 * clock.rate, msg.chair);
         if (!contact) { reject('chair has not reached you'); return; }
         const key = `${msg.lift}/${msg.chair}`;
         let m = this.seats.get(key);
@@ -156,13 +170,19 @@ export class Room {
           seat = free[0];
         }
         m.set(seat, p.id);
-        p.ride = { lift: msg.lift, chair: msg.chair, seat, boardedAt: t };
-        p.unloadAt = t + lift.remainingRideTime(msg.chair, t);
+        p.ride = { lift: msg.lift, chair: msg.chair, seat, boardedAt: liftTime };
+        p.unloadAt = liftTime + lift.remainingRideTime(msg.chair, liftTime);
         this.broadcast({ type: 'boarded', id: p.id, ...p.ride });
         return;
       }
       case 'unload':
         this.unload(p);
+        return;
+      case 'liftSpeed':
+        if (typeof msg.fast !== 'boolean' || !p.ride || p.controlMode === 'drone') return;
+        p.fastLift = msg.fast;
+        this.updateLiftSpeed(p.ride.lift);
+        this.broadcast(this.snapshot());
         return;
       case 'chat': {
         const text = String(msg.text ?? '').replace(/[\u0000-\u001f]/g, '').slice(0, 200).trim();
@@ -194,15 +214,16 @@ export class Room {
       if (p.ride) {
         const lift = this.lifts[p.ride.lift];
         if (lift) {
-          const lp = lift.riderPoint(p.ride.chair, p.ride.seat, t);
+          const liftTime = this.liftClocks[p.ride.lift].now();
+          const lp = lift.riderPoint(p.ride.chair, p.ride.seat, liftTime);
           p.s = { ...p.s, x: lp.p.x, y: lp.p.y, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
           p.t = t;
           // Deadline also catches a suspended client which missed an entire loop.
-          if (t >= (p.unloadAt ?? Infinity) || !lp.uphill) this.unload(p);
+          if (liftTime >= (p.unloadAt ?? Infinity) || !lp.uphill) this.unload(p);
         }
       }
     }
-    return { type: 'snapshot', serverTime: t, players: [...this.players.values()].map(info) };
+    return { type: 'snapshot', serverTime: t, liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
   }
 
   broadcast(msg: ServerMsg, except?: string) {

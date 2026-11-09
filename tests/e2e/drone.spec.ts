@@ -45,7 +45,7 @@ for(const backend of ['default','webgl'])test(`drone controls, safe return and v
   expect(await page.evaluate(()=>(window as any).game.drone.audio.master.gain.value)).toBeLessThan(.001);
   await page.keyboard.press('KeyN');await page.waitForTimeout(600);
   expect(await page.evaluate(()=>(window as any).game.drone.audio.master.gain.value)).toBeGreaterThan(.1);
-  await page.keyboard.press('KeyR');
+  await page.keyboard.press('Escape'); await page.locator('#pause-recall').click();
   await expect.poll(()=>page.evaluate(()=>{const g=(window as any).game;return Math.hypot(g.drone.state.pos.x-g.player.st.pos.x,g.drone.state.pos.z-g.player.st.pos.z);})).toBeLessThan(.1);
   await page.setViewportSize({width:960,height:640});await page.keyboard.press('KeyC');
   await page.screenshot({path:info.outputPath('drone-compact.png')});
@@ -85,7 +85,7 @@ test('drone flight limits, gamepad, focus loss and continuing lift ride',async({
   await page.keyboard.up('KeyW');await page.keyboard.up('ShiftLeft');
   expect(await page.evaluate(()=>{const d=(window as any).game.drone;return d.area.contains(d.state.pos.x,d.state.pos.z);})).toBe(true);
   await page.screenshot({path:info.outputPath('drone-boundary.png')});
-  await page.keyboard.press('KeyR');
+  await page.keyboard.press('Escape'); await page.locator('#pause-recall').click();
   await page.evaluate(()=>{
     const pad={connected:true,axes:[0,-1,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};
     Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});(window as any).dronePad=pad;

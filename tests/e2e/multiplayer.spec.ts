@@ -55,6 +55,17 @@ test('two players in one room', async ({ browser }) => {
   await b.evaluate(() => document.getElementById('help')?.classList.add('hidden'));
   await b.screenshot({ path: 'screenshots/08_multiplayer_chair.png' });
 
+  // The selected lift accelerates for both riders without changing other lifts or wall time.
+  await a.locator('#lift-fast-forward').click();
+  const li=ra.lift;
+  await expect.poll(()=>b.evaluate(li=>(window as any).game.lifts.clocks[li].rate,li)).toBe(8);
+  expect(await b.evaluate(li=>(window as any).game.lifts.clocks.filter((_:any,i:number)=>i!==li).map((c:any)=>c.rate),li)).toEqual([1,1]);
+  const aligned=await b.evaluate(()=>{const g=(window as any).game,r=[...g.net.remotes.values()][0] as any;const p=g.lifts.paths[r.ride.lift].riderPoint(r.ride.chair,r.ride.seat,g.lifts.now(r.ride.lift)).p;return Math.hypot(r.model.root.position.x-p.x,r.model.root.position.y-p.y,r.model.root.position.z-p.z);});
+  expect(aligned).toBeLessThan(.8);
+  await a.keyboard.press('Escape');
+  await expect.poll(()=>b.evaluate(li=>(window as any).game.lifts.clocks[li].rate,li)).toBe(1);
+  await a.locator('#pause-resume').click();
+
   // the map shows the other player
   await b.keyboard.press('KeyM');
   await b.waitForTimeout(500);

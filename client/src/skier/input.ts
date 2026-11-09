@@ -3,8 +3,8 @@ import type { SkiInput } from '../../../shared/skiPhysics';
 import { NO_DRONE_INPUT, type DroneInput } from '../../../shared/dronePhysics';
 
 export interface Actions {
-  getUp: boolean; camera: boolean; map: boolean; slope: boolean; skipLift: boolean; help: boolean;
-  chat: boolean; respawn: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
+  getUp: boolean; camera: boolean; map: boolean; slope: boolean; fastLift: boolean; help: boolean;
+  chat: boolean; mute: boolean; options: boolean; minimap: boolean; drone: boolean;
   skis: boolean;
 }
 
@@ -114,12 +114,11 @@ export class InputManager {
       map: pr.has('KeyM') || btn(8),
       minimap: pr.has('KeyV'),
       slope: pr.has('KeyO') || btn(2),
-      skipLift: pr.has('KeyF') || btn(5),
+      fastLift: pr.has('KeyF'),
       help: pr.has('KeyH') || pr.has('Slash'),
       chat: pr.has('Enter') || pr.has('KeyT'),
-      respawn: pr.has('KeyB') || btn(9),
       mute: pr.has('KeyN'),
-      options: pr.has('KeyP') || pr.has('Escape'),
+      options: pr.has('KeyP') || pr.has('Escape') || btn(9),
       drone: pr.has('KeyG') || btn(10),
       skis: pr.has('KeyK') || btn(11),
     };

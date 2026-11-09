@@ -40,6 +40,9 @@ import { TouchControls } from './drone/touchControls';
 import { IPHONE } from './platform';
 import { DroneNavigation } from '../../shared/droneNavigation';
 import { formatDistance } from './ui/units';
+import { LIFT_FAST_RATE } from '../../shared/liftClock';
+import { LiftRideControls } from './ui/liftRideControls';
+import { PlayerMarker } from './drone/playerMarker';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
@@ -80,6 +83,9 @@ export class Game {
   camRig!: CameraRig;
   hud!: Hud;
   drone!: DroneSystem;
+  liftControls!: LiftRideControls;
+  playerMarker!: PlayerMarker;
+  private fastLift: number | null = null;
   onFoot!: OnFoot;
   baseLife: BaseLife | null = null;
   private launchingDrone = false;
@@ -176,8 +182,8 @@ export class Game {
     this.runs.buildBoundary((x, z) => this.hf.heightAt(x, z));
     this.scene.add(this.runs.group);
     this.trailMap = new TrailMap(this.resort, WORLD_BASE);
-    this.trailMap.onTeleport = (name) => this.teleportToRun(name);
-    this.trailMap.onJoinPlayer = (name) => this.joinFriend(name);
+    this.trailMap.onTeleport = (name) => { if (this.options.visible && this.trailMap.travelEnabled) void this.pauseTravel(() => this.teleportToRun(name)); };
+    this.trailMap.onJoinPlayer = (name) => { if (this.options.visible && this.trailMap.travelEnabled) void this.pauseTravel(() => this.joinFriend(name)); };
     this.minimap = new Minimap(this.resort, WORLD_BASE);
     this.minimap.onOpenMap = () => this.trailMap.toggle(true);
     if (this.surface) {
@@ -209,7 +215,13 @@ export class Game {
     }, this.camera,this.renderer.domElement,this.scene,this.droneOnly);
     this.drone.hud.onToggle = () => this.toggleDrone();
     this.drone.hud.onCamera = () => this.drone.cycleCamera();
-    this.drone.hud.onRecall = () => this.recallDrone();
+    this.playerMarker = new PlayerMarker();
+    this.drone.hud.onMarker = () => { this.playerMarker.toggle(); this.drone.hud.marker(this.playerMarker.enabled); };
+    this.drone.hud.marker(this.playerMarker.enabled);
+    this.liftControls = new LiftRideControls(); this.liftControls.onToggle = () => this.toggleLiftSpeed();
+    const stopFast = () => this.stopLiftSpeed();
+    window.addEventListener('blur', stopFast);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopFast(); });
     if (this.droneOnly) {
       this.drone.enter(this.player.st.pos, this.player.st.heading);
       this.player.model.root.visible = false;
@@ -218,7 +230,7 @@ export class Game {
       this.touch = new TouchControls(this.renderer.domElement, {
         map: () => this.trailMap.toggle(), options: () => this.options.toggle(),
         chat: () => { if (this.net?.connected) this.chat.openInput(); },
-        camera: () => this.drone.cycleCamera(), home: () => this.recallDrone(), hold: () => this.holdDrone(),
+        camera: () => this.drone.cycleCamera(), home: () => this.options.toggle(true), hold: () => this.holdDrone(),
         fly: (x,y) => this.tapDestination(x,y), pace: pace => { this.navigation.pace = pace; },
         allowed: () => this.ready && !this.chat?.open && !this.options?.visible && !this.trailMap.visible && !this.launchingDrone && (!this.net || this.net.connected),
       });
@@ -251,7 +263,15 @@ export class Game {
     this.options = new OptionsPanel({
       hour: this.env.hour, snow: this.env.snowing, volume: this.audio.volume,
       setHour: (h) => this.env.setHour(h), setSnow: (on) => this.setSnow(on), setVolume: (v) => { this.audio.volume = v; },
+      resume: () => this.options.toggle(false),
+      base: () => { if (this.options.visible) { this.respawn(); this.options.toggle(false); } },
+      travel: () => { if (this.options.visible) this.trailMap.toggle(true, true); },
+      recall: () => { if (this.options.visible) { this.recallDrone(); this.options.toggle(false); } },
     });
+    this.options.onChange = () => {
+      this.input.clear(); this.stopLiftSpeed();
+      if (this.options.visible) { this.input.enabled = false; this.holdDrone(); }
+    };
     this.setupFlyControls();
 
     this.setLoading(0.55, 'Building terrain');
@@ -413,6 +433,29 @@ export class Game {
     this.hud.toast('Back at the base area');
   }
 
+  private async pauseTravel(action: () => Promise<void>) {
+    this.stopLiftSpeed();
+    try { await action(); this.options.toggle(false); }
+    catch { this.hud.toast('Travel failed. Please try again.'); }
+  }
+
+  toggleLiftSpeed() {
+    const ride = this.player.ride;
+    if (!ride || !this.ready || this.options.visible || this.trailMap.visible || this.chat?.open) return;
+    if (this.net && (!this.net.connected || !this.net.supportsLiftSpeed)) return;
+    if (this.fastLift !== null) { this.stopLiftSpeed(); return; }
+    this.fastLift = ride.lift;
+    if (this.net) this.net.setLiftFast(true);
+    else this.lifts.clocks[ride.lift].setRate(LIFT_FAST_RATE, ride.unloadAt - this.lifts.clockOffset);
+  }
+
+  private stopLiftSpeed() {
+    if (this.fastLift === null) return;
+    if (this.net?.connected) this.net.setLiftFast(false);
+    else this.lifts.clocks[this.fastLift].setRate(1);
+    this.fastLift = null;
+  }
+
   async toggleDrone() {
     if (this.droneOnly) return;
     if (!this.ready || this.chat?.open || this.launchingDrone) return;
@@ -544,7 +587,6 @@ export class Game {
     if (!this.flyMode) {
       if (this.drone.active) {
         if (actions.camera && this.input.enabled) this.drone.cycleCamera();
-        if (actions.getUp && this.input.enabled) this.recallDrone();
         this.drone.controlsEnabled = this.input.enabled;
         let input = this.input.drone();
         if (this.touch) {
@@ -560,16 +602,13 @@ export class Game {
       } else if (this.onFoot.active) {
         if (actions.skis && this.input.enabled) this.toggleSkis();
         if (actions.camera && this.input.enabled) { this.onFoot.firstPerson = !this.onFoot.firstPerson; this.hud.toast(this.onFoot.firstPerson ? 'Camera: first person' : 'Camera: behind'); }
-        if (actions.respawn && this.input.enabled) this.respawn();
-        if (this.onFoot.active) { this.onFoot.update(dt, this.input.walk()); this.parkSkierAtWalker(); }
+        if (this.onFoot.active) { if (!this.options.visible) this.onFoot.update(dt, this.input.walk()); this.parkSkierAtWalker(); }
       } else {
       if (actions.skis && this.input.enabled) this.toggleSkis();
       const inp = this.input.ski(dt);
       if (actions.getUp && this.input.enabled) this.player.getUp();
-      if (actions.skipLift && this.input.enabled) this.player.skipRide();
-      if (actions.respawn && this.input.enabled) this.respawn();
       if (actions.camera && this.input.enabled) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
-      this.player.update(dt, inp, !this.ready);
+      this.player.update(dt, inp, !this.ready || this.options.visible || this.trailMap.visible);
       if (this.baseLife && !this.player.ride) this.baseLife.collidePlayer(this.player.st);
       }
       if (this.net) {
@@ -581,7 +620,9 @@ export class Game {
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
     if (actions.minimap) this.minimap.toggle();
-    if (actions.options) this.options.toggle();
+    if (actions.options) { if (this.trailMap.visible) this.trailMap.toggle(false); else this.options.toggle(); }
+    if (actions.fastLift && this.input.enabled) this.toggleLiftSpeed();
+    if (this.fastLift !== null && (!this.player.ride || this.player.ride.lift !== this.fastLift || this.options.visible || this.trailMap.visible || this.chat?.open || (this.net && !this.net.connected))) this.stopLiftSpeed();
     if (this.trailMap.visible) {
       const st2 = this.drone.state ? {pos:this.drone.state.pos,heading:this.drone.state.yaw} : this.player.st;
       this.trailMap.players = [{ name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true },
@@ -627,6 +668,13 @@ export class Game {
     this.hud.update(dt, this.onFoot.active ? this.onFoot.st.speed : st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
     this.drone.hud.update(dt,this.drone.state,this.drone.fpv,Math.hypot(mapPos.x-st.pos.x,mapPos.z-st.pos.z),
       this.drone.area.nearest(mapPos.x,mapPos.z).remaining,this.ready,this.trailMap.visible || this.options.visible,!this.input.enabled);
+    const ride = this.player.ride, lift = ride ? this.lifts.paths[ride.lift] : null;
+    const overlaysClear = this.ready && !this.options.visible && !this.trailMap.visible && !this.chat?.open;
+    this.options.update(this.ready, this.drone.active, this.trailMap.visible);
+    this.liftControls.update(lift?.def.name ?? null, ride ? ride.unloadAt - this.lifts.now(ride.lift) : 0,
+      ride ? this.lifts.clocks[ride.lift].rate : 1, this.fastLift !== null, overlaysClear,
+      !this.net || (this.net.connected && this.net.supportsLiftSpeed), !!this.net);
+    this.playerMarker.update(this.camera, st.pos, this.drone.active && !this.droneOnly && overlaysClear, lift?.def.name);
     if (this.touch) {
       const target = this.navigation.target;
       const projected = target ? new THREE.Vector3(target.x,target.y,target.z).project(this.camera) : null;
@@ -874,10 +922,9 @@ export class Game {
     const pl = this.player;
     if (pl.ride) {
       const path = this.lifts.paths[pl.ride.lift];
-      const remain = path.remainingRideTime(pl.ride.chair, this.lifts.now());
-      this.hud.hint(`${path.def.name} lift: ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')} to the top. Press <b>F</b> to skip.`);
+      this.hud.hint(null);
     } else if (pl.inLoadZone >= 0) {
-      const path = this.lifts.paths[pl.inLoadZone], t = this.lifts.now();
+      const path = this.lifts.paths[pl.inLoadZone], t = this.lifts.now(pl.inLoadZone);
       const along = (pl.st.pos.x - path.def.bottom[0]) * path.ax + (pl.st.pos.z - path.def.bottom[2]) * path.az;
       const wait = Math.ceil(path.nextChairAt(path.sAtH(Math.max(0, along)), t).arrive - t);
       this.hud.hint(`${path.def.name}: face uphill and let the chair scoop you up. Next chair in ${wait} s.`);

@@ -62,7 +62,7 @@ test('touch interruptions, options and map travel hold safely without skiing',as
   await tapScene(page);await page.locator('#touch-options').tap();
   await expect(page.locator('#opts')).toBeVisible();
   expect(await page.evaluate(()=>(window as any).game.navigation.target)).toBeNull();
-  await page.getByRole('button',{name:'Done',exact:true}).tap();
+  await page.getByRole('button',{name:'Resume',exact:true}).tap();
   await tapScene(page);
   await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
   await expect.poll(()=>page.evaluate(()=>(window as any).game.drone.state.speed)).toBeLessThan(.01);

@@ -32,7 +32,7 @@ export class LiftSystem {
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
-  private spinners: { object: THREE.Object3D; speed: number; radius: number; direction: number }[] = [];
+  private spinners: { lift: number; object: THREE.Object3D; speed: number; radius: number; direction: number }[] = [];
   private swings = new Map<string, { state: ChairSwing; at: number; updated: number }>();
 
   setChairSwing(lift: number, chair: number, state: ChairSwing) {
@@ -190,7 +190,7 @@ export class LiftSystem {
     g.add(stripe);
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
     g.traverse(o => {
-      if (o.userData.spin) this.spinners.push({ object: o, speed: def.speed, radius: o.userData.spin.radius, direction: o.userData.spin.direction });
+      if (o.userData.spin) this.spinners.push({ lift: this.paths.indexOf(path), object: o, speed: def.speed, radius: o.userData.spin.radius, direction: o.userData.spin.direction });
     });
     this.group.add(g);
   }
@@ -211,7 +211,7 @@ export class LiftSystem {
       motion.updated = realTime;
       if (realTime - motion.at > 60) this.swings.delete(key);
     }
-    for (const wheel of this.spinners) wheel.object.rotation.y = ((t * wheel.speed / wheel.radius) % (Math.PI * 2)) * wheel.direction;
+    for (const wheel of this.spinners) wheel.object.rotation.y = ((this.now(wheel.lift) * wheel.speed / wheel.radius) % (Math.PI * 2)) * wheel.direction;
     for (let li = 0; li < this.paths.length; li++) {
       const t = this.now(li);
       const path = this.paths[li];

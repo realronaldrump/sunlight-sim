@@ -47,6 +47,7 @@ export class NetClient {
   id: string | null = null;
   room: string | null = null;
   connected = false;
+  supportsLiftSpeed = false;
   localDrone: (() => NetDrone | null) | null = null;
   remotes = new Map<string, RemoteSkier>();
   readonly group = new THREE.Group();
@@ -150,7 +151,9 @@ export class NetClient {
   private onWelcome(m: Extract<ServerMsg, { type: 'welcome' }>) {
     this.id = m.id; this.room = m.room; this.connected = true;
     this.clockOffset = m.serverTime - Date.now() / 1000;
-    this.lifts.clockOffset = this.clockOffset;
+    this.supportsLiftSpeed = !!m.liftPlayback;
+    this.lifts.clockOffset = 0;
+    this.lifts.clocks.forEach((clock, i) => clock.sync(m.liftPlayback?.[i] ?? {time:m.serverTime,at:m.serverTime,rate:1}, m.serverTime));
     this.rttBest=Infinity;
     for (const p of m.players) this.addRemote(p);
     this.send({ type: 'ping', t: Date.now() / 1000 });
@@ -208,6 +211,7 @@ export class NetClient {
         break;
       }
       case 'snapshot':
+        if (m.liftPlayback) this.lifts.clocks.forEach((clock, i) => { if (m.liftPlayback?.[i]) clock.sync(m.liftPlayback[i], Math.max(m.serverTime, this.serverNow())); });
         for (const p of m.players) {
           if (p.id === this.id) continue;
           let r = this.remotes.get(p.id);
@@ -256,7 +260,7 @@ export class NetClient {
         if (rtt < this.rttBest) {
           this.rttBest = rtt;
           this.clockOffset = m.serverTime + rtt / 2 - nowL;
-          this.lifts.clockOffset = this.clockOffset;
+          if (!this.supportsLiftSpeed) this.lifts.clocks.forEach(clock => clock.sync({time:m.serverTime,at:m.serverTime,rate:1},m.serverTime+rtt/2));
         }
         break;
       }
@@ -264,6 +268,8 @@ export class NetClient {
   }
 
   markTeleport() { this.teleportPending = true; }
+
+  setLiftFast(fast: boolean) { this.send({ type: 'liftSpeed', fast }); }
 
   chat(text: string) { this.send({ type: 'chat', text }); }
 
@@ -302,11 +308,11 @@ export class NetClient {
       let loading = false;
       if (r.ride) {
         // ride exactly on the shared chair clock
-        const info = this.lifts.paths[r.ride.lift].riderPoint(r.ride.chair, r.ride.seat, this.lifts.now());
+        const info = this.lifts.paths[r.ride.lift].riderPoint(r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift));
         r.model.root.position.set(info.p.x, info.p.y, info.p.z);
         heading = info.heading;
         if (r.pickupOffset && r.ride.boardedAt !== undefined) {
-          const progress = Math.min(1, Math.max(0, (this.lifts.now() - r.ride.boardedAt) / .85));
+          const progress = Math.min(1, Math.max(0, (this.lifts.now(r.ride.lift) - r.ride.boardedAt) / .85));
           const blend = progress * progress * (3 - 2 * progress);
           r.model.root.position.addScaledVector(r.pickupOffset, 1 - blend);
           heading = r.pickupHeading + Math.atan2(Math.sin(heading - r.pickupHeading), Math.cos(heading - r.pickupHeading)) * blend;

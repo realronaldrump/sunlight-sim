@@ -23,13 +23,13 @@ export class TouchControls {
     this.root.setAttribute('aria-label', 'Touch drone controls');
     this.root.innerHTML = `<nav class="flight-toolbar" aria-label="Flight tools">
       <button id="touch-map" type="button">Map</button><button id="touch-view" type="button">View</button>
-      <button id="touch-chat" type="button">Chat</button><button id="touch-options" type="button">Options</button>
+      <button id="touch-chat" type="button">Chat</button><button id="touch-options" type="button">Pause</button>
       <button id="touch-help" type="button" aria-label="Flight help" aria-expanded="false">?</button></nav>
       <div class="flight-connection" role="status">Solo flight</div>
-      <div class="flight-help" hidden><strong>Tap to fly. Drag to look.</strong><p>Tap the mountain to fly above that spot.<br>Tap the sky to climb toward it.<br>Drag the scenery to look around. Dragging pauses your flight.</p><p>The marker shows your destination.<br>Tap Hold to stop, or Home to return.<br>Use Map to visit a run or a friend.</p><button type="button">Got it</button></div>
+      <div class="flight-help" hidden><strong>Tap to fly. Drag to look.</strong><p>Tap the mountain to fly above that spot.<br>Tap the sky to climb toward it.<br>Drag the scenery to look around. Dragging pauses your flight.</p><p>The marker shows your destination.<br>Tap Hold to stop.<br>Pause to recall or teleport to a run or friend.</p><button type="button">Got it</button></div>
       <div id="flight-marker" hidden aria-hidden="true"><span>◎</span><b>DESTINATION</b></div>
       <div class="flight-bottom"><div id="touch-flight-status" role="status">Hovering</div>
-        <div class="flight-actions"><select id="touch-speed" aria-label="Flight speed"><option value="gentle">Gentle</option><option value="cruise">Cruise</option><option value="fast">Fast</option></select><button id="touch-hold" type="button">Hold</button><button id="touch-home" type="button">Home</button></div>
+        <div class="flight-actions"><select id="touch-speed" aria-label="Flight speed"><option value="gentle">Gentle</option><option value="cruise">Cruise</option><option value="fast">Fast</option></select><button id="touch-hold" type="button">Hold</button><button id="touch-home" type="button">Return…</button></div>
         <div class="flight-tip">Tap a destination · Drag to look</div></div>`;
     document.body.append(this.root);
     this.status = this.root.querySelector('.flight-connection')!;

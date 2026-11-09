@@ -1,4 +1,5 @@
 // Multiplayer wire protocol (JSON over WebSocket). Shared by client and server.
+import type { LiftPlayback } from './liftClock';
 
 export const MAX_PLAYERS = 8;
 export const TICK_HZ = 15;
@@ -24,15 +25,16 @@ export type ClientMsg =
   | { type: 'state'; s: NetSkier; teleport?: boolean; drone?: NetDrone | null }
   | { type: 'board'; lift: number; chair: number; seat: number }
   | { type: 'unload' }
+  | { type: 'liftSpeed'; fast: boolean }
   | { type: 'chat'; text: string }
   | { type: 'ping'; t: number };
 
 export type ServerMsg =
-  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[] }
+  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[] }
   | { type: 'error'; reason: string }
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }
-  | { type: 'snapshot'; serverTime: number; players: PlayerInfo[] }
+  | { type: 'snapshot'; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[] }
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
   | { type: 'unloaded'; id: string }

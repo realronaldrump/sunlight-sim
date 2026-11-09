@@ -57,7 +57,9 @@ test('spawn, ski, fall and get up, ride a lift, audio', async ({ page }) => {
   await page.waitForTimeout(3000);
   await page.evaluate(() => document.getElementById('help')?.classList.add('hidden'));
   await page.screenshot({ path: 'screenshots/11_riding_tercero.png' });
+  await page.evaluate(() => { const g = (window as any).game; g.lifts.clockOffset += g.player.ride.unloadAt - g.lifts.now(g.player.ride.lift) - 8; });
   await page.keyboard.press('KeyF');
+  await expect.poll(() => page.evaluate(() => (window as any).game.player.ride), { timeout: 10000 }).toBeNull();
   await page.waitForTimeout(1000);
   const top = await page.evaluate(() => { const g = (window as any).game; const p = g.lifts.paths.find((l: any) => l.def.name === 'Tercero'); const st = g.player.st; return { ride: g.player.ride, d: Math.hypot(st.pos.x - p.def.top[0], st.pos.z - p.def.top[2]), mode: st.mode }; });
   expect(top.ride).toBeNull();

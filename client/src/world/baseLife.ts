@@ -219,7 +219,7 @@ export class BaseLife {
     this.lifts.paths.forEach((path, li) => {
       const rows = Math.max(1, Math.round(this.budget.queueRows * (path.def.name === 'Segundo' ? 1.3 : path.def.name === 'Tercero' ? 1 : 0.8)));
       const lp = path.loadPoint();
-      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(), heading: lp.heading, boarding: new Map() };
+      const q: LiftQueue = { li, path, rows, seats: path.def.seats, members: [], lastT: this.lifts.now(li), heading: lp.heading, boarding: new Map() };
       this.group.add(this.mazeGeo(path, rows));
       this.queues.push(q);
     });
@@ -359,10 +359,10 @@ export class BaseLife {
   update(dt: number, camera: THREE.Vector3, playerLoadLift: number) {
     this.clock += dt; this.frameNo++;
     if (!this.built) { if (this.clock > 2.5) this.build(); return; }
-    const t = this.lifts.now();
     // Lift queues: 2.6 s before a chair carrying riders reaches the load line, the front row merges into
     // its seat lanes; when that chair passes the line, they are its riders.
     for (const q of this.queues) {
+      const t = this.lifts.now(q.li);
       const lead = q.path.def.speed * 2.6;
       const merging = this.lifts.chairsPassing(q.li, (q.path.loadU - lead + q.path.loopLen) % q.path.loopLen, q.lastT, t);
       const passing = this.lifts.chairsPassing(q.li, q.path.loadU, q.lastT, t);
