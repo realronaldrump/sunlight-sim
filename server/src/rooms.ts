@@ -173,7 +173,8 @@ export class Room {
       !Array.isArray(d.rpm) || d.rpm.length !== 4 || !d.rpm.every(v => Number.isFinite(v) && v >= 0 && v <= 12000)) return false;
     if (!this.flightArea?.contains(d.x,d.z) || d.y < 2000 || d.y > 3500 || Math.abs(d.pitch) > Math.PI/2 || Math.abs(d.bank) > .7 || Math.abs(d.tilt) > .7 || Math.abs(d.yaw)>1e6) return false;
     // First launch and recall must stay near the parked skier. Normal updates are speed-limited.
-    const nearSkier = Math.hypot(d.x-p.s.x,d.z-p.s.z) < 70 && Math.abs(d.y-p.s.y) < 80;
+    const launch = {x:p.s.x,y:p.s.y,z:p.s.z}; this.flightArea.constrain(launch);
+    const nearSkier = Math.hypot(d.x-launch.x,d.z-launch.z) < 70;
     if (!p.drone) return nearSkier;
     return nearSkier || Math.hypot(d.x-p.drone.x,d.y-p.drone.y,d.z-p.drone.z) <= (DRONE.fastSpeed+DRONE.climbSpeed)*Math.max(.02,t-p.t)+4;
   }

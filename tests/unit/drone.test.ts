@@ -73,5 +73,10 @@ describe('multiplayer drone state',()=>{
     const snap=room.snapshot();expect(snap.type).toBe('snapshot');
     if(snap.type==='snapshot')expect(snap.players[0].drone).toEqual(d);
     room.handle(p.id,{type:'state',s,drone:null});expect(p.drone).toBeNull();
+    // An off-piste skier launches at the same clamped point used by the client.
+    const resort=JSON.parse(readFileSync('client/public/world/resort.json','utf8')),area=new FlightArea(resort.boundary);
+    const outside={...s,x:2200,z:1800};room.handle(p.id,{type:'state',s:outside,teleport:true});
+    const launch={x:outside.x,y:outside.y,z:outside.z};area.constrain(launch);
+    room.handle(p.id,{type:'state',s:outside,drone:{...d,...launch}});expect(p.drone?.x).toBeCloseTo(launch.x,5);
   });
 });

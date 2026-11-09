@@ -60,23 +60,26 @@ export class DroneHud {
     for (const el of [this.panel,this.toggle]) el.addEventListener('click',e => { if(e.detail > 0 && e.target instanceof HTMLElement) e.target.closest('button')?.blur(); });
   }
   help() { const details = this.panel.querySelector('details')!; details.open = !details.open; }
+  private text(el: HTMLElement,value: string) { if (el.textContent !== value) el.textContent=value; }
   update(dt: number,s: DroneState | null,fpv: boolean,distance: number,remaining: number,ready: boolean,obscured: boolean,paused: boolean) {
     const active = !!s;
     document.body.classList.toggle('drone-mode',active);
     this.toggle.hidden = !ready || obscured;
-    this.toggle.textContent = active ? 'Return to skiing  G' : 'Fly a drone  G';
-    this.toggle.setAttribute('aria-pressed',String(active));
+    // Keep the button's text node stable between pointerdown and pointerup. WebKit
+    // can cancel a click when the hit-tested node is replaced during that interval.
+    this.text(this.toggle,active ? 'Return to skiing  G' : 'Fly a drone  G');
+    if(this.toggle.getAttribute('aria-pressed')!==String(active))this.toggle.setAttribute('aria-pressed',String(active));
     this.panel.hidden = !active || obscured; this.telemetry.hidden = !active || obscured;
     if (!s) return;
     this.elapsed += dt;
     if (this.elapsed < .1) return; this.elapsed = 0;
-    this.view.textContent = fpv ? 'FPV' : 'CHASE';
-    this.speed.textContent = `${formatSpeedMph(s.speed)} mph`; this.height.textContent = formatFeet(s.agl);
+    this.text(this.view,fpv ? 'FPV' : 'CHASE');
+    this.text(this.speed,`${formatSpeedMph(s.speed)} mph`); this.text(this.height,formatFeet(s.agl));
     const bearing = ((-s.yaw*180/Math.PI)%360+360)%360;
-    this.heading.textContent = `${String(Math.round(bearing)%360).padStart(3,'0')}° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(bearing/45)%8]}`;
-    this.distance.textContent = formatDistance(distance);
+    this.text(this.heading,`${String(Math.round(bearing)%360).padStart(3,'0')}° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(bearing/45)%8]}`);
+    this.text(this.distance,formatDistance(distance));
     const warnings = { boundary:'Ski-area limit: turn back', ceiling:'Altitude limit reached', ground:'Terrain clearance hold', obstacle:'Obstacle ahead: climb or turn', loading:'Holding for terrain', '':'' };
-    this.status.textContent = paused ? 'Controls paused · holding position' : warnings[s.warning] || (remaining < 35 ? `Ski-area limit in ${formatFeet(remaining)}` : s.speed < .2 ? 'Stabilized hover' : 'Flying');
+    this.text(this.status,paused ? 'Controls paused · holding position' : warnings[s.warning] || (remaining < 35 ? `Ski-area limit in ${formatFeet(remaining)}` : s.speed < .2 ? 'Stabilized hover' : 'Flying'));
     this.status.classList.toggle('warning',!!s.warning || remaining < 35);
   }
 }

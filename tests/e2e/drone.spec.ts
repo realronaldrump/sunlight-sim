@@ -11,7 +11,7 @@ for(const backend of ['default','webgl'])test(`drone controls, safe return and v
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await ready(page,backend==='webgl'?'&webgl=1':'');
   const starting=await page.evaluate(()=>({...((window as any).game.player.st.pos)}));
-  await page.locator('#drone-toggle').click();
+  await page.locator('#drone-toggle').click({delay:120});
   await expect(page.locator('#drone-panel')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>(window as any).game.drone.active)).toBe(true);
   const parked=await page.evaluate(()=>({...((window as any).game.player.st.pos)}));
@@ -161,4 +161,18 @@ test('two pilots see independent drones, chat does not steer, and exiting clears
     await a.keyboard.press('KeyG');await expect.poll(()=>b.evaluate(()=>[...(window as any).game.net.remotes.values()].every((r:any)=>!r.flight && !r.drone?.root.visible)),{timeout:10_000}).toBe(true);
     expect(errors).toEqual([]);
   } finally {await context.close();}
+});
+
+test('normal start menu exposes a working drone launch button',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('/?ambient=0');
+  await expect(page.getByRole('button',{name:'Ski solo'})).toBeVisible({timeout:120_000});
+  await expect(page.locator('#drone-toggle')).toBeHidden();
+  await page.getByRole('button',{name:'Ski solo'}).click();
+  await expect(page.locator('#drone-toggle')).toBeVisible();
+  await page.locator('#drone-toggle').click({delay:120});
+  await expect.poll(()=>page.evaluate(()=>(window as any).game.drone.active)).toBe(true);
+  await page.locator('#drone-toggle').click({delay:120});
+  await expect.poll(()=>page.evaluate(()=>(window as any).game.drone.active)).toBe(false);
+  expect(errors).toEqual([]);
 });
