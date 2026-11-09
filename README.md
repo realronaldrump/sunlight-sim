@@ -54,7 +54,11 @@ Start on skis outside the main lodge by the ski racks. Press W to push off, then
 | M | View the trail map |
 | O | Slope angle overlay (green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 degrees) |
 | F | Cycle the occupied lift through 1×, 2×, 4×, 8× and 16× speed |
-| Esc / P | Pause menu, teleport destinations and options |
+| L | Tag along with the Snowriders' Club lesson when you are near them (again to leave) |
+| 1 / 2 | Wave / point downhill (friends see it and are told which run you point down) |
+| K | Step out of / click into your skis; at a lodge ski rack, leave or pick up your skis |
+| E | On foot: sit at a free table or bench, or stand up |
+| Esc / P | Pause menu: ski log, teleport destinations, clock, weather and options |
 | T | Chat (multiplayer) |
 | N | Sound on/off |
 | H | Show/hide help |
@@ -66,6 +70,18 @@ Teleportation is available only in the pause menu: return to base, choose a run 
 In drone mode, **Show my skier** adds an optional marker that tracks your skier on the moving chair, with distance and an off-screen direction cue. Toggle it off for an unobstructed view.
 
 To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Choose 1×, 2×, 4×, 8× or 16× in the lift-speed controls, or press F to cycle through them. Only the occupied lift speeds up: other lifts, skiers, drone flight, scenery and daylight keep their normal timing. Speed resets at unloading, on pause, and on focus loss. In multiplayer the selected lift is shared, so its chairs and all riders stay synchronized. See ACCURACY.md for the remaining geometry and operating-speed limitations.
+
+## A living resort
+
+- **The same people everywhere.** The people waiting in a lift line board the chairs you watch, ride up in their own jackets and helmets, ski off the top and line up again after their run.
+- **Snowriders' Club.** An instructor and five kids in numbered orange bibs line up by the lodge, take Segundo and ski Segundo Road and Ute home, stopping to regroup. Press L near them to tag along: a panel shows where the group is headed, the instructor's tips appear as captions and the trail map draws the route. Solo, they wait for you if you fall behind.
+- **Mountain status board** by the lesson line-up: snowfall, base, lifts, overnight grooming and when the lesson leaves.
+- **Snow that remembers.** Everyone's tracks last across laps, busy groomed lines wear to polished, slightly faster hardpack while their edges stay soft, new snow fills tracks and hides wear, and snowcats with headlights restore corduroy after last chair. The snow is saved in your browser: come back the same day and your tracks are there; come back after a night and the groomers (and any storm) have been.
+- **Resort Day or Free Explore** (pause menu, Clock). Free Explore keeps the time you choose and runs the lifts at any hour. Resort Day runs a shared day (an hour every six minutes): lifts load 9 AM to 4 PM, the crowd follows the hour, ski patrol sweeps at closing and ropes off the runs, and the cats come out at dusk under a moonlit, starry sky.
+- **Weather** (pause menu): Changing sends snow squalls drifting through on the shared clock; one can hide Mount Sopris from the summit and later reveal it, and when one passes over you the sky greys and it snows. Clear and Light snow are also available.
+- **With friends.** Rack your skis, sit together on the deck, wave and point downhill. Friends see you walking in ski boots or seated at the table.
+- **Sound of a place.** The lodge has room tone, conversation, cups and the espresso machine; aspen groves hush the wind; exposed ridges gust.
+- **Ski log** (pause menu): session, today and all-time distance, vertical, time skiing and on lifts, speeds and ski days; every descent with its line and an elevation and speed profile; and a mountain map of trails not yet skied, partly skied and completed, with laps.
 
 ## Explore with a friend (share a link)
 
