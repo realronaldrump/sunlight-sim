@@ -180,7 +180,7 @@ function substep(st: SkierState, input: SkiInput, terrain: TerrainProbe, dt: num
     // spin skis toward travel direction slowly in the air
     const g2 = terrain.height(st.pos.x, st.pos.z);
     if (st.pos.y <= g2) land(st, terrain, g2);
-    st.mode = fallen ? 'fallen' : 'air';
+    else st.mode = fallen ? 'fallen' : 'air';
     return;
   }
 
@@ -330,6 +330,7 @@ function land(st: SkierState, terrain: TerrainProbe, g: number) {
   const vn = dot(v, n);
   st.pos.y = g;
   if (vn < 0) {
+    if (!st.grounded) st.lastImpact = -vn;
     v.x -= n.x * vn; v.y -= n.y * vn; v.z -= n.z * vn;
     // legs absorb landings and bump compressions up to a limit
     const limit = st.grounded ? PARAMS.hardLanding * 1.25 : PARAMS.hardLanding;
@@ -347,7 +348,7 @@ export function fall(st: SkierState, impact: number) {
 }
 
 export function getUp(st: SkierState) {
-  if (st.mode !== 'fallen' || st.speed > 1.0) return false;
+  if (st.mode !== 'fallen' || !st.grounded || st.speed > 1.0) return false;
   st.mode = 'gettingUp';
   st.modeTime = 0;
   return true;

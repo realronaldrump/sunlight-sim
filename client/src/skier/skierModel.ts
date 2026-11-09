@@ -17,6 +17,8 @@ export interface SkierPose {
   liftPreparation?: number; // preparing knees/hands for an approaching chair
   footGroundY?: number; // snow height relative to the root, used until skis leave the ramp
   footGroundPitch?: number;
+  airborne?: boolean;
+  rockX?: number; rockZ?: number; slipping?: number;
 }
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -97,11 +99,14 @@ export class SkierModel {
 
     if (sit > 0) {
       // sitting on the chair: hips back on the seat, thighs horizontal, legs hanging
-      const sp = V(0, 0.54, 0.25), sc = V(0, 1.07, 0.33);
+      const sp = V(0, 0.54, 0.25), sc = V((p.rockX ?? 0) * .19, 1.07 - (p.slipping ?? 0) * .24, .33 - (p.rockZ ?? 0) * .2);
       pelvis = pelvis.lerp(sp, sit); chest = chest.lerp(sc, sit);
       const footY = Math.max(-.05, (p.footGroundY ?? -Infinity) + .145);
       ankleL.lerp(V(-0.14, footY, -0.2), sit); ankleR.lerp(V(0.14, footY, -0.2), sit);
       pelvisH = pelvis.y;
+    }
+    if (p.airborne) {
+      ankleL.add(V(-.1, .12, -.12)); ankleR.add(V(.13, .2, .1));
     }
     const neck = chest.clone().add(V(0, 0.12, -0.03));
     const head = neck.clone().add(V(0, 0.10, -0.01 - 0.04 * p.tuck));
@@ -126,6 +131,7 @@ export class SkierModel {
     if (sit > 0) {
       handL.lerp(V(-0.25, 0.65, -0.1), sit); handR.lerp(V(0.25, 0.65, -0.1), sit);
     }
+    if (p.airborne) { handL = chest.clone().add(V(-.5, -.08, -.15)); handR = chest.clone().add(V(.48, .12, -.24)); }
     const elL = new THREE.Vector3(), elR = new THREE.Vector3();
     solveIK(shL, handL, 0.3, 0.28, shL.clone().add(V(-0.4, -0.4, 0.4)), elL);
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.4, -0.4, 0.4)), elR);
@@ -177,7 +183,7 @@ export class SkierModel {
     placePole(this.poles[1], handR, 1);
 
     // ---- fall: tip the whole body onto its side ----
-    const f = p.fallen;
+    const f = p.airborne ? 0 : p.fallen;
     this.body.rotation.set(-0.25 * f, 0, this.fallSide * f * 1.35);
     this.body.position.set(this.fallSide * f * 0.35, f * 0.12, 0);
   }

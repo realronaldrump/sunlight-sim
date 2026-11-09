@@ -563,7 +563,10 @@ export class Game {
     if (this.onFoot?.active) return;
     const st = this.player.st;
     this.tmpV.set(st.vel.x, st.vel.y, st.vel.z);
-    this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride);
+    this.camRig.update(dt, this.player.position, st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
+      { pitch: this.player.ride ? this.player.chairSwing.pitch : this.player.tumble?.pitch ?? 0,
+        roll: this.player.ride ? this.player.chairSwing.roll : this.player.tumble?.roll ?? 0,
+        airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact });
   }
 
   runAt(x: number, z: number): RunInfo | null {
@@ -903,8 +906,13 @@ export class Game {
         groomed: this.surface?.at(pos.x, pos.z).groomed ?? 1,
         active: !r.ride && state.mode !== 'air' && state.mode !== 'riding' });
     }
-    this.audio.update(dt, this.audioScene.sample(dt, st, flight ? null : this.player.ride,
-      this.lifts.paths, surface, forward, this.env.snowing, neighbors));
+    const sound = this.audioScene.sample(dt, st, flight ? null : this.player.ride,
+      this.lifts.paths, surface, forward, this.env.snowing, neighbors);
+    if (this.player.ride && !flight) {
+      const s = this.player.chairSwing;
+      sound.rocking = { angle: Math.hypot(s.roll, s.pitch), velocity: Math.hypot(s.rollV, s.pitchV), slip: s.slip, pan: Math.sin(s.roll) };
+    }
+    this.audio.update(dt, sound);
     this.drone.audio.update(this.audio.ctx,flight,this.audio.volume,this.audio.enabled,this.drone.fpv);
   }
 
@@ -912,6 +920,7 @@ export class Game {
     if (this.onFoot?.active) return this.onFoot.st.indoor ?? 'On foot';
     const st = this.player.st;
     if (this.player.ride) return `Riding ${this.lifts.paths[this.player.ride.lift].def.name}`;
+    if (this.player.tumble) return 'Falling';
     return { skiing: '', standing: '', air: 'Airborne', fallen: 'Fallen: press R', gettingUp: 'Getting up', riding: '' }[st.mode] ?? '';
   }
 
@@ -930,7 +939,7 @@ export class Game {
       const along = (pl.st.pos.x - path.def.bottom[0]) * path.ax + (pl.st.pos.z - path.def.bottom[2]) * path.az;
       const wait = Math.ceil(path.nextChairAt(path.sAtH(Math.max(0, along)), t).arrive - t);
       this.hud.hint(`${path.def.name}: face uphill and let the chair scoop you up. Next chair in ${wait} s.`);
-    } else if (pl.st.mode === 'fallen' && pl.st.speed < 1) {
+    } else if (pl.st.mode === 'fallen' && pl.st.grounded && pl.st.speed < 1) {
       this.hud.hint('You fell. Press <b>R</b> to get up');
     } else this.hud.hint(null);
   }

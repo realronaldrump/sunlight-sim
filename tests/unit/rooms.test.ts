@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { Lobby, Room, loadLifts } from '../../server/src/rooms';
 import type { ServerMsg } from '../../shared/protocol';
+import { createChairSwing, stepChairSwing, swingingRiderPoint } from '../../shared/chairSwing';
 
 function fakeConn() {
   const msgs: ServerMsg[] = [];
@@ -23,6 +24,45 @@ function boardFixture() {
 }
 
 describe('multiplayer rooms', () => {
+  it('releases a rocked seat at the chair, preserves other seats, and never unloads at the summit', () => {
+    const f = boardFixture(), a = f.join(), b = f.join();
+    for (const q of [a, b]) f.room.handle(q.p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 1 });
+    const ride = { ...a.p.ride! }, swing = createChairSwing();
+    // Move the real lift clock to a mid-line span, then report actual integrated motion.
+    const start = f.chair.arrive + 180;
+    let elapsed = 0;
+    for (; elapsed < 20; elapsed += 1 / 60) {
+      f.at(start + elapsed);
+      const release = stepChairSwing(swing, { right: Math.sign(Math.cos(elapsed * 1.65)), forward: 0 }, 1 / 60);
+      f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, swing: { ...swing } } });
+      if (release) break;
+    }
+    expect(elapsed).toBeLessThan(13);
+    const time = f.room.liftClocks[0].now();
+    const point = swingingRiderPoint(f.lift, ride.chair, ride.seat, time, swing).p;
+    f.room.handle(a.p.id, { type: 'liftFall', swing });
+    expect(a.p.ride).toBeNull(); expect(a.p.s.mode).toBe('fallen');
+    expect(a.p.s.x).toBeCloseTo(point.x, 6); expect(a.p.s.y).toBeCloseTo(point.y, 6);
+    expect(b.p.ride).not.toBeNull();
+    expect(f.room.seats.get(`0/${ride.chair}`)?.has(ride.seat)).toBe(false);
+    expect(a.c.msgs.some(m => m.type === 'liftFell')).toBe(true);
+    expect(a.c.msgs.some(m => m.type === 'unloaded')).toBe(false);
+    f.at(start + elapsed + .1);
+    f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, y: a.p.s.y - .2 } });
+    expect(a.c.msgs.some(m => m.type === 'correct')).toBe(false);
+  });
+
+  it('ignores forged lift falls and nonfinite swing reports without freeing a reserved seat', () => {
+    const f = boardFixture(), a = f.join();
+    f.room.handle(a.p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 1 });
+    const forged = { ...createChairSwing(), roll: .7, slip: .72 };
+    f.room.handle(a.p.id, { type: 'liftFall', swing: forged });
+    expect(a.p.ride).not.toBeNull();
+    f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, swing: { ...forged, roll: NaN } } });
+    expect(a.p.s.swing).toBeUndefined();
+    f.room.handle(a.p.id, { type: 'state', s: { ...a.p.s, swing: forged } });
+    expect(a.p.s.swing).toBeUndefined();
+  });
   it('joins, welcomes and announces players', () => {
     const lobby = new Lobby(loadLifts());
     const a = fakeConn(), b = fakeConn();

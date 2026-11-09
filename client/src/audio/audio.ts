@@ -1,6 +1,6 @@
 // Field-recorded snow, winter air and machinery, with contact-driven Foley.
 // Provenance: public/audio/sources.json. Rebuild: pipeline/build_audio.py.
-import { clamp, snowWindMix, terminalMix, nearbySkierMix, type AudioState } from './audioModel';
+import { clamp, snowWindMix, terminalMix, nearbySkierMix, chairStrainMix, type AudioState } from './audioModel';
 export type { AudioState } from './audioModel';
 
 const FILES = ['ski-glide', 'ski-edge', 'snow-soft', 'lift-motor', 'lift-cable', 'winter-air',
@@ -46,6 +46,7 @@ export class SkiAudio {
   private skid!: Layer;
   private powder!: Layer;
   private slide!: Layer;
+  private chairStrain!: Layer;
   private terminals = new Map<string, { motor: Layer; cable: Layer }>();
   private skiers: { hard: Layer; soft: Layer }[] = [];
   private layers: Layer[] = [];
@@ -96,6 +97,7 @@ export class SkiAudio {
     this.skid = this.sampleLayer('ski-edge', 7000, -.08, 4.71);
     this.powder = this.sampleLayer('snow-soft', 2800, .1);
     this.slide = this.sampleLayer('snow-soft', 1600, -.08, 2.8);
+    this.chairStrain = this.sampleLayer('chair-creak', 2400, 0);
     if (this.ownedContext) {
       document.addEventListener('visibilitychange', this.visibility);
       this.visibility();
@@ -217,6 +219,8 @@ export class SkiAudio {
     if (!s.riding && this.previousRiding) this.cancelVoices(at, 'chair');
     this.previousRiding = s.riding;
     const m = snowWindMix(s, this.time);
+    const strain = chairStrainMix(s);
+    this.control(this.chairStrain, strain.gain, at, strain.cutoff, strain.rate, strain.pan);
     this.control(this.wind, m.wind, at, m.windCutoff);
     this.control(this.breeze, m.breeze, at);
     this.control(this.glide, m.glide, at, m.snowCutoff, m.rate, -.14+m.pan);
@@ -270,7 +274,7 @@ export class SkiAudio {
       this.grainIn = (.12+.11*(.5+.5*Math.sin(n*2.39))) / (.5+m.grain);
       this.oneShot(`snow-compress-${n%4+1}` as Sample, .09*m.grain, 1.12+(n%5)*.07, Math.sin(n*2.4)*.22, at, 'snow', .16);
     }
-    if (s.fell || (s.landing ?? 0) > .65) {
+    if ((s.fell && s.grounded) || (s.landing ?? 0) > .65) {
       const energy = clamp((s.fell ? s.impact ?? s.speed : s.landing ?? 0)/9);
       this.oneShot(`snow-compress-${++this.serial%4+1}` as Sample, .2+.5*energy, .7, -.1, at, 'snow');
       this.oneShot('snow-compress-2', .09+.12*energy, .95, .15, at+.065, 'snow');
@@ -278,6 +282,10 @@ export class SkiAudio {
     if (s.boarded || s.unloaded) {
       this.oneShot('chair-contact-1', .11, .8, .15, at, 'chair');
       if (s.unloaded) this.oneShot('snow-compress-3', .12, 1.1, -.1, at+.09, 'snow');
+    }
+    if (s.liftDrop) {
+      this.oneShot('chair-contact-3', .2, .73, -.2, at, 'chair');
+      this.oneShot('chair-creak', .12, 1.05, .2, at+.06, 'chair');
     }
     if (s.riding && s.towerPass) {
       const gap = .46 / clamp(s.liftSpeed ?? 2.3, 1, 4);

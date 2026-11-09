@@ -5,6 +5,7 @@ import path from 'node:path';
 import { LiftPath, LiftDef, BOARD_FACING_COS } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import { LiftClock, LIFT_FAST_RATE } from '../../shared/liftClock';
+import { CHAIR_SWING, chairReleaseVelocity, swingingRiderPoint, validChairSwing } from '../../shared/chairSwing';
 import type { NetDrone } from '../../shared/protocol';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
@@ -12,7 +13,7 @@ import {
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; fastLift?: boolean }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; fastLift?: boolean; swingAt?: number }
 
 let liftCache: LiftPath[] | null = null;
 let droneArea: FlightArea | null = null;
@@ -122,7 +123,18 @@ export class Room {
         }
         if (msg.drone == null) p.drone = null;
         else if (this.validDrone(msg.drone,p,t)) p.drone = { ...msg.drone, rpm: [...msg.drone.rpm] };
-        if (p.ride) { p.s = { ...p.s, mode: 'riding' }; p.t = t; return; } // chair position is server-derived
+        if (p.ride) {
+          // Clients report bounded stance; positions and release momentum are
+          // derived here from their actual reserved chair, never client coordinates.
+          const swing = s.swing, old = p.s.swing, dt = Math.min(.5, Math.max(.02, t - (p.swingAt ?? t)));
+          if (validChairSwing(swing) && Math.abs(swing.roll - (old?.roll ?? 0)) <= dt * 3 + .08 &&
+              Math.abs(swing.pitch - (old?.pitch ?? 0)) <= dt * 3 + .08 &&
+              swing.slip <= (old?.slip ?? 0) + dt * 1.7 + .05 &&
+              (!swing.slip || !!old?.slip || Math.hypot(swing.roll, swing.pitch) >= CHAIR_SWING.releaseAngle - .05)) {
+            p.s.swing = { ...swing }; p.swingAt = t;
+          }
+          p.s = { ...p.s, mode: 'riding' }; p.t = t; return;
+        }
         const dt = Math.max(0.02, t - p.t);
         const dist = Math.hypot(s.x - p.s.x, s.z - p.s.z);
         const first = !p.initialized;
@@ -133,7 +145,9 @@ export class Room {
         }
         const sp = Math.hypot(s.vx, s.vy, s.vz);
         const k = sp > MAX_SPEED ? MAX_SPEED / sp : 1;
-        p.s = { ...s, vx: s.vx * k, vy: s.vy * k, vz: s.vz * k, mode: String(s.mode).slice(0, 12) };
+        const tumble = s.tumble && [s.tumble.pitch, s.tumble.roll].every(v => Number.isFinite(v) && Math.abs(v) < 30)
+          ? { ...s.tumble } : undefined;
+        p.s = { ...s, swing: undefined, tumble, vx: s.vx * k, vy: s.vy * k, vz: s.vz * k, mode: String(s.mode).slice(0, 12) };
         p.initialized = true;
         p.t = t;
         return;
@@ -171,6 +185,7 @@ export class Room {
         }
         m.set(seat, p.id);
         p.ride = { lift: msg.lift, chair: msg.chair, seat, boardedAt: liftTime };
+        p.s.swing = undefined; p.s.tumble = undefined; p.swingAt = t;
         p.unloadAt = liftTime + lift.remainingRideTime(msg.chair, liftTime);
         this.broadcast({ type: 'boarded', id: p.id, ...p.ride });
         return;
@@ -178,6 +193,22 @@ export class Room {
       case 'unload':
         this.unload(p);
         return;
+      case 'liftFall': {
+        const swing = msg.swing, previous = p.s.swing;
+        if (!p.ride || p.controlMode === 'drone' || !validChairSwing(swing) || !previous ||
+            swing.slip < CHAIR_SWING.releaseSlip || previous.slip < .4 ||
+            Math.abs(swing.roll - previous.roll) > .5 || Math.abs(swing.pitch - previous.pitch) > .5) return;
+        const r = p.ride, path = this.lifts[r.lift], time = this.liftClocks[r.lift].now();
+        const point = swingingRiderPoint(path, r.chair, r.seat, time, swing);
+        const vel = chairReleaseVelocity(path, r.chair, r.seat, time, swing);
+        p.s = { ...p.s, x: point.p.x, y: point.p.y, z: point.p.z, heading: point.heading,
+          vx: vel.x, vy: vel.y, vz: vel.z, mode: 'fallen', fallen: 0, edge: 0, plow: 0, tuck: 0,
+          swing: undefined, tumble: { pitch: swing.pitch, roll: swing.roll } };
+        p.t = t;
+        this.freeSeat(p);
+        this.broadcast({ type: 'liftFell', id: p.id, s: p.s });
+        return;
+      }
       case 'liftSpeed':
         if (typeof msg.fast !== 'boolean' || !p.ride || p.controlMode === 'drone') return;
         p.fastLift = msg.fast;
@@ -215,7 +246,8 @@ export class Room {
         const lift = this.lifts[p.ride.lift];
         if (lift) {
           const liftTime = this.liftClocks[p.ride.lift].now();
-          const lp = lift.riderPoint(p.ride.chair, p.ride.seat, liftTime);
+          const lp = p.s.swing ? swingingRiderPoint(lift, p.ride.chair, p.ride.seat, liftTime, p.s.swing)
+            : lift.riderPoint(p.ride.chair, p.ride.seat, liftTime);
           p.s = { ...p.s, x: lp.p.x, y: lp.p.y, z: lp.p.z, heading: lp.heading, vx: 0, vy: 0, vz: 0, mode: 'riding' };
           p.t = t;
           // Deadline also catches a suspended client which missed an entire loop.

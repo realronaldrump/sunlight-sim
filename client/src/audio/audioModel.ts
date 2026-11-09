@@ -10,10 +10,19 @@ export interface AudioState {
   impact?: number; landing?: number; boarded?: boolean; unloaded?: boolean;
   discontinuity?: boolean; liftSpeed?: number; terminals?: AudioTerminal[];
   skiers?: NearbySkier[];
+  rocking?: { angle: number; velocity: number; slip: number; pan: number };
+  liftDrop?: boolean;
 }
 
 export const clamp = (x: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, Number.isFinite(x) ? x : lo));
 const smooth = (x: number) => { const t = clamp(x); return t*t*(3-2*t); };
+
+export function chairStrainMix(s: AudioState) {
+  const r = s.rocking, load = r && s.riding ? clamp(r.angle / .7) : 0;
+  const movement = r ? clamp(Math.abs(r.velocity) / 1.2) : 0;
+  return { gain: load * (.025 + movement * .2), rate: .65 + .45 * movement,
+    pan: clamp(r?.pan ?? 0, -.7, .7), cutoff: 1400 + 2200 * load };
+}
 
 /** Inverse-distance spreading with a smooth far cutoff and absorbed high frequencies. */
 export function terminalMix(distance: number) {

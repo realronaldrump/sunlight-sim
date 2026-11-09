@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { snowWindMix, sourcePan, terminalMix, nearbySkierMix, type AudioState } from '../../client/src/audio/audioModel';
+import { snowWindMix, sourcePan, terminalMix, nearbySkierMix, chairStrainMix, type AudioState } from '../../client/src/audio/audioModel';
 import { AudioScene } from '../../client/src/audio/audioScene';
 import { createSkier } from '../../shared/skiPhysics';
 import { LiftPath, type LiftDef } from '../../shared/lifts';
@@ -9,6 +9,13 @@ const quiet: AudioState = { speed: 0, skid: 0, edge: 0, grounded: true, groomed:
 const snow = (s: AudioState) => { const m = snowWindMix(s, 4); return m.glide+m.edge+m.scrape+m.powder+m.slide+m.grain; };
 
 describe('physical sound controls', () => {
+  it('loads chair creaks with actual sway and silences the strain when the rider leaves', () => {
+    const riding = { ...quiet, riding: true, rocking: { angle: .6, velocity: .8, slip: 0, pan: .2 } };
+    expect(chairStrainMix(quiet).gain).toBe(0);
+    expect(chairStrainMix(riding).gain).toBeGreaterThan(.1);
+    expect(chairStrainMix({ ...riding, riding: false }).gain).toBe(0);
+    expect(chairStrainMix({ ...riding, rocking: { ...riding.rocking, angle: .1 } }).gain).toBeLessThan(chairStrainMix(riding).gain);
+  });
   it('leaves stopped skis silent even with brake and steering inputs held', () => {
     expect(snow({ ...quiet, plow: 1, skid: 1, edge: .8 })).toBe(0);
     expect(snow({ ...quiet, speed: 5 })).toBeGreaterThan(0);
@@ -68,6 +75,18 @@ const def: LiftDef = { name: 'Test lift', kind: 'chair_lift', seats: 3, speed: 2
 const path = new LiftPath(def), surf = { groomed: 1, piste: 1, moguls: 0 }, forward = { x: 0, y: 0, z: -1 };
 
 describe('sound event tracking', () => {
+  it('does not play snow impact or unload sounds when falling from a chair; hits sound on contact', () => {
+    const scene = new AudioScene(), st = createSkier({ x: 0, y: 2450, z: -100 });
+    st.mode = 'riding'; st.grounded = false;
+    scene.sample(.016, st, { lift: 0, chair: 0 }, [path], surf, forward, false);
+    st.mode = 'fallen'; st.vel.y = -1;
+    const release = scene.sample(.016, st, null, [path], surf, forward, false);
+    expect(release.liftDrop).toBe(true); expect(release.unloaded).toBe(false); expect(release.fell).toBe(false);
+    for (let i = 0; i < 12; i++) { st.vel.y -= 1; st.pos.y -= .15; scene.sample(.016, st, null, [path], surf, forward, false); }
+    st.grounded = true; st.vel.y = 0;
+    const landed = scene.sample(.016, st, null, [path], surf, forward, false);
+    expect(landed.landing).toBeGreaterThan(10); expect(landed.liftDrop).toBe(false);
+  });
   it('triggers one tower traversal and suppresses skipped ride distances', () => {
     const scene = new AudioScene(), st = createSkier({ x: 0, y: 2440, z: -99.8 }, 0);
     const ride = { lift: 0, chair: 2 };

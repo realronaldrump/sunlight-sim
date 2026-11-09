@@ -2,6 +2,7 @@
 import * as THREE from 'three/webgpu';
 
 export type CamMode = 'chase' | 'first' | 'side';
+interface BodyMotion { pitch: number; roll: number; airborne: boolean; fallen: boolean; impact: number }
 
 export class CameraRig {
   enabled = true;
@@ -11,6 +12,9 @@ export class CameraRig {
   private smoothDir = new THREE.Vector3(0, 0, -1);
   private pos = new THREE.Vector3();
   private initialized = false;
+  private wasAirborne = false;
+  private impactTime = 10;
+  private impactStrength = 0;
   distance = 6.5;
   private dragging = false;
   /** Optional obstacle test for camera placement. */
@@ -46,8 +50,12 @@ export class CameraRig {
    * @param vel velocity
    * @param fallLine horizontal unit vector pointing downhill (for side view)
    */
-  update(dt: number, target: THREE.Vector3, heading: number, vel: THREE.Vector3, fallLine: THREE.Vector3, riding: boolean) {
+  update(dt: number, target: THREE.Vector3, heading: number, vel: THREE.Vector3, fallLine: THREE.Vector3, riding: boolean, motion?: BodyMotion) {
     const cam = this.camera;
+    if (this.wasAirborne && motion?.fallen) { this.impactTime = 0; this.impactStrength = Math.min(1, motion.impact / 12); }
+    this.wasAirborne = !!motion?.airborne;
+    this.impactTime += dt;
+    const impact = -.15 * this.impactStrength * Math.exp(-this.impactTime * 8) * Math.sin(this.impactTime * 22);
     const speed = Math.hypot(vel.x, vel.z);
     // desired view direction: travel direction when moving, ski heading when slow
     const want = speed > 2 && !riding ? new THREE.Vector3(vel.x, 0, vel.z).normalize()
@@ -59,11 +67,16 @@ export class CameraRig {
     const dir = this.smoothDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawOffset);
 
     if (this.mode === 'first') {
-      const eye = target.clone().add(new THREE.Vector3(0, riding ? 1.15 : 1.62, 0)).addScaledVector(dir, 0.15);
+      const offset = new THREE.Vector3(0, riding ? 1.15 : motion?.fallen ? .48 : 1.62, 0);
+      if (riding || motion?.airborne) offset.applyEuler(new THREE.Euler(motion?.pitch ?? 0, heading, motion?.roll ?? 0, 'YXZ'));
+      const eye = target.clone().add(offset).addScaledVector(dir, 0.15);
+      eye.y += impact;
+      eye.y = Math.max(eye.y, this.ground(eye.x, eye.z) + .3);
       cam.position.copy(eye);
       const look = eye.clone().addScaledVector(dir, 10);
       look.y += -this.pitchOffset * 6 - 1.2;
       cam.lookAt(look);
+      cam.rotateZ((motion?.roll ?? 0) * (riding ? .7 : .3));
       this.initialized = false;
       return;
     }
@@ -102,5 +115,6 @@ export class CameraRig {
     if (this.pos.y < g2 + 0.8) this.pos.y = g2 + 0.8;
     cam.position.copy(this.pos);
     cam.lookAt(look);
+    cam.position.y += impact;
   }
 }

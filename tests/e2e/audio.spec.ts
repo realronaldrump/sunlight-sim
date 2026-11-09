@@ -20,6 +20,8 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
       liftRight: { riding: true, terminals: [{ id: 'test', distance: 5, pan: .9, speed: 2.3, variant: 0 }] },
       liftFar: { riding: true, terminals: [{ id: 'test', distance: 100, pan: .9, speed: 2.3, variant: 0 }] },
       tower: { riding: true }, skip: { riding: true },
+      rocking: { riding: true, rocking: { angle: .65, velocity: .9, slip: 0, pan: -.3 } },
+      falling: { speed: 19, grounded: false, fallen: true, inAir: true },
       passerLeft: { skiers: [{ active: true, distance: 2, pan: -.9, speed: 14, skid: .8, groomed: 1 }] },
       passerAir: { skiers: [{ active: false, distance: 2, pan: -.9, speed: 14, skid: .8, groomed: 1 }] },
       impacts: { speed: 12, skid: .8, plow: .6, nearTerminal: 3 },
@@ -92,6 +94,8 @@ test('recorded soundscape renders, pans, changes surface, and truly mutes', asyn
   expect(s.liftRight.right).toBeGreaterThan(s.liftRight.left*2);
   expect(s.liftFar.rms).toBeLessThan(s.liftRight.rms*.5);
   expect(s.tower.peak).toBeGreaterThan(s.resting.peak*2);
+  expect(s.rocking.rms).toBeGreaterThan(s.resting.rms*1.3);
+  expect(s.falling.rms).toBeGreaterThan(s.resting.rms);
   expect(s.skip.tail).toBeCloseTo(s.resting.tail, 5);
   expect(s.passerLeft.left).toBeGreaterThan(s.passerLeft.right*2);
   expect(s.passerAir.rms).toBeCloseTo(s.resting.rms, 5);

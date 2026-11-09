@@ -1,5 +1,6 @@
 // Multiplayer wire protocol (JSON over WebSocket). Shared by client and server.
 import type { LiftPlayback } from './liftClock';
+import type { ChairSwing } from './chairSwing';
 
 export const MAX_PLAYERS = 8;
 export const TICK_HZ = 15;
@@ -9,6 +10,8 @@ export interface NetSkier {
   x: number; y: number; z: number; heading: number;
   vx: number; vy: number; vz: number;
   mode: string; edge: number; plow: number; tuck: number; fallen: number;
+  swing?: ChairSwing;
+  tumble?: { pitch: number; roll: number };
 }
 
 export interface NetRide { lift: number; chair: number; seat: number; boardedAt?: number }
@@ -25,6 +28,7 @@ export type ClientMsg =
   | { type: 'state'; s: NetSkier; teleport?: boolean; drone?: NetDrone | null }
   | { type: 'board'; lift: number; chair: number; seat: number }
   | { type: 'unload' }
+  | { type: 'liftFall'; swing: ChairSwing }
   | { type: 'liftSpeed'; fast: boolean }
   | { type: 'chat'; text: string }
   | { type: 'ping'; t: number };
@@ -38,6 +42,7 @@ export type ServerMsg =
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
   | { type: 'unloaded'; id: string }
+  | { type: 'liftFell'; id: string; s: NetSkier }
   | { type: 'correct'; s: NetSkier }
   | { type: 'chat'; id: string; name: string; text: string }
   | { type: 'pong'; t: number; serverTime: number };

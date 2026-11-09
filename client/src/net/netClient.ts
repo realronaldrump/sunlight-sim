@@ -9,6 +9,8 @@ import type { Player } from '../skier/player';
 import type { LiftSystem } from '../lifts/liftSystem';
 import type { SkierState } from '../../../shared/skiPhysics';
 import { DroneModel } from '../drone/droneModel';
+import { swingingRiderPoint } from '../../../shared/chairSwing';
+import type { ChairSwing } from '../../../shared/chairSwing';
 
 interface Sample { t: number; s: NetSkier }
 
@@ -112,6 +114,7 @@ export class NetClient {
         this.player.requestBoard = undefined;
         this.pendingBoard = null;
         this.player.onUnload = undefined;
+        this.player.onLiftFall = undefined;
         done(false);
         this.scheduleReconnect();
       };
@@ -143,7 +146,7 @@ export class NetClient {
     this.stopped=true; clearTimeout(this.reconnectTimer); clearInterval(this.pingTimer);
     this.ws?.close(); this.connected=false; this.clearRemotes();
     window.removeEventListener('online',this.resume); document.removeEventListener('visibilitychange',this.resume);
-    this.player.requestBoard=undefined; this.player.onUnload=undefined;
+    this.player.requestBoard=undefined; this.player.onUnload=undefined; this.player.onLiftFall=undefined;
   }
 
   private send(m: ClientMsg) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }
@@ -178,6 +181,12 @@ export class NetClient {
       this.pendingBoard = null;
       this.send({ type: 'unload' });
       if (teleport) this.markTeleport();
+    };
+    this.player.onLiftFall = (_ride, swing) => {
+      this.pendingBoard = null;
+      this.sendState(swing);
+      this.send({ type: 'liftFall', swing });
+      this.sendState();
     };
     this.onStatus?.(`Joined room ${m.room}`);
   }
@@ -253,6 +262,14 @@ export class NetClient {
       case 'correct':
         this.player.st.pos = { x: m.s.x, y: m.s.y, z: m.s.z };
         break;
+      case 'liftFell': {
+        const r = this.remotes.get(m.id);
+        if (r) {
+          r.ride = null; r.pickupOffset = null;
+          r.samples.push({ t: this.serverNow(), s: m.s });
+        }
+        break;
+      }
       case 'chat': this.onChat?.(m.name, m.text); break;
       case 'pong': {
         const nowL = Date.now() / 1000;
@@ -275,11 +292,13 @@ export class NetClient {
 
   serverNow() { return Date.now() / 1000 + this.clockOffset; }
 
-  private sendState() {
+  private sendState(releaseSwing?: ChairSwing) {
     const st = this.player.st;
     this.send({ type: 'state', teleport: this.teleportPending || undefined, drone: this.localDrone?.() ?? null, s: {
       x: st.pos.x, y: st.pos.y, z: st.pos.z, heading: st.heading, vx: st.vel.x, vy: st.vel.y, vz: st.vel.z,
       mode: this.droneOnly ? 'drone' : this.player.ride ? 'riding' : st.mode, edge: st.edge, plow: st.plow, tuck: st.tuck, fallen: this.player.fallenBlend,
+      swing: releaseSwing ?? (this.player.ride ? { ...this.player.chairSwing } : undefined),
+      tumble: this.player.tumble ? { pitch: this.player.tumble.pitch, roll: this.player.tumble.roll } : undefined,
     } });
     this.teleportPending = false;
   }
@@ -308,7 +327,10 @@ export class NetClient {
       let loading = false;
       if (r.ride) {
         // ride exactly on the shared chair clock
-        const info = this.lifts.paths[r.ride.lift].riderPoint(r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift));
+        const path = this.lifts.paths[r.ride.lift], swing = r.last?.swing;
+        const info = swing ? swingingRiderPoint(path, r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift), swing)
+          : path.riderPoint(r.ride.chair, r.ride.seat, this.lifts.now(r.ride.lift));
+        if (swing && !(this.player.ride?.lift === r.ride.lift && this.player.ride.chair === r.ride.chair)) this.lifts.setChairSwing(r.ride.lift, r.ride.chair, swing);
         r.model.root.position.set(info.p.x, info.p.y, info.p.z);
         heading = info.heading;
         if (r.pickupOffset && r.ride.boardedAt !== undefined) {
@@ -336,12 +358,15 @@ export class NetClient {
       r.heading = heading;
       orientSkier(r.model.root, heading, r.ride ? undefined : this.player.terrainNormal(r.model.root.position.x, r.model.root.position.z));
       if (!s) continue;
+      const swing = r.ride ? s.swing : undefined, tumble = !r.ride ? s.tumble : undefined;
+      if (swing || tumble) r.model.root.rotation.set(swing?.pitch ?? tumble!.pitch, heading, swing?.roll ?? tumble!.roll, 'YXZ');
       const speed = Math.hypot(s.vx, s.vy, s.vz);
       if (!loading) r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 5);
       const pos = r.model.root.position;
       const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y : undefined;
       const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y);
-      r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false });
+      r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false,
+        airborne: !!tumble, rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip });
     }
   }
 
