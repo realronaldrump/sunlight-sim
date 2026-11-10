@@ -217,3 +217,13 @@ Gamepad: left stick moves, right stick looks, RT climbs, LT descends, A brakes, 
 Flight stays inside the resort boundary plus a 197 ft viewing apron, with a 394 ft ceiling above local terrain. An amber grid and HUD message warn when you approach the flight limit. Snow clearance and tree, tower and building collision volumes prevent flying through the modeled terrain and solid obstacles. Distant mountain scenery remains visible from the ski area.
 
 The original quadcopter includes counter-rotating rotors, a stabilized camera gimbal and navigation lights. Four synthesized motor/propeller voices follow rotor RPM; the existing N mute and Options volume apply to drone sound too. Speeds and clearances use the same U.S. display units as skiing. No batteries, scores or time limits interrupt exploration.
+
+### Rebuild the Santa portrait asset
+
+The game ships the generated head mesh and textures. To recreate them from the pinned sources with Python 3.12:
+
+```bash
+python3.12 -m venv data/raw/santa-likeness/.venv
+data/raw/santa-likeness/.venv/bin/pip install -r pipeline/requirements-santa.txt
+data/raw/santa-likeness/.venv/bin/python pipeline/build_santa_likeness.py
+```

@@ -1,5 +1,11 @@
 # Progress
 
+## Reference-fitted Santa likeness (November 10, 2026)
+
+- Replaced the generic head with a dimensional portrait fit and UV-baked, de-lit skin texture. Added an independently shaded eye region, CC0 ears, a wider head and jaw, sculpted scalp, continuous gray-blond sweep, and a knit collar. Preserved the skiing rig, animated hat, chair position and room simulation.
+- The build script pins and checksums the portrait, MediaPipe task and topology. Reviewed the original, first fit and corrected model at matched front, three-quarter, profile and skiing viewpoints. Fixed the visible nape gap and hard collar seam. Review frames are in `screenshots/santa-likeness/`.
+- Next: complete WebKit and room regression checks, then publish the matching client and verify the live portrait. The existing multiplayer release can serve this client.
+
 ## Santa Sighting and live map (November 10, 2026, released)
 
 - The roaming Santa skier has live route selection across all 68 mapped skiable lines, gravity and ski-edge physics, trees and terrain, and real pickup, chair travel and dismount on all three lifts. The server publishes one skier and seat per room. Solo simulation runs in a worker. Both modes save checkpoints.

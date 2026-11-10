@@ -58,6 +58,7 @@ import { YardSale } from './world/yardSale';
 import { flingVelocity } from '../../shared/missedUnload';
 import { resortClock } from './world/resortClock';
 import { MountainGuestView } from './world/mountainGuestView';
+import { loadSantaLikeness } from './world/santaLikeness';
 import { SANTA_ACHIEVEMENT } from './world/santaDiscovery';
 import { ConditionsBoard } from './world/conditionsBoard';
 import { conditionsFor } from './world/conditions';
@@ -214,6 +215,7 @@ export class Game {
       fetch(`${WORLD_BASE}/resort.json`, { cache: 'no-cache' }).then((r) => r.json()),
       SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
       loadHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')),
+      loadSantaLikeness().catch(e => console.warn('Santa portrait textures unavailable', e)),
     ]);
     void _;
     this.resort = resort;

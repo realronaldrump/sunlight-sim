@@ -4,6 +4,8 @@ import type { HumanBody } from '../skier/humanBody';
 import { SkierModel } from '../skier/skierModel';
 import { skiPole, skiWithBindings } from '../skier/skiEquipment';
 import { mergeStatic } from './mergeStatic';
+import { santaPortrait } from './santaLikeness';
+import { santaHair } from './santaHair';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -57,9 +59,27 @@ function fabricMap() {
 
 function makeHead() {
   const head = new THREE.Group();
-  head.name = 'Santa hat, swept hair and facial details';
+  head.name = 'santa-head-pivot';
+  const portrait = santaPortrait();
+  head.add(portrait.mesh);
+  const collarProfile = [[.081, -.153], [.077, -.137], [.067, -.121], [.063, -.104],
+    [.061, -.086], [.060, -.072], [.057, -.068]].map(([r, y]) => new THREE.Vector2(r, y));
+  const collarMaterial = new THREE.MeshStandardNodeMaterial({
+    color: 0xa91632, roughness: .9, bumpMap: fabricMap(), bumpScale: .0011,
+  });
+  const collar = new THREE.Mesh(new THREE.LatheGeometry(collarProfile, 48), collarMaterial);
+  collar.name = 'santa-knit-collar';
+  collar.position.z = -.024;
+  collar.scale.z = 1.07;
+  collar.castShadow = true;
+  collar.receiveShadow = true;
+  head.add(collar);
+  const hat = new THREE.Group();
+  hat.name = 'santa-hat';
+  hat.position.set(0, .151, .024);
+  hat.rotation.x = .145;
   const top = new THREE.Group();
-  top.position.y = .115;
+  top.name = 'santa-cap-and-pom';
   const velvet = new THREE.MeshPhysicalNodeMaterial({
     color: 0xb51231, roughness: .82, sheen: .65, sheenColor: new THREE.Color(0xea6669), sheenRoughness: .67,
     bumpMap: fabricMap(), bumpScale: .0015,
@@ -72,7 +92,7 @@ function makeHead() {
   const geometry = new THREE.TubeGeometry(shape, 30, 1, 28);
   const positions = geometry.getAttribute('position'), vertex = new THREE.Vector3();
   for (let row = 0; row <= 30; row++) {
-    const t = row / 30, p = shape.getPointAt(t), radius = .092 * (1 - t) ** 1.18 + .003;
+    const t = row / 30, p = shape.getPointAt(t), radius = .099 * (1 - t) ** 1.18 + .003;
     for (let j = 0; j <= 28; j++) {
       const i = row * 29 + j, theta = j / 28 * 2 * Math.PI;
       const folds = 1 + .045 * Math.sin(theta * 6 + t * 8) + .028 * Math.cos(theta * 11 - t * 13);
@@ -86,52 +106,11 @@ function makeHead() {
   top.add(new THREE.Mesh(geometry, velvet));
   fleece(top, shape.getPoint(1), V(.033, .035, .033), 136);
   mergeStatic(top);
-  fleece(head, V(0, .126, .011), V(.088, .018, .100), 112, true);
+  fleece(hat, V(0, .011, .008), V(.098, .018, .113), 112, true);
+  mergeStatic(hat);
+  hat.add(top);
 
-  const colors = [cloth(0xa38058, .72), cloth(0xc9a776, .68), cloth(0xe4c48d, .66), cloth(0xf4d5a0, .64)];
-  const lock = (points: THREE.Vector3[], width: number, material: THREE.Material) => {
-    const curve = new THREE.CatmullRomCurve3(points);
-    const mesh = new THREE.TubeGeometry(curve, 14, width, 6);
-    const attr = mesh.getAttribute('position'), v = new THREE.Vector3();
-    for (let row = 0; row <= 14; row++) {
-      const t = row / 14, center = curve.getPointAt(t);
-      const taper = .05 + .95 * Math.sin(Math.PI * (.13 + .87 * t));
-      for (let col = 0; col <= 6; col++) {
-        const i = row * 7 + col;
-        v.fromBufferAttribute(attr, i).sub(center).multiplyScalar(taper).add(center);
-        attr.setXYZ(i, v.x, v.y, v.z);
-      }
-    }
-    mesh.computeVertexNormals();
-    head.add(new THREE.Mesh(mesh, material));
-  };
-  // Low side-part, layered front sweep, then finer individual wisps that catch sunlight.
-  for (let i = 0; i < 18; i++) {
-    const t = i / 17, shift = .018 * t;
-    lock([V(.062 + shift, .12, -.061), V(.016, .131 + shift * .32, -.111 - shift * .8),
-      V(-.032 - shift * .55, .107 + shift, -.120 + shift * .20), V(-.079, .080 + shift * 1.65, -.085 + shift * .8)], .0058, colors[i % 4]);
-    lock([V(.068, .121, -.057 + t * .15), V(.081 + t * .011, .102, -.042 + t * .147),
-      V(.082 + t * .013, .059 - t * .018, -.018 + t * .104)], .0044, colors[i % 3]);
-    lock([V(-.066, .120, -.025 + t * .121), V(-.083, .097, -.007 + t * .11),
-      V(-.075, .054 - t * .012, .014 + t * .077)], .0046, colors[(i + 1) % 3]);
-  }
-  for (let i = 0; i < 25; i++) {
-    const q = i / 24;
-    lock([V(.052 + .032 * q, .126, -.07), V(.005, .128 + q * .009, -.119 - q * .006),
-      V(-.044, .112 + q * .015, -.113 - .01 * q), V(-.077, .09 + q * .019, -.089)], .0012, colors[2 + i % 2]);
-  }
-
-  const whites = cloth(0xdcd2c3, .51), blue = cloth(0x54798d, .39), pupil = cloth(0x23303a, .38);
-  for (const side of [-1, 1]) {
-    const eye = ellipsoid(head, whites, V(side * .035, .0405, -.1036), V(.010, .00225, .0023), 16);
-    eye.rotation.z = side * .07;
-    ellipsoid(head, blue, V(side * .034, .0405, -.1055), V(.0033, .00215, .0011));
-    ellipsoid(head, pupil, V(side * .034, .0405, -.1063), V(.00125, .00135, .0006));
-    lock([V(side * .020, .0565, -.113), V(side * .035, .0585, -.111),
-      V(side * .050, .056, -.102), V(side * .059, .052, -.094)], .0028, colors[1]);
-  }
-  mergeStatic(head);
-  head.add(top);
+  head.add(santaHair(portrait.mesh.geometry, portrait.skullIndexCount), hat);
   return { head, top };
 }
 
@@ -139,15 +118,21 @@ function makeHead() {
 function tailor(human: HumanBody) {
   const geometry = human.mesh.geometry.clone();
   const pos = geometry.getAttribute('position'), normals = geometry.getAttribute('normal');
-  const colors = geometry.getAttribute('color'), rough = geometry.getAttribute('roughness');
+  const colors = geometry.getAttribute('color');
   const skin = geometry.getAttribute('skinTone');
   const joints = geometry.getAttribute('skinIndex'), weights = geometry.getAttribute('skinWeight');
   const bones = human.mesh.skeleton.bones.map(b => b.name);
-  const shape = new Float32Array(pos.count * 4), detail = new Float32Array(pos.count * 4);
+  const shape = new Float32Array(pos.count * 4), detail = new Float32Array(pos.count * 2);
   const red = new THREE.Color(0xb4102b), shadowRed = new THREE.Color(0x850f26);
   const ivory = new THREE.Color(0xf4ebdc), leather = new THREE.Color(0x242023);
-  const skinColor = new THREE.Color(0xe1a285), flushed = new THREE.Color(0xc18169), lip = new THREE.Color(0x995f57);
-  const lidShadow = new THREE.Color(0x98766c);
+  const bodyIndices = [];
+  const index = geometry.index!;
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i), b = index.getX(i + 1), c = index.getX(i + 2);
+    if (skin.getX(a) || skin.getX(b) || skin.getX(c)) continue;
+    bodyIndices.push(a, b, c);
+  }
+  geometry.setIndex(bodyIndices);
   const p = new THREE.Vector3(), n = new THREE.Vector3(), color = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     p.fromBufferAttribute(pos, i); n.fromBufferAttribute(normals, i);
@@ -160,69 +145,47 @@ function tailor(human: HumanBody) {
       if (/lowerarm|hand/.test(bone)) wrist += w;
     }
     const noise = Math.sin(i * 93.881) * .5 + .5;
-    let bump = .9, torso = 0;
-    if (skin.getX(i)) {
-      const front = 1 - smooth(z, -.119, -.082);
-      const jaw = gauss(y - 1.578, .042), chin = front * gauss(y - 1.555, .016);
-      p.x *= 1 + .31 * jaw;
-      p.y -= .006 * chin;
-      const bags = front * gauss(ax - .041, .018) * gauss(y - 1.636 + (ax - .038) * .12, .0049);
-      const cheek = front * gauss(ax - .053, .018) * gauss(y - 1.621, .032);
-      p.z -= .006 * chin + .008 * cheek + .0026 * bags;
-      const mouthLine = y - (1.582 + .0035 * gauss(x, .019) - .0018 * Math.sin(x * 63));
-      const mouth = gauss(mouthLine, .0034) * gauss(x, .024) * front;
-      p.z -= mouth * .0026;
-      const socket = front * gauss(ax - .034, .019) * gauss(y - 1.649, .014);
-      const lid = front * gauss(ax - .038, .016) * gauss(y - (1.646 + (ax - .034) * .17), .0025);
-      const crease = front * gauss(ax - (.023 + (1.622 - y) * .37), .0038) * gauss(y - 1.602, .021);
-      color.copy(skinColor).lerp(flushed, .43 * cheek + .18 * crease)
-        .lerp(ivory, socket * .16).lerp(lidShadow, .24 * bags + .26 * lid)
-        .lerp(lip, mouth * .93).multiplyScalar(.979 + .028 * noise);
-      rough.setX(i, .69 + .1 * socket);
-      bump = .14;
-    } else {
-      torso = (1 - smooth(sleeves, .15, .64)) * (1 - smooth(hands, .1, .55));
-      const coat = torso * smooth(y, .899, .95) * (1 - smooth(y, 1.50, 1.535));
-      const belly = torso * gauss(y - 1.103, .19);
-      p.x *= 1 + belly * .22;
-      p.z += n.z * belly * .062;
-      const cuff = wrist * gauss(y - (1.112 + .22 * (ax - .47)), .028);
-      const hem = torso * gauss(y - .941, .029);
-      const collar = torso * gauss(y - 1.467, .042);
-      const belt = torso * gauss(y - 1.085, .055);
-      const glove = smooth(hands, .18, .62), boot = 1 - smooth(y, .19, .29);
-      const fold = .5 + .5 * Math.cos(67 * y + 31 * x + 17 * z);
-      const seam = gauss(ax - (.115 + (y - 1.1) * .14), .0034) * coat * (1 - smooth(z, -.09, -.065));
-      color.copy(red).lerp(shadowRed, .14 * fold + .2 * seam)
-        .lerp(leather, Math.max(glove, boot)).multiplyScalar(.965 + .05 * noise);
-      p.addScaledVector(n, .007 * Math.max(cuff, hem, collar) + .004 * belt - .0018 * seam);
-      rough.setX(i, .84);
-      bump = 1 - .75 * glove;
-    }
+    if (skin.getX(i)) continue;
+    const torso = (1 - smooth(sleeves, .15, .64)) * (1 - smooth(hands, .1, .55));
+    const coat = torso * smooth(y, .899, .95) * (1 - smooth(y, 1.50, 1.535));
+    const belly = torso * gauss(y - 1.103, .19);
+    p.x *= 1 + belly * .22;
+    p.z += n.z * belly * .062;
+    const cuff = wrist * gauss(y - (1.112 + .22 * (ax - .47)), .028);
+    const hem = torso * gauss(y - .941, .029);
+    const collar = torso * gauss(y - 1.467, .042);
+    const belt = torso * gauss(y - 1.085, .055);
+    const glove = smooth(hands, .18, .62), boot = 1 - smooth(y, .19, .29);
+    const fold = .5 + .5 * Math.cos(67 * y + 31 * x + 17 * z);
+    const seam = gauss(ax - (.115 + (y - 1.1) * .14), .0034) * coat * (1 - smooth(z, -.09, -.065));
+    color.copy(red).lerp(shadowRed, .14 * fold + .2 * seam)
+      .lerp(leather, Math.max(glove, boot)).multiplyScalar(.965 + .05 * noise);
+    p.addScaledVector(n, .007 * Math.max(cuff, hem, collar) + .004 * belt - .0018 * seam);
+    const bump = 1 - .75 * glove;
     pos.setXYZ(i, p.x, p.y, p.z);
     colors.setXYZ(i, color.r, color.g, color.b);
     shape.set([x, y, z, torso], i * 4);
-    detail.set([rough.getX(i), bump, wrist, skin.getX(i)], i * 4);
+    detail.set([bump, wrist], i * 2);
   }
   geometry.deleteAttribute('jacket');
   geometry.deleteAttribute('skinTone');
   geometry.deleteAttribute('roughness');
   geometry.setAttribute('outfit', new THREE.BufferAttribute(shape, 4));
-  geometry.setAttribute('fabric', new THREE.BufferAttribute(detail, 4));
+  geometry.setAttribute('fabric', new THREE.BufferAttribute(detail, 2));
   human.mesh.geometry = geometry;
 
   // The trims are evaluated per fragment, so seams and hardware stay crisp
   // even where the underlying rig has long, thin triangles.
   const material = new THREE.MeshPhysicalNodeMaterial({ sheen: .55, sheenRoughness: .77 });
-  const cut = attribute('outfit', 'vec4'), fabric = attribute('fabric', 'vec4');
+  const cut = attribute('outfit', 'vec4'), fabric = attribute('fabric', 'vec2');
   const x = cut.x.abs(), y = cut.y, front = smoothstep(.067, .114, cut.z.negate());
-  const torso = cut.w.mul(fabric.w.oneMinus());
+  const torso = cut.w;
   const band = (center: number, half: number, feather: number) =>
     smoothstep(half, half + feather, y.sub(center).abs()).oneMinus();
   const hem = torso.mul(band(.942, .027, .003));
   const collar = torso.mul(band(1.469, .029, .011));
   const cuffCenter = x.sub(.47).mul(.22).add(1.112);
-  const cuffs = fabric.z.mul(smoothstep(.026, .032, y.sub(cuffCenter).abs()).oneMinus());
+  const cuffs = fabric.y.mul(smoothstep(.026, .032, y.sub(cuffCenter).abs()).oneMinus());
   const opening = torso.mul(front, band(1.21, .25, .016), smoothstep(.020, .028, x).oneMinus());
   const trim = max(hem, collar, cuffs, opening).clamp();
   const belt = torso.mul(band(1.085, .038, .003));
@@ -233,12 +196,12 @@ function tailor(human: HumanBody) {
   const coords = vec2(atan(cut.x, cut.z.negate()).mul(2.45), y.mul(12.2));
   const nap = texture(fabricMap(), coords).r;
   const wool = mix(tint(0xe4d9c7), tint(0xfff8ec), nap.mul(1.4));
-  const base = attribute('color', 'vec3').mul(mix(float(1), nap.sub(.4).mul(.23).add(1), fabric.y));
+  const base = attribute('color', 'vec3').mul(mix(float(1), nap.sub(.4).mul(.23).add(1), fabric.x));
   material.colorNode = mix(mix(mix(base, wool, trim), tint(0x211e21), belt), tint(0xe2b067), gold);
   material.metalnessNode = gold.mul(.68);
-  material.roughnessNode = mix(fabric.x, .5, belt).sub(gold.mul(.16));
-  material.sheenNode = tint(0x9c424b).mul(fabric.w.oneMinus()).mul(belt.oneMinus()).mul(trim.oneMinus());
-  material.normalNode = bumpMap(nap, fabric.y.mul(belt.oneMinus()).mul(.016));
+  material.roughnessNode = mix(float(.84), .5, belt).sub(gold.mul(.16));
+  material.sheenNode = tint(0x9c424b).mul(belt.oneMinus()).mul(trim.oneMinus());
+  material.normalNode = bumpMap(nap, fabric.x.mul(belt.oneMinus()).mul(.016));
   human.mesh.material = material;
 }
 
