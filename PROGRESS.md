@@ -1,10 +1,12 @@
 # Progress
 
-## Santa's lit firs and tracks (November 10, 2026, release in progress)
+## Santa's lit firs and tracks (November 10, 2026, released)
 
 - Santa now skis upright at a slower pace, gives a hat tip in response to the existing wave gesture, and can pause for a waving skier on gentle snow. The same replay peaked at 18 mph after the change, down from 32 mph. The resident still completes courses and boards and unloads at all three lifts.
 - Firs light up from the lower branches when he releases his star. The bulbs cast a warm glow on the snow, and the fir chimes at release or when a visitor approaches. The lights last 25 minutes and the ski grooves and gold flecks last 15 minutes of world time. Both are shared and saved, and the optional Santa map shows them. Directional sleigh bells can be heard farther ahead of a pass.
-- Build, 182 unit tests, five pipeline checks and all eight Santa browser scenarios passed. Reviewed the lit fir and tracks at 20 m in daylight with Santa over 400 m away, and the fir at dusk with Santa beside it. Captures are in `screenshots/santa-magic/`. Next, verify the committed production client and server image, then push and check both public services.
+- Build, 182 unit tests, five pipeline checks and all eight Santa browser scenarios passed. Reviewed the lit fir and tracks at 20 m in daylight with Santa over 400 m away, and the fir at dusk with Santa beside it. Captures are in `screenshots/santa-magic/`.
+- Release `7af8f019c5e5af0866ef7f4714de93ddc3ef2727` is on `origin/main`. Vercel deployment `dpl_6jPfGwzM2ENJEJSJSdwCbvQ5gpxh` serves the tested `index-BqbgnK7r.js` at https://sunlight-sim.vercel.app. Its public bundle matches the verified production build. The healthy mini-PC container runs the same commit on the existing checkpoint volume.
+- In the exact server image, two late visitors received the same lit fir and 232 saved track points, then the same new tracks. A graceful restart restored that history. The live public relay delivered the new history packet and matching Santa snapshots to two clients. WebKit on the public site rendered the old fir and tracks before and after reload.
 
 ## Santa's Christmas details (November 10, 2026, released)
 
