@@ -6,6 +6,7 @@
 - The costume is built on the full anatomical rig with sculpted features, swept hair, fleece, fabric shading, a moving stocking hat, decorated skis and poles, ski contact on uneven ground, tracks and spray. Reviewed initial Chromium close-up and full-body captures and corrected the exposed ski contact and costume seams.
 - Chromium browser checks passed for a close, clear sighting, one-time unlock, badge persistence after reload, synchronized movement between friends and reconnect. The focused physics checks exercise each lift, route availability, continuous movement, room restore and sight obstruction.
 - November 10: Added the owner-requested Show Trump Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
+- The server image starts Node directly so the container stop signal reaches the handler that saves active rooms. The Compose volume also keeps the periodic checkpoints.
 - Next: finish the revised close-up, chair and map checks in Chromium and WebKit, then deploy the matching client and mini-PC server from the verified main commit.
 
 ## Manual disembark and the missed-unload gag (November 9, 2026, released)

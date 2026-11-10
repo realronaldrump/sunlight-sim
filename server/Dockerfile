@@ -14,4 +14,4 @@ COPY client/public/world/terrain/L0/ ./client/public/world/terrain/L0/
 COPY client/public/world/trees/ ./client/public/world/trees/
 ENV NODE_ENV=production PORT=8080
 EXPOSE 8080
-CMD ["npx", "tsx", "server/src/index.ts"]
+CMD ["node", "--import", "tsx", "server/src/index.ts"]
