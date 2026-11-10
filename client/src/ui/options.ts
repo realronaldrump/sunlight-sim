@@ -1,6 +1,7 @@
 // Options panel (P): time of day, snowfall, sound volume, graphics quality.
 import { QualityName, savedQuality, saveQuality } from '../quality';
 import { IPHONE } from '../platform';
+import { SANTA_MAP_LABEL } from './santaMapMarker';
 import { SANTA_ACHIEVEMENT } from '../world/santaDiscovery';
 
 const SANTA_MAP_KEY = 'sunlight.santaMap';
@@ -79,7 +80,7 @@ export class OptionsPanel {
         : `<label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>`}
       ${h.autoUnload ? `<label class="row" title="Off: press Space on the unload ramp at the top to stand up and ski off. Miss it and the lift has opinions."><span>Auto disembark at the top of the lift</span><input type="checkbox" id="o-unload" ${h.autoUnload.on ? 'checked' : ''}></label>
       <p id="o-unload-note" style="opacity:.7;margin:2px 0 0;font-size:12px">${h.autoUnload.on ? 'The chair sets you down on the ramp.' : 'Press Space on the ramp to stand up.'}</p>` : ''}
-      <label class="row"><span>Show Trump Santa on map</span><input type="checkbox" id="o-santa-map"></label>
+      <label class="row"><span>Show ${SANTA_MAP_LABEL} on map</span><input type="checkbox" id="o-santa-map"></label>
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>

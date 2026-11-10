@@ -1,4 +1,4 @@
-export const SANTA_MAP_LABEL = 'Trump Santa';
+export const SANTA_MAP_LABEL = 'Santa';
 
 /** A stocking hat on a red map badge, distinct from the player arrows and lift symbols. */
 export function drawSantaMapMarker(g: CanvasRenderingContext2D, x: number, y: number, radius: number) {

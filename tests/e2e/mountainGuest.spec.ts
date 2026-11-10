@@ -26,7 +26,7 @@ test('the optional map marker and an in-world sighting are saved independently',
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/?' + params);
   await ready(page);
-  const mapSwitch = page.getByRole('checkbox', { name: 'Show Trump Santa on map' });
+  const mapSwitch = page.getByRole('checkbox', { name: 'Show Santa on map' });
   const mapKey = page.locator('#tmap .santa-key');
   const openMap = () => page.getByRole('button', { name: 'Open full trail map (M)' }).click();
   const closeMap = () => page.locator('#tmap .close').first().click();
@@ -44,6 +44,7 @@ test('the optional map marker and an in-world sighting are saved independently',
   await resume();
   await openMap();
   await expect(mapKey).toBeVisible();
+  await expect(mapKey).toHaveText('● Santa');
   expect(await page.evaluate(() => {
     const g = (window as any).game, p = g.mountainGuest.pose;
     const [x, y] = g.trailMap.toScreen(p.x, p.z);

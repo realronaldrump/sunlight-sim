@@ -333,12 +333,16 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 
 ## D31. Santa Sighting (owner request, November 9, 2026)
 
-- Donald Trump in a Santa ski suit is a single resident of each solo world or multiplayer room. He chooses among all 68 mapped skiable lines, including the park and double blacks. The route planner finds a new line over the measured snow, choosing lift access and detours around trees and steep banks. The skier uses the shared ski solver downhill and takes short, articulated steps on flats, tight turns and uphill connectors.
+- Santa is a single resident of each solo world or multiplayer room. He chooses among all 68 mapped skiable lines, including the park and double blacks. The route planner finds a new line over the measured snow, choosing lift access and detours around trees and steep banks. The skier uses the shared ski solver downhill and takes short, articulated steps on flats, tight turns and uphill connectors.
 - Chair pickup requires actual contact and a free seat. The occupied lift's clock carries him to the unload ramp, where he stands up and carries the chair's forward momentum onto the snow. The room supplies the same authoritative pose and seat to every browser. Room checkpoints persist on the mini-PC volume, and solo checkpoints live in the browser. A world with nobody in it resumes from its last checkpoint, including the cable phase if he was on a chair.
-- A clear sighting from play within 23 m for about three quarters of a second earns Santa Sighting. The award is kept per browser and appears in the pause or flight menu after discovery. The browser-local Show Trump Santa on map setting is off initially. It adds his live position to the trail map and nearby minimap, as a distinct hat marker. Sighting still requires looking at the skier in the world.
+- A clear sighting from play within 23 m for about three quarters of a second earns Santa Sighting. The award is kept per browser and appears in the pause or flight menu after discovery. The browser-local Show Santa on map setting is off initially. It adds his live position to the trail map and nearby minimap, as a distinct hat marker. Sighting still requires looking at the skier in the world.
 - The outfit uses an original sculpt and layered Santa gear on the CC0 anatomical rig. The hat moves with the skier, and each ski gets its own measured snow-contact pitch and height.
 
 ## D32. Reference-fitted Santa head (November 10, 2026)
 
-- The owner asked for a recognizable Donald Trump likeness. The texture comes from Daniel Torok's June 2025 White House portrait. The build fits 468 facial vertices to the measured portrait after removing camera tilt and roll, then bakes de-lit albedo and a separate eye roughness map. The jaw, nose and gray-blond sweep were checked against Emily J. Higgins's profile. The hidden skull and nape are modeled estimates.
+- The face texture comes from Daniel Torok's June 2025 White House portrait. The build fits 468 facial vertices to the measured portrait after removing camera tilt and roll, then bakes de-lit albedo and a separate eye roughness map. The jaw, nose and gray-blond sweep were checked against Emily J. Higgins's profile. The hidden skull and nape are modeled estimates.
 - The portrait is a dimensional mesh on the existing ski head pivot. It replaces the generic face, while the original CC0 rig supplies the ears and the animated body. The hair cap fits the skull surface, with a separate sweep, tilted stocking cap and knit collar. The build runs offline after fetching pinned inputs. No model weights or original photos are shipped.
+
+## D33. Santa's name in the game (November 10, 2026)
+
+- Use Santa in the pause menu, Flight menu and map labels. Retain the Santa Sighting badge, browser storage keys and room state. Keep the precise source citations in the build pipeline and repository credits.

@@ -3,8 +3,7 @@ Santa portrait asset for Sunlight Mountain Simulator
 Face texture adapted from Daniel Torok's official White House portrait, June 2025.
 The portrait is a work of the United States federal government and is in the
 public domain. The source has been cropped, de-lit and baked into UV textures.
-https://www.whitehouse.gov/wp-content/uploads/2025/06/President-Donald-Trump-Official-Presidential-Portrait.png
-https://commons.wikimedia.org/wiki/File:Official_Presidential_Portrait_of_President_Donald_J._Trump_(2025).jpg
+The repository's CREDITS.md records the source and provenance.
 
 Facial connectivity adapted from MediaPipe canonical_face_model.obj.
 Copyright The MediaPipe Authors. Licensed under the Apache License, Version 2.0.

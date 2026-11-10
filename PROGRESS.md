@@ -1,5 +1,10 @@
 # Progress
 
+## Santa naming (November 10, 2026)
+
+- Settings now says Show Santa on map on desktop and iPhone. The trail map legend and both map markers use Santa. Updated gameplay docs and the browser check. The shipped model notice keeps attribution and links to repository provenance.
+- Next: run the map and badge regression in Chromium and WebKit, publish the client and audit the public artifact.
+
 ## Reference-fitted Santa likeness (November 10, 2026, released)
 
 - Replaced the generic head with a dimensional portrait fit and UV-baked, de-lit skin texture. Added an independently shaded eye region, CC0 ears, a wider head and jaw, sculpted scalp, continuous gray-blond sweep, and a knit collar. Preserved the skiing rig, animated hat, chair position and room simulation.
@@ -13,7 +18,7 @@
 - The roaming Santa skier has live route selection across all 68 mapped skiable lines, gravity and ski-edge physics, trees and terrain, and real pickup, chair travel and dismount on all three lifts. The server publishes one skier and seat per room. Solo simulation runs in a worker. Both modes save checkpoints.
 - The costume is built on the full anatomical rig with sculpted features, swept hair, fleece, fabric shading, a moving stocking hat, decorated skis and poles, ski contact on uneven ground, tracks and spray. Reviewed initial Chromium close-up and full-body captures and corrected the exposed ski contact and costume seams.
 - Chromium browser checks passed for a close, clear sighting, one-time unlock, badge persistence after reload, synchronized movement between friends and reconnect. The focused physics checks exercise each lift, route availability, continuous movement, room restore and sight obstruction.
-- November 10: Added the owner-requested Show Trump Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
+- November 10: Added the owner-requested Show Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
 - The server image starts Node directly so the container stop signal reaches the handler that saves active rooms. The Compose volume also keeps the periodic checkpoints.
 - Reviewed the revised face, downhill stance and seated pose on High in Chromium WebGPU and WebKit WebGL. Both reproduced the same seat contact, and the downhill pose was within 7 mm of the snow surface. Captures are in `screenshots/santa-sighting/final/`.
 - The committed production build, 178 unit tests and five pipeline checks passed. Chromium and WebKit passed the map, achievement and two-client scenarios against the prebuilt artifact. Emulated iPhone WebKit passed the Flight menu toggle and trail map. The container test restored the exact saved position after stopping and restarting the process.
