@@ -16,11 +16,14 @@ export class SnowSpray {
   private cursor = 0;
   private seed = 187;
 
-  constructor() {
+  constructor(private gold = false) {
     const geo = new THREE.PlaneGeometry(1, 1);
     geo.setAttribute('snowPosition', new THREE.InstancedBufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
     geo.setAttribute('snowAppearance', new THREE.InstancedBufferAttribute(this.appearance, 2).setUsage(THREE.DynamicDrawUsage));
-    const mat = new THREE.MeshStandardNodeMaterial({ color: 0xf4f8ff, roughness: 1, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardNodeMaterial({
+      color: gold ? 0xffca63 : 0xf4f8ff, emissive: gold ? 0xf4a62b : 0, emissiveIntensity: gold ? .72 : 0,
+      roughness: gold ? .53 : 1, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
     const appearance = attribute('snowAppearance', 'vec2');
     const right = cameraWorldMatrix[0].xyz, up = cameraWorldMatrix[1].xyz;
     mat.positionNode = attribute('snowPosition', 'vec3')
@@ -30,9 +33,9 @@ export class SnowSpray {
     const soft = float(1).sub(smoothstep(0.15, 1, radius));
     mat.opacityNode = soft.mul(soft).mul(appearance.y);
     this.mesh = new THREE.InstancedMesh(geo, mat, CAPACITY);
-    this.mesh.name = 'ski-edge snow spray';
+    this.mesh.name = gold ? 'santa-gold-sparks' : 'ski-edge snow spray';
     this.mesh.frustumCulled = false;
-    this.mesh.receiveShadow = true;
+    this.mesh.receiveShadow = !gold;
     this.mesh.renderOrder = 2;
     this.mesh.visible = false;
   }
@@ -45,7 +48,7 @@ export class SnowSpray {
   emit(left: THREE.Vector3, right: THREE.Vector3, direction: THREE.Vector3, width: number, strength: number, speed: number) {
     if (speed < 2) return;
     const force = THREE.MathUtils.clamp((width - 0.1) * 5 + (strength - 0.7), 0.05, 1.7);
-    const count = Math.ceil(force * Math.min(speed, 15) * 1.15);
+    const count = this.gold ? Math.ceil(1 + Math.min(2.3, force * 1.6)) : Math.ceil(force * Math.min(speed, 15) * 1.15);
     for (let side = -1; side <= 1; side += 2) {
       const origin = side < 0 ? left : right;
       for (let n = 0; n < count; n++) {
@@ -56,11 +59,11 @@ export class SnowSpray {
         this.positions[k + 1] = origin.y + 0.04 + this.random() * 0.06;
         this.positions[k + 2] = origin.z - direction.z * this.random() * 0.55;
         this.velocities[k] = -direction.z * spread * side + direction.x * speed * 0.16;
-        this.velocities[k + 1] = (0.45 + this.random() * 1.7) * Math.sqrt(force);
+        this.velocities[k + 1] = this.gold ? .62 + this.random() * 1.0 : (0.45 + this.random() * 1.7) * Math.sqrt(force);
         this.velocities[k + 2] = direction.x * spread * side + direction.z * speed * 0.16;
         this.ages[i] = 0;
-        this.lives[i] = 0.3 + this.random() * 0.6;
-        this.radii[i] = 0.012 + this.random() ** 2 * 0.055 * force;
+        this.lives[i] = this.gold ? .96 + this.random() * .72 : 0.3 + this.random() * 0.6;
+        this.radii[i] = this.gold ? .014 + this.random() ** 2 * .032 : 0.012 + this.random() ** 2 * 0.055 * force;
         this.appearance[i * 2] = this.radii[i];
         this.appearance[i * 2 + 1] = 0;
       }
@@ -68,7 +71,7 @@ export class SnowSpray {
   }
 
   update(dt: number) {
-    const drag = Math.exp(-dt * 2.8);
+    const drag = Math.exp(-dt * (this.gold ? 2.1 : 2.8));
     let live = 0;
     for (let i = 0; i < CAPACITY; i++) {
       this.ages[i] += dt;
@@ -76,10 +79,11 @@ export class SnowSpray {
       live++;
       const k = i * 3, t = this.ages[i] / this.lives[i];
       this.velocities[k] *= drag; this.velocities[k + 2] *= drag;
-      this.velocities[k + 1] -= 6.5 * dt; // fine powder has appreciable aerodynamic drag
+      this.velocities[k + 1] -= (this.gold ? .89 : 6.5) * dt; // fine powder has appreciable aerodynamic drag
       for (let a = 0; a < 3; a++) this.positions[k + a] += this.velocities[k + a] * dt;
-      this.appearance[i * 2] = this.radii[i] * (1 + t * 1.8);
-      this.appearance[i * 2 + 1] = Math.min(1, t * 12) * (1 - t) ** 2 * 0.42;
+      const pulse = this.gold ? .76 + .24 * Math.sin(this.ages[i] * 21 + i * .83) : 1;
+      this.appearance[i * 2] = this.radii[i] * (this.gold ? 1.1 * pulse : 1 + t * 1.8);
+      this.appearance[i * 2 + 1] = Math.min(1, t * 12) * (1 - t) ** (this.gold ? 1.4 : 2) * (this.gold ? .86 * pulse : .42);
     }
     this.mesh.visible = live > 0;
     if (live) {

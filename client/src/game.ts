@@ -59,7 +59,7 @@ import { flingVelocity } from '../../shared/missedUnload';
 import { resortClock } from './world/resortClock';
 import { MountainGuestView } from './world/mountainGuestView';
 import { loadSantaLikeness } from './world/santaLikeness';
-import { SANTA_ACHIEVEMENT } from './world/santaDiscovery';
+import { SantaGiftTag } from './ui/santaGiftTag';
 import { ConditionsBoard } from './world/conditionsBoard';
 import { conditionsFor } from './world/conditions';
 import { LINEUP } from './world/lesson';
@@ -131,6 +131,7 @@ export class Game {
   snowHoursOverride: number | null = null;
   ambient: AmbientSkiers | null = null;
   mountainGuest!: MountainGuestView;
+  private santaGiftTag = new SantaGiftTag();
   private trackFade = 0;
   options!: OptionsPanel;
   private audioScene = new AudioScene();
@@ -933,7 +934,8 @@ export class Game {
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
       this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
     }
-    this.mountainGuest.tickLocal(dt, this.player.ride);
+    const santaVisitor = this.ready && !this.flyMode ? this.drone.state?.pos ?? this.player.st.pos : undefined;
+    this.mountainGuest.tickLocal(dt, this.player.ride, santaVisitor);
     const guestRide = this.mountainGuest.ride;
     this.lifts.update([
       ...(guestRide ? [guestRide] : []),
@@ -960,10 +962,11 @@ export class Game {
       }
     }
     this.updateCamera(dt);
-    this.mountainGuest.update(dt, this.camera, resortClock.now());
+    this.mountainGuest.update(dt, this.camera, resortClock.now(), this.env.night.value);
     if (this.mountainGuest.observe(dt, this.camera, this.input.enabled && !this.flyMode && !document.hidden, this.colliders)) {
       this.options.santaSighting(this.mountainGuest.discovery.foundAt);
-      this.hud.toast(`Achievement unlocked · ${SANTA_ACHIEVEMENT}`, 7);
+      this.santaGiftTag.reveal();
+      this.audio.santaDiscovery();
     }
     for (const remote of this.net?.remotes.values() ?? []) {
       fitPlayerLabel(remote.label, this.camera, this.renderer.domElement.clientHeight);
@@ -1486,6 +1489,7 @@ export class Game {
       sound.rocking = { angle: Math.hypot(s.roll, s.pitch), velocity: Math.hypot(s.rollV, s.pitchV), slip: s.slip, pan: Math.sin(s.roll) };
     }
     this.audio.update(dt, sound);
+    this.audio.santaPass(dt, guest, listener, forward);
     this.drone.audio.update(this.audio.ctx,flight,this.audio.volume,this.audio.enabled,this.drone.fpv);
   }
 

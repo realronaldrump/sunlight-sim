@@ -43,7 +43,7 @@ export async function loadGuestWorld(base: string, resort: GuestResort, loader: 
     jobs.push(async () => {
       const { n, x, z, y, h, r, s, seed } = await decodeTreeTile(await loader(`${base}/trees/${tx}_${tn}.bin.gz`));
       for (let i = 0; i < n; i++) if (x[i] >= x0 && x[i] <= x1 && -z[i] >= n0 && -z[i] <= n1) {
-        addTreeCollider(colliders, x[i], z[i], y[i], h[i], r[i], s[i], seed[i]);
+        addTreeCollider(colliders, x[i], z[i], y[i], h[i], r[i], s[i], seed[i], true);
       }
     });
   }

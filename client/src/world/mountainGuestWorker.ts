@@ -1,10 +1,11 @@
 import { MountainGuest, readGuestCheckpoint, type GuestCheckpoint, type GuestPose } from '../../../shared/mountainGuest';
 import { browserLoader } from '../terrain/heightfield';
 import { loadGuestWorld, type GuestResort } from './mountainGuestWorld';
+import type { Vec3 } from '../../../shared/skiPhysics';
 
 export type GuestWorkerRequest =
   | { type: 'start'; base: string; resort: GuestResort; seed: number; saved: unknown }
-  | { type: 'step'; at: number; times: number[]; occupied: { lift: number; chair: number; seat: number } | null; open: boolean };
+  | { type: 'step'; at: number; times: number[]; occupied: { lift: number; chair: number; seat: number } | null; open: boolean; visitor?: Vec3 };
 export type GuestWorkerResponse =
   | { type: 'ready'; pose: GuestPose; at: number; saved: GuestCheckpoint }
   | { type: 'pose'; pose: GuestPose; at: number; saved?: GuestCheckpoint }
@@ -27,9 +28,9 @@ self.onmessage = async ({ data }: MessageEvent<GuestWorkerRequest>) => {
     return;
   }
   if (!guest) return;
-  const { at, times, occupied, open } = data;
+  const { at, times, occupied, open, visitor } = data;
   guest.advance(at - last, times, (lift, chair, seat) =>
-    !(occupied?.lift === lift && occupied.chair === chair && occupied.seat === seat), open);
+    !(occupied?.lift === lift && occupied.chair === chair && occupied.seat === seat), open, visitor ? [visitor] : []);
   last = at;
   const saved = at >= nextSave ? guest.checkpoint() : undefined;
   if (saved) nextSave = at + .8;

@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { drawAspenImpostor } from './aspen';
+import { CONIFER_HEIGHT, CONIFER_RADIUS, coniferBoughs } from '../../../shared/treeData';
 
 // species: 0 spruce/fir, 1 Douglas-fir, 2 aspen (bare), 3 Gambel oak (bare shrub)
 
@@ -81,8 +82,7 @@ export function branchTexture(): THREE.CanvasTexture {
 /** Build branches in meters, then normalize for lidar height/radius instancing. Rotating a branch
  * after normalizing height and radius makes its droop stretch by the tree's aspect ratio. */
 export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.BufferGeometry {
-  const random = rand(kind === 0 ? 7 : 13);
-  const H = 14, R = 2.25;
+  const H = CONIFER_HEIGHT, R = CONIFER_RADIUS;
   const parts: THREE.BufferGeometry[] = [];
   const trunk = new THREE.CylinderGeometry(0.035, 0.18, H, 7, 5, true);
   trunk.translate(0, H / 2, 0);
@@ -92,44 +92,29 @@ export function coniferGeometry(kind: 0 | 1, detail: 'high' | 'low'): THREE.Buff
     const shade = 0.85 + Math.sin(p.y * 6.7 + p.x * 13) * 0.12;
     return new THREE.Color(0.075, 0.052, 0.033).multiplyScalar(shade);
   }));
-  const whorls = detail === 'high' ? (kind === 0 ? 22 : 18) : 9;
-  const arms = detail === 'high' ? 7 : 5;
-  for (let w = 0; w < whorls; w++) {
-    const t = w / whorls;
-    const y = H * (0.12 + t * 0.85);
-    const profile = Math.pow(1 - t, kind === 0 ? 0.78 : 0.64);
-    const rotation = w * 2.399;
-    for (let b = 0; b < arms; b++) {
-      // Broken symmetry and occasional crown gaps avoid repeated Christmas-tree tiers.
-      if (w > 1 && random() < 0.075) continue;
-      const angle = b / arms * Math.PI * 2 + rotation + random() * 0.5;
-      const reach = R * Math.max(0.065, profile * (0.72 + random() * 0.24));
-      const drop = reach * (kind === 0 ? 0.16 : 0.24);
-      const level = y + (random() - 0.5) * 0.42;
-      const thickness = 0.14 + reach * 0.24;
-      const bough = (len: number, width: number, a: number, origin: THREE.Vector3, upright: boolean) => {
-        const card = new THREE.PlaneGeometry(len, width, 2, 1);
-        card.translate(len / 2, 0, 0);
-        if (!upright) card.rotateX(-Math.PI / 2 + 0.12);
-        card.rotateZ(-Math.atan2(drop, reach));
-        card.rotateY(a);
-        card.translate(origin.x, origin.y, origin.z);
-        const shade = 0.72 + random() * 0.28;
-        parts.push(colorize(card.toNonIndexed(), (p) => {
-          const exposed = Math.min(1, Math.hypot(p.x, p.z) / R);
-          const tint = shade * (0.72 + exposed * 0.28);
-          return new THREE.Color(tint * 0.93, tint, tint * 0.94);
-        }));
-      };
-      bough(reach, thickness, angle, new THREE.Vector3(0, level, 0), true);
-      bough(reach, thickness * 2.2, angle, new THREE.Vector3(0, level, 0), false);
-      if (detail === 'high' && t < 0.85) {
-        for (const side of [-1, 1]) {
-          const at = reach * 0.38;
-          bough(reach * 0.55, thickness * 0.9, angle + side * 0.43,
-            new THREE.Vector3(Math.cos(angle) * at, level - drop * 0.38, -Math.sin(angle) * at), false);
-        }
-      }
+  for (const { angle, reach, drop, level, forked, shades } of coniferBoughs(kind, detail)) {
+    const thickness = .14 + reach * .24;
+    let shadeIndex = 0;
+    const bough = (len: number, width: number, a: number, origin: THREE.Vector3, upright: boolean) => {
+      const card = new THREE.PlaneGeometry(len, width, 2, 1);
+      card.translate(len / 2, 0, 0);
+      if (!upright) card.rotateX(-Math.PI / 2 + .12);
+      card.rotateZ(-Math.atan2(drop, reach));
+      card.rotateY(a);
+      card.translate(origin.x, origin.y, origin.z);
+      const shade = shades[shadeIndex++];
+      parts.push(colorize(card.toNonIndexed(), (p) => {
+        const exposed = Math.min(1, Math.hypot(p.x, p.z) / R);
+        const tint = shade * (.72 + exposed * .28);
+        return new THREE.Color(tint * .93, tint, tint * .94);
+      }));
+    };
+    bough(reach, thickness, angle, new THREE.Vector3(0, level, 0), true);
+    bough(reach, thickness * 2.2, angle, new THREE.Vector3(0, level, 0), false);
+    if (forked) for (const side of [-1, 1]) {
+      const at = reach * .38;
+      bough(reach * .55, thickness * .9, angle + side * .43,
+        new THREE.Vector3(Math.cos(angle) * at, level - drop * .38, -Math.sin(angle) * at), false);
     }
   }
   const g = mergeGeometries(parts);

@@ -1,8 +1,9 @@
+import type { FirInstance } from './treeData';
 // Static collider spatial hash (trees, towers, buildings). Shared by client, tests and server.
 import { SkierState, collideCylinder, collideBox } from './skiPhysics';
 
 /** `bottom` (optional) lets upper-storey walls and overhangs leave the space beneath them free. */
-export interface Collider { type: 'cyl' | 'box'; x: number; z: number; r?: number; hx?: number; hz?: number; yaw?: number; top: number; bottom?: number }
+export interface Collider { type: 'cyl' | 'box'; x: number; z: number; r?: number; hx?: number; hz?: number; yaw?: number; top: number; bottom?: number; fir?: FirInstance }
 
 export class ColliderGrid {
   private cells = new Map<number, Collider[]>();

@@ -71,9 +71,12 @@ test('the optional map marker and an in-world sighting are saved independently',
   await look(-Math.PI / 2);
   await page.waitForFunction(() => (window as any).game.mountainGuest.group.getObjectByName('mountain-guest')?.visible);
   await page.waitForTimeout(1000);
-  await expect(page.locator('#toast')).not.toContainText('Santa Sighting');
+  await expect(page.locator('#santa-gift-tag')).toHaveCount(0);
   await look(Math.PI / 2);
-  await expect(page.locator('#toast')).toContainText('Achievement unlocked · Santa Sighting', { timeout: 15_000 });
+  await expect(page.locator('#santa-gift-tag')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#santa-gift-tag')).toContainText('Santa Sighting');
+  await page.waitForTimeout(620);
+  await page.locator('#santa-gift-tag').screenshot({ path: info.outputPath('santa-gift-tag.png') });
   await page.keyboard.press('Escape');
   await expect(page.locator('#santa-sighting')).toBeVisible();
   await expect(page.locator('#santa-sighting')).toContainText('Discovered');
@@ -81,6 +84,7 @@ test('the optional map marker and an in-world sighting are saved independently',
   const unlocked = await page.evaluate(() => (window as any).game.mountainGuest.discovery.foundAt);
   await page.reload();
   await ready(page);
+  await expect(page.locator('#santa-gift-tag')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('#santa-sighting')).toBeVisible();
   await expect(mapSwitch).toBeChecked();
@@ -141,4 +145,45 @@ test('two friends and a reconnect see the same resident, even when they start fa
     await checkPair();
     expect(errors).toEqual([]);
   } finally { await second.close(); }
+});
+
+test('nearby Santa bells and the discovery chord reach the game audio graph', async ({ page }) => {
+  await page.goto('/?' + params);
+  await ready(page);
+  const result = await page.evaluate(async () => {
+    const g = (window as any).game;
+    const Audio = g.audio.constructor;
+    const listener = { x: 0, y: 2801.1, z: 0 }, forward = { x: 0, y: 0, z: -1 };
+    const pose = { ...g.mountainGuest.pose, x: 5, y: 2800, z: 0, speed: 9, edge: .4, touring: 0, ride: null, airborne: false, fallen: 0 };
+    const input = { speed: 0, skid: 0, edge: 0, grounded: true, groomed: 1, moguls: 0, plow: 0,
+      riding: false, nearTerminal: 1000, towerPass: false, fell: false, inAir: false, altitude: 2800 };
+    const out: Record<string, { voices: number; l: number; r: number }> = {};
+    for (const kind of ['near', 'far', 'chord', 'muted']) {
+      const ctx = new OfflineAudioContext(2, 24000, 24000), a = new Audio();
+      a.enabled = kind !== 'muted';
+      a.start(ctx);
+      a.update(1 / 60, input, 0);
+      a.santaPass(1 / 60, kind === 'far' || kind === 'chord' ? { ...pose, x: 40 } : pose, listener, forward);
+      if (kind === 'chord' || kind === 'muted') a.santaDiscovery();
+      const voices = a.activeVoices;
+      const render = await ctx.startRendering();
+      const l = render.getChannelData(0), r = render.getChannelData(1);
+      let lEnergy = 0, rEnergy = 0;
+      for (let i = 2016; i < 15900; i++) {
+        lEnergy += l[i] ** 2;
+        rEnergy += r[i] ** 2;
+      }
+      out[kind] = { voices, l: lEnergy, r: rEnergy };
+      a.dispose();
+    }
+    return out;
+  });
+  expect(result.near.voices).toBe(1);
+  expect(result.far.voices).toBe(0);
+  expect(result.chord.voices).toBe(3);
+  expect(result.muted.voices).toBe(0);
+  expect(result.near.r).toBeGreaterThan(result.near.l * 1.5);
+  expect(result.near.r).toBeGreaterThan(result.far.r * 2);
+  expect(result.chord.r + result.chord.l).toBeGreaterThan((result.far.r + result.far.l) * 2);
+  expect(result.muted.r + result.muted.l).toBeLessThan(.000001);
 });

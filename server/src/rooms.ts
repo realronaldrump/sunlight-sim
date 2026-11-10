@@ -10,6 +10,7 @@ import type { NetDrone } from '../../shared/protocol';
 import { MountainGuest, readGuestCheckpoint, type GuestCheckpoint } from '../../shared/mountainGuest';
 import type { GuestNavigation } from '../../shared/mountainGuestNavigation';
 import type { ColliderGrid } from '../../shared/collision';
+import type { Vec3 } from '../../shared/skiPhysics';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
@@ -290,8 +291,12 @@ export class Room {
         }
       }
     }
-    this.guest?.advance(t - this.guestTick, this.liftClocks.map(clock => clock.now(t)),
-      (lift, chair, seat) => !this.seats.get(`${lift}/${chair}`)?.has(seat));
+    if (this.guest) {
+      const visitors = [...this.players.values()].flatMap<Vec3>(p => p.drone ? [p.drone] :
+        p.initialized && p.controlMode !== 'drone' ? [p.s] : []);
+      this.guest.advance(t - this.guestTick, this.liftClocks.map(clock => clock.now(t)),
+        (lift, chair, seat) => !this.seats.get(`${lift}/${chair}`)?.has(seat), true, visitors);
+    }
     this.guestTick = t;
     return { type: 'snapshot', serverTime: t, mountainGuest: this.guest?.pose(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
   }

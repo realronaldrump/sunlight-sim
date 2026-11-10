@@ -6,6 +6,7 @@ import { skiPole, skiWithBindings } from '../skier/skiEquipment';
 import { mergeStatic } from './mergeStatic';
 import { santaPortrait } from './santaLikeness';
 import { santaHair } from './santaHair';
+import { makeSantaAccessories } from './santaSack';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const smooth = THREE.MathUtils.smoothstep;
@@ -111,7 +112,7 @@ function makeHead() {
   hat.add(top);
 
   head.add(santaHair(portrait.mesh.geometry, portrait.skullIndexCount), hat);
-  return { head, top };
+  return { head, hat, top };
 }
 
 /** Sculpt and paint a new costume on this one instance of the existing skin. */
@@ -206,19 +207,22 @@ function tailor(human: HumanBody) {
 }
 
 export function makeSantaSkier() {
-  const { head, top } = makeHead();
+  const { head, hat, top } = makeHead();
   const model = new SkierModel(new THREE.Color(0xb4102b), 'full', new THREE.Color(1, 1, 1), {
     headGear: head,
+    accessories: makeSantaAccessories(),
     ski: () => { const ski = skiWithBindings(true); mergeStatic(ski); return ski; },
     pole: () => { const pole = skiPole(true); mergeStatic(pole); return pole; },
   });
   tailor(model.human);
   model.root.name = 'mountain-guest';
   let swing = 0, velocity = 0;
-  return { model, animateHat(dt: number, speed: number, edge: number, time: number) {
+  return { model, animateHat(dt: number, speed: number, edge: number, time: number, tip = 0) {
     const target = edge * .15 + Math.sin(time * 7.1) * Math.min(.065, speed * .006);
     velocity += (26 * (target - swing) - 8 * velocity) * dt;
     swing += velocity * dt;
+    hat.rotation.z = -.23 * tip;
+    hat.rotation.x = .145 - .09 * tip;
     top.rotation.z = swing;
     top.rotation.x = Math.min(.21, speed * .012) + Math.sin(time * 4.3) * .019;
   } };

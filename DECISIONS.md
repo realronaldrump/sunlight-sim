@@ -346,3 +346,9 @@ Low/Medium/High/Ultra change pixel ratio, shadow maps and cascades, terrain LOD 
 ## D33. Santa's name in the game (November 10, 2026)
 
 - Use Santa in the pause menu, Flight menu and map labels. Retain the Santa Sighting badge, browser storage keys and room state. Keep the precise source citations in the build pipeline and repository credits.
+
+## D34. Santa's Christmas details (November 10, 2026)
+
+- Sleigh bells come from the skier's position within 27 m. Their volume, pan and cadence follow distance, speed and edging. Gold sparks use the ski spray emitter during stronger nearby turns and fade in under two seconds. The gift sack carries visible parcels, holly and two brass bells. Its spring and hip position follow turns, acceleration and chair posture.
+- The room authority and solo worker save the ornament and greeting states inside the existing checkpoint. When a rare stop is due, Santa can detour up to 11 m to a collision-checked spot beside a reachable branch. The ornament uses the renderer's seeded high-detail branch transform. It lights as he releases it and lasts 60 active seconds after the gesture, including while he skis elsewhere. Stop searches recur after a cooldown of roughly five and a half to nine and a half minutes.
+- A visitor within 9 m of Santa at a stop can prompt one hat tip, shared to everyone in the room. Santa Sighting appears once as a stamped paper tag with a synthesized bell chord. The saved achievement and opt-in map marker keep their existing browser keys.

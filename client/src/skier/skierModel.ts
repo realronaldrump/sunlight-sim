@@ -28,6 +28,7 @@ export interface SkierPose {
   gear?: boolean;
   /** A wave (pole hand up beside the helmet) or a point (arm out toward `yaw`, local, 0 = straight ahead). */
   gesture?: { kind: 'wave' | 'point'; amount: number; yaw?: number };
+  costumeAction?: { kind: 'hat-tip' | 'hang-star'; amount: number; yaw: number; anchor?: THREE.Vector3; released?: boolean };
 }
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -50,6 +51,10 @@ interface SkierCostume {
   headGear: THREE.Group;
   ski: () => THREE.Group;
   pole: () => THREE.Group;
+  accessories?: {
+    root: THREE.Group;
+    pose(dt: number, p: SkierPose, chest: THREE.Vector3, pelvis: THREE.Vector3, hand: THREE.Vector3): void;
+  };
 }
 
 export class SkierModel {
@@ -66,6 +71,7 @@ export class SkierModel {
   private lastEdgeSign = 0;
   private plant = 0;      // 0..1 pole plant animation phase
   private lastTime = 0;
+  private accessories?: SkierCostume['accessories'];
   private plantSide = 1;  // which pole (+1 right, -1 left)
 
   constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
@@ -78,6 +84,8 @@ export class SkierModel {
     this.collar.group.visible = !costume;
     this.root.add(this.body);
     this.body.add(this.human.root, this.headGear, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
+    this.accessories = costume?.accessories;
+    if (this.accessories) this.body.add(this.accessories.root);
     this.root.traverse(o => { o.frustumCulled = false; });
     this.update({ speed: 0, edge: 0, plow: 0, tuck: 0, skid: 0, fallen: 0, sitting: 0, time: 0, pushing: false });
   }
@@ -197,15 +205,27 @@ export class SkierModel {
         handR.lerp(shR.clone().addScaledVector(dir, 0.57), k);
       }
     }
+    const action = p.costumeAction;
+    const tip = action?.kind === 'hat-tip' ? action.amount : 0;
+    const headTilt = new THREE.Euler(-.10 + .3 * p.tuck + .15 * tip,
+      action ? THREE.MathUtils.clamp(action.yaw, -.85, .85) * action.amount : 0,
+      -incline * .2 + tip * .14);
+    if (action) {
+      const reach = action.kind === 'hat-tip'
+        ? head.clone().add(V(.132, .146, -.056).applyEuler(headTilt))
+        : action.anchor?.clone().add(V(.025, -.021, .063));
+      if (reach) handR.lerp(reach.sub(shR).clampLength(0, .568).add(shR), action.amount);
+    }
     const elL = new THREE.Vector3(), elR = new THREE.Vector3();
     solveIK(shL, handL, 0.3, 0.28, shL.clone().add(V(-0.4, -0.4, 0.4)), elL);
     solveIK(shR, handR, 0.3, 0.28, shR.clone().add(V(0.4, -0.4, 0.4)), elR);
 
     this.human.pose({ pelvis, chest, neck, head, hipL, hipR, kneeL, kneeR, ankleL, ankleR,
       shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR },
-      new THREE.Euler(-0.10 + 0.3 * p.tuck, 0, -incline * 0.2));
+      headTilt);
     this.headGear.position.copy(head);
-    this.headGear.rotation.set(-0.10 + 0.3 * p.tuck, 0, -incline * 0.2);
+    this.headGear.rotation.copy(headTilt);
+    this.accessories?.pose(dt, p, chest, pelvis, handR);
     this.collar.group.position.copy(neck);
     this.collar.group.rotation.x = -lean * 0.35;
     this.boots[0].position.copy(ankleL);
@@ -246,6 +266,7 @@ export class SkierModel {
       // Carry poles forward and clear of the snow during pickup and sitting.
       const carry = Math.min(1, Math.max(sit * 2, prepare));
       tipPos.lerp(hand.clone().add(V(side * .08, .2, -1.15)), carry);
+      if (side > 0 && action) tipPos.lerp(hand.clone().add(V(.14, -1.13, .17)), action.amount);
       const d = tipPos.clone().sub(hand);
       pole.position.copy(hand).addScaledVector(d, 0.5);
       pole.quaternion.setFromUnitVectors(UP, d.normalize());
