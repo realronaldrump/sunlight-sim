@@ -1,10 +1,12 @@
 # Progress
 
-## Reference-fitted Santa likeness (November 10, 2026)
+## Reference-fitted Santa likeness (November 10, 2026, released)
 
 - Replaced the generic head with a dimensional portrait fit and UV-baked, de-lit skin texture. Added an independently shaded eye region, CC0 ears, a wider head and jaw, sculpted scalp, continuous gray-blond sweep, and a knit collar. Preserved the skiing rig, animated hat, chair position and room simulation.
 - The build script pins and checksums the portrait, MediaPipe task and topology. Reviewed the original, first fit and corrected model at matched front, three-quarter, profile and skiing viewpoints. Fixed the visible nape gap and hard collar seam. Review frames are in `screenshots/santa-likeness/`.
-- Next: complete WebKit and room regression checks, then publish the matching client and verify the live portrait. The existing multiplayer release can serve this client.
+- The closed skull kept its silhouette through front, three-quarter and profile projection. Chromium and WebKit rendered the updated face at the same in-game pose, and both passed the Santa map, sighting and room reconnect scenarios. The generated mesh and textures rebuilt byte-identically. The production build, 178 unit tests and five pipeline checks passed.
+- Release `f2efa7e5cd76d81a54b2e043948f13b6236e5703` was pushed to `origin/main`. Vercel deployment `dpl_2SWmvH6kTxmyrNoz3jcZUhrs3iod` is READY at https://sunlight-sim.vercel.app. The public HTML, bundle `index-DzJObBlW.js` and portrait texture `albedo-CnCqwAFk.webp` match the tested artifact. The multiplayer container remains healthy and compatible at `af66754`.
+- Matched before and after: `screenshots/santa-likeness/before-after.jpg`. Full skiing and alternate angles are beside it.
 
 ## Santa Sighting and live map (November 10, 2026, released)
 
