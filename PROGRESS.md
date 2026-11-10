@@ -7,7 +7,8 @@
 - Chromium browser checks passed for a close, clear sighting, one-time unlock, badge persistence after reload, synchronized movement between friends and reconnect. The focused physics checks exercise each lift, route availability, continuous movement, room restore and sight obstruction.
 - November 10: Added the owner-requested Show Trump Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
 - The server image starts Node directly so the container stop signal reaches the handler that saves active rooms. The Compose volume also keeps the periodic checkpoints.
-- Next: finish the revised close-up, chair and map checks in Chromium and WebKit, then deploy the matching client and mini-PC server from the verified main commit.
+- Reviewed the revised face, downhill stance and seated pose on High in Chromium WebGPU and WebKit WebGL. Both reproduced the same seat contact, and the downhill pose was within 7 mm of the snow surface. Captures are in `screenshots/santa-sighting/final/`.
+- Next: finish the map interaction check on the prebuilt client, verify restart persistence in the candidate container and deploy the matching client and mini-PC server.
 
 ## Manual disembark and the missed-unload gag (November 9, 2026, released)
 

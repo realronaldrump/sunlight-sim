@@ -28,16 +28,21 @@ test('the optional map marker and an in-world sighting are saved independently',
   await ready(page);
   const mapSwitch = page.getByRole('checkbox', { name: 'Show Trump Santa on map' });
   const mapKey = page.locator('#tmap .santa-key');
-  await page.keyboard.press('KeyM');
+  const openMap = () => page.getByRole('button', { name: 'Open full trail map (M)' }).click();
+  const closeMap = () => page.locator('#tmap .close').first().click();
+  const options = page.getByRole('dialog', { name: 'Pause menu' });
+  const resume = () => options.getByRole('button', { name: 'Resume' }).click();
+  await openMap();
   await expect(page.locator('#tmap')).toBeVisible();
   await expect(mapKey).toBeHidden();
-  await page.keyboard.press('KeyM');
+  await closeMap();
   await page.keyboard.press('Escape');
+  await expect(options).toBeVisible();
   await expect(page.locator('#santa-sighting')).toBeHidden();
   await expect(mapSwitch).not.toBeChecked();
   await mapSwitch.check();
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('KeyM');
+  await resume();
+  await openMap();
   await expect(mapKey).toBeVisible();
   expect(await page.evaluate(() => {
     const g = (window as any).game, p = g.mountainGuest.pose;
@@ -45,7 +50,7 @@ test('the optional map marker and an in-world sighting are saved independently',
     return g.trailMap.santa === p && g.trailMap.pickPlayer(x, y) === null;
   })).toBe(true);
   await page.screenshot({ path: info.outputPath('santa-trail-map.png') });
-  await page.keyboard.press('KeyM');
+  await closeMap();
   const hasBadgePixels = (selector: string) => page.locator(selector).evaluate((canvas: HTMLCanvasElement) => {
     const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
     for (let i = 0; i < pixels.length; i += 4) {
@@ -54,7 +59,8 @@ test('the optional map marker and an in-world sighting are saved independently',
     return false;
   });
   await expect.poll(() => hasBadgePixels('#minimap canvas')).toBe(true);
-  await expect(page.locator('#santa-sighting')).toBeHidden();
+  await page.locator('#minimap').screenshot({ path: info.outputPath('santa-minimap.png') });
+  expect(await page.evaluate(() => (window as any).game.mountainGuest.discovery.foundAt)).toBeNull();
   const look = (facing: number) => page.evaluate(async ({ spot, facing }) => {
     const g = (window as any).game;
     await g.hf.ensureArea(0, spot.x, -spot.z, 100);
@@ -78,9 +84,9 @@ test('the optional map marker and an in-world sighting are saved independently',
   await expect(page.locator('#santa-sighting')).toBeVisible();
   await expect(mapSwitch).toBeChecked();
   await mapSwitch.uncheck();
-  await page.keyboard.press('Escape');
+  await resume();
   await expect.poll(() => hasBadgePixels('#minimap canvas')).toBe(false);
-  await page.keyboard.press('KeyM');
+  await openMap();
   await expect(mapKey).toBeHidden();
   expect(await page.evaluate(() => (window as any).game.mountainGuest.discovery.foundAt)).toBe(unlocked);
   expect(errors).toEqual([]);
