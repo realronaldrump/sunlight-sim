@@ -1,9 +1,10 @@
 # Progress
 
-## Santa naming (November 10, 2026)
+## Santa naming (November 10, 2026, released)
 
 - Settings now says Show Santa on map on desktop and iPhone. The trail map legend and both map markers use Santa. Updated gameplay docs and the browser check. The shipped model notice keeps attribution and links to repository provenance.
-- Next: run the map and badge regression in Chromium and WebKit, publish the client and audit the public artifact.
+- The map and badge regression passed in Chromium and WebKit. Build, all 178 unit tests and five pipeline checks passed. The built app and published bundle and portrait notice passed the name audit.
+- Release `382e8b7ec0a39c05e0e0038cf787937155ad0766` is on `origin/main`. Vercel deployment `dpl_4dCusEr4F4Psh6cfidEuZeNoCm52` serves the tested `index-LxYpSXzl.js` at https://sunlight-sim.vercel.app.
 
 ## Reference-fitted Santa likeness (November 10, 2026, released)
 
