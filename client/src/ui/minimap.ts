@@ -3,6 +3,8 @@ import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
 import type { MapPlayer } from './trailMap';
+import type { Point } from '../../../shared/mountainGuestNavigation';
+import { drawSantaMapMarker, SANTA_MAP_LABEL } from './santaMapMarker';
 import { mapHeading, mapPoint, nearestTrailPoint, type MapView } from './minimapGeometry';
 
 const ZOOM_SPANS = [457.2, 914.4, 1828.8]; // 1,500 / 3,000 / 6,000 ft, retained in meters for projection.
@@ -56,6 +58,7 @@ body:has(#roombox) #minimap { top: 66px; }
 interface MinimapState {
   self: MapPlayer;
   others: MapPlayer[];
+  santa: Point | null;
   run: RunInfo | null;
   lift: string | null;
   active: boolean;
@@ -283,6 +286,13 @@ export class Minimap {
       if (x < 8 || x > width - 8 || y < 8 || y > height - 8) continue;
       this.marker(x, y, friend.heading, friend.color, 6);
       label(friend.name, x, y - 19);
+    }
+    if (state.santa) {
+      const [x, y] = point(state.santa.x, state.santa.z);
+      if (x >= 9 && x <= width - 9 && y >= 9 && y <= height - 9) {
+        drawSantaMapMarker(g, x, y, 9);
+        label(SANTA_MAP_LABEL, x, y - 19);
+      }
     }
     const [cx, cy] = point(state.self.x, state.self.z);
     g.fillStyle = 'rgba(0,83,105,.17)'; g.beginPath(); g.arc(cx, cy, 19, 0, Math.PI * 2); g.fill();

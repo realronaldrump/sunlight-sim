@@ -926,16 +926,6 @@ export class Game {
     if (actions.options) { if (this.trailMap.visible) this.trailMap.toggle(false); else this.options.toggle(); }
     if (actions.fastLift && this.input.enabled) this.toggleLiftSpeed();
     if (this.fastLift !== null && (!this.player.ride || this.player.ride.lift !== this.fastLift || this.options.visible || this.trailMap.visible || this.chat?.open || (this.net && !this.net.connected))) this.stopLiftSpeed();
-    if (this.trailMap.visible) {
-      const st2 = this.drone.state ? {pos:this.drone.state.pos,heading:this.drone.state.yaw} : this.player.st;
-      this.trailMap.players = [{ name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: st2.pos.x, z: st2.pos.z, heading: st2.heading, self: true },
-        ...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{name:'Your skier',color:this.playerColor,x:this.player.st.pos.x,z:this.player.st.pos.z,heading:this.player.st.heading}] : [])];
-      const L = this.lesson;
-      this.trailMap.overlays = L?.ready ? [
-        ...(this.tagging ? [{ color: 'rgba(255,122,26,.9)', width: 5, dash: [10, 7], lines: L.routeLines() }] : []),
-        { color: '#ff7a1a', points: [{ x: L.poses[0].x, z: L.poses[0].z, label: `${LESSON_NAME} lesson` }] }] : [];
-      if (Math.random() < 0.2) this.trailMap.draw();
-    }
     if (actions.slope) {
       this.slopeOverlay = !this.slopeOverlay;
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
@@ -998,9 +988,20 @@ export class Game {
     const st = this.player.st;
     const mapPos = this.drone.state?.pos ?? st.pos;
     const run = this.player.ride && !this.drone.active ? null : (this.runAt(mapPos.x, mapPos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
+    const mapSelf = { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true };
+    const mapOthers = [...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{ name: 'Your skier', color: this.playerColor, x: st.pos.x, z: st.pos.z, heading: st.heading }] : [])];
+    const santa = this.options.showSantaOnMap ? this.mountainGuest.pose : null;
+    this.trailMap.santa = santa;
+    if (this.trailMap.visible) {
+      this.trailMap.players = [mapSelf, ...mapOthers];
+      const L = this.lesson;
+      this.trailMap.overlays = L?.ready ? [
+        ...(this.tagging ? [{ color: 'rgba(255,122,26,.9)', width: 5, dash: [10, 7], lines: L.routeLines() }] : []),
+        { color: '#ff7a1a', points: [{ x: L.poses[0].x, z: L.poses[0].z, label: `${LESSON_NAME} lesson` }] }] : [];
+      if (Math.random() < 0.2) this.trailMap.draw();
+    }
     this.minimap.update(dt, {
-      self: { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true },
-      others: [...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{name:'Your skier',color:this.playerColor,x:st.pos.x,z:st.pos.z,heading:st.heading}] : [])], run,
+      self: mapSelf, others: mapOthers, santa, run,
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: !this.droneOnly && this.ready && !this.trailMap.visible, drone: this.drone.active,
     });

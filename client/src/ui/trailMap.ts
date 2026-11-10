@@ -5,6 +5,8 @@ import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
 import { IPHONE } from '../platform';
+import type { Point } from '../../../shared/mountainGuestNavigation';
+import { drawSantaMapMarker, SANTA_MAP_LABEL } from './santaMapMarker';
 
 export interface MapPlayer { id?: string; name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 /** Extra drawing on top of the runs: a route to follow, a recorded line, a group's position. */
@@ -18,6 +20,7 @@ const css = `
 #tmap .tip { position: absolute; padding: 6px 10px; background: rgba(10,20,35,.9); border-radius: 6px; font-size: 13px; pointer-events: none; display: none; white-space: nowrap; }
 #tmap .legend { position: absolute; right: 16px; bottom: 16px; background: rgba(10,20,35,.75); padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.9; pointer-events: none; }
 #tmap .legend span.diff { margin-right: 6px; }
+#tmap .santa-key { color: #ffdfa2; }
 #tmap .close { position: absolute; right: 16px; top: 12px; background: rgba(255,255,255,.15); border: 0; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 `;
 
@@ -34,6 +37,8 @@ export class TrailMap {
   travelEnabled = false;
   players: MapPlayer[] = [];
   overlays: MapOverlay[] = [];
+  santa: Point | null = null;
+  private santaKey: HTMLElement;
   onTeleport?: (runName: string) => void;
   onJoinPlayer?: (name: string) => void;
   private hover: RunInfo | null = null;
@@ -47,12 +52,13 @@ export class TrailMap {
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
         <div><span class="diff park"></span>Terrain Park</div><div style="color:#ff6b6b">&#9473; Chairlift</div>
-        <div class="map-instructions"></div></div>`;
+        <div class="santa-key" hidden>● ${SANTA_MAP_LABEL}</div><div class="map-instructions"></div></div>`;
     this.cv = document.createElement('canvas');
     this.root.prepend(this.cv);
     document.body.appendChild(this.root);
     this.g = this.cv.getContext('2d')!;
     this.tip = this.root.querySelector('.tip')!;
+    this.santaKey = this.root.querySelector('.santa-key')!;
     (this.root.querySelector('.close') as HTMLButtonElement).onclick = () => this.toggle(false);
     const ob = this.root.querySelector('.orient') as HTMLButtonElement;
     ob.onclick = () => { this.flip = !this.flip; ob.textContent = this.flip ? 'North up' : 'Trail map view'; this.draw(); };
@@ -74,8 +80,9 @@ export class TrailMap {
   private fit() {
     const W = this.cv.clientWidth, H = this.cv.clientHeight;
     const m = (this.resort as unknown as { map: { x0: number; x1: number } }).map;
-    const size = m.x1 - m.x0;
-    this.scale = Math.min(W, H) / (size * 0.72);
+    const boundary = this.resort.boundary?.reduce((r, [x, , z]) => Math.max(r, Math.abs(x), Math.abs(z)), 0);
+    const span = boundary ? 2 * boundary + 100 : (m.x1 - m.x0) * .72;
+    this.scale = Math.min(W, H) / span;
     this.ox = W / 2; this.oy = H / 2;
   }
 
@@ -287,6 +294,14 @@ export class TrailMap {
       g.font = 'bold 12px -apple-system, sans-serif'; g.textAlign = 'center';
       g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(p.self ? `${p.name} (you)` : p.name, sx, sy - 16);
       g.fillStyle = '#fff'; g.fillText(p.self ? `${p.name} (you)` : p.name, sx, sy - 16);
+    }
+    this.santaKey.hidden = !this.santa;
+    if (this.santa) {
+      const [sx, sy] = this.toScreen(this.santa.x, this.santa.z);
+      drawSantaMapMarker(g, sx, sy, 11);
+      g.font = 'bold 12px -apple-system, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 3; g.strokeStyle = '#442034'; g.strokeText(SANTA_MAP_LABEL, sx, sy - 20);
+      g.fillStyle = '#fff5e3'; g.fillText(SANTA_MAP_LABEL, sx, sy - 20);
     }
     // north arrow
     g.fillStyle = 'rgba(255,255,255,.9)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';

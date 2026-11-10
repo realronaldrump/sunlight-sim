@@ -14,7 +14,7 @@ async function ready(page: Page) {
   }, null, { timeout: 150_000 });
 }
 
-test('a close in-world sighting unlocks one saved badge', async ({ page }, info) => {
+test('the optional map marker and an in-world sighting are saved independently', async ({ page }, info) => {
   const resort = JSON.parse(new TextDecoder().decode(await fsLoader('/world/resort.json')));
   const { navigation, colliders } = await loadGuestWorld('/world', resort, fsLoader);
   const saved = new MountainGuest(navigation, colliders, 187).checkpoint();
@@ -26,6 +26,34 @@ test('a close in-world sighting unlocks one saved badge', async ({ page }, info)
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/?' + params);
   await ready(page);
+  const mapSwitch = page.getByRole('checkbox', { name: 'Show Trump Santa on map' });
+  const mapKey = page.locator('#tmap .santa-key');
+  await page.keyboard.press('KeyM');
+  await expect(page.locator('#tmap')).toBeVisible();
+  await expect(mapKey).toBeHidden();
+  await page.keyboard.press('KeyM');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#santa-sighting')).toBeHidden();
+  await expect(mapSwitch).not.toBeChecked();
+  await mapSwitch.check();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('KeyM');
+  await expect(mapKey).toBeVisible();
+  expect(await page.evaluate(() => {
+    const g = (window as any).game, p = g.mountainGuest.pose;
+    const [x, y] = g.trailMap.toScreen(p.x, p.z);
+    return g.trailMap.santa === p && g.trailMap.pickPlayer(x, y) === null;
+  })).toBe(true);
+  await page.screenshot({ path: info.outputPath('santa-trail-map.png') });
+  await page.keyboard.press('KeyM');
+  const hasBadgePixels = (selector: string) => page.locator(selector).evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] === 133 && pixels[i + 1] === 29 && pixels[i + 2] === 54) return true;
+    }
+    return false;
+  });
+  await expect.poll(() => hasBadgePixels('#minimap canvas')).toBe(true);
   await expect(page.locator('#santa-sighting')).toBeHidden();
   const look = (facing: number) => page.evaluate(async ({ spot, facing }) => {
     const g = (window as any).game;
@@ -48,6 +76,12 @@ test('a close in-world sighting unlocks one saved badge', async ({ page }, info)
   await ready(page);
   await page.keyboard.press('Escape');
   await expect(page.locator('#santa-sighting')).toBeVisible();
+  await expect(mapSwitch).toBeChecked();
+  await mapSwitch.uncheck();
+  await page.keyboard.press('Escape');
+  await expect.poll(() => hasBadgePixels('#minimap canvas')).toBe(false);
+  await page.keyboard.press('KeyM');
+  await expect(mapKey).toBeHidden();
   expect(await page.evaluate(() => (window as any).game.mountainGuest.discovery.foundAt)).toBe(unlocked);
   expect(errors).toEqual([]);
 });

@@ -3,6 +3,8 @@ import { QualityName, savedQuality, saveQuality } from '../quality';
 import { IPHONE } from '../platform';
 import { SANTA_ACHIEVEMENT } from '../world/santaDiscovery';
 
+const SANTA_MAP_KEY = 'sunlight.santaMap';
+
 export interface OptionsHandlers {
   setHour(h: number): void; setSnow(on: boolean): void; setVolume(v: number): void;
   weather?: { mode: 'changing' | 'clear' | 'snow'; setMode(mode: 'changing' | 'clear' | 'snow'): void };
@@ -44,6 +46,7 @@ function fmtHour(h: number) {
 export class OptionsPanel {
   private el: HTMLDivElement;
   private button = document.createElement('button');
+  private santaMap: HTMLInputElement;
   private roomStatus: HTMLElement | null;
   private chatButton: HTMLButtonElement | null;
   private shareButton: HTMLButtonElement | null;
@@ -76,6 +79,7 @@ export class OptionsPanel {
         : `<label class="row"><span>Light snowfall</span><input type="checkbox" id="o-snow" ${h.snow ? 'checked' : ''}></label>`}
       ${h.autoUnload ? `<label class="row" title="Off: press Space on the unload ramp at the top to stand up and ski off. Miss it and the lift has opinions."><span>Auto disembark at the top of the lift</span><input type="checkbox" id="o-unload" ${h.autoUnload.on ? 'checked' : ''}></label>
       <p id="o-unload-note" style="opacity:.7;margin:2px 0 0;font-size:12px">${h.autoUnload.on ? 'The chair sets you down on the ramp.' : 'Press Space on the ramp to stand up.'}</p>` : ''}
+      <label class="row"><span>Show Trump Santa on map</span><input type="checkbox" id="o-santa-map"></label>
       <label>Sound volume</label><input type="range" id="o-vol" min="0" max="1" step="0.05" value="${h.volume}">
       <div ${IPHONE ? 'hidden' : ''}><label>Graphics quality (reloads)</label>
       <select id="o-q"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
@@ -103,6 +107,12 @@ export class OptionsPanel {
     hour.onchange = () => h.setHour(Number(hour.value));
     const snowBox = this.el.querySelector('#o-snow') as HTMLInputElement | null;
     if (snowBox) snowBox.onchange = (e) => { h.setSnow((e.target as HTMLInputElement).checked); snowBox.blur(); };
+    this.santaMap = this.el.querySelector<HTMLInputElement>('#o-santa-map')!;
+    try { this.santaMap.checked = localStorage.getItem(SANTA_MAP_KEY) === '1'; } catch { /* storage blocked */ }
+    this.santaMap.onchange = () => {
+      try { localStorage.setItem(SANTA_MAP_KEY, this.santaMap.checked ? '1' : '0'); } catch { /* storage blocked */ }
+      this.santaMap.blur();
+    };
     const weather = this.el.querySelector('#o-weather') as HTMLSelectElement | null;
     if (weather && h.weather) { weather.value = h.weather.mode; weather.onchange = () => h.weather!.setMode(weather.value as 'changing' | 'clear' | 'snow'); }
     (this.el.querySelector('#o-vol') as HTMLInputElement).oninput = (e) => h.setVolume(Number((e.target as HTMLInputElement).value));
@@ -129,6 +139,7 @@ export class OptionsPanel {
     }
   }
   get visible() { return this.el.classList.contains('show'); }
+  get showSantaOnMap() { return this.santaMap.checked; }
 
   santaSighting(foundAt: number | null) {
     if (!foundAt) return;

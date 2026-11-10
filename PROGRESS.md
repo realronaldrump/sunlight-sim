@@ -5,7 +5,8 @@
 - The roaming Santa skier has live route selection across all 68 mapped skiable lines, gravity and ski-edge physics, trees and terrain, and real pickup, chair travel and dismount on all three lifts. The server publishes one skier and seat per room. Solo simulation runs in a worker. Both modes save checkpoints.
 - The costume is built on the full anatomical rig with sculpted features, swept hair, fleece, fabric shading, a moving stocking hat, decorated skis and poles, ski contact on uneven ground, tracks and spray. Reviewed initial Chromium close-up and full-body captures and corrected the exposed ski contact and costume seams.
 - Chromium browser checks passed for a close, clear sighting, one-time unlock, badge persistence after reload, synchronized movement between friends and reconnect. The focused physics checks exercise each lift, route availability, continuous movement, room restore and sight obstruction.
-- Next: review the revised close-up and seated pose in Chromium and WebKit, then test the committed build and deploy the matching client and mini-PC server. Production rollout was deferred at the owner's request to stop.
+- November 10: Added the owner-requested Show Trump Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
+- Next: finish the revised close-up, chair and map checks in Chromium and WebKit, then deploy the matching client and mini-PC server from the verified main commit.
 
 ## Manual disembark and the missed-unload gag (November 9, 2026, released)
 
