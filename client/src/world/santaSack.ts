@@ -96,25 +96,17 @@ export function makeSantaAccessories() {
   ];
   for (const { model } of parcels) sack.add(model);
   const ornament = makeSantaOrnament();
+  ornament.group.name = 'santa-hand-ornament';
   ornament.group.visible = false;
   ornament.glow(.95, 0, 0);
 
-  // The cross-body sling runs over the actual torso, so the bag can swing
-  // toward the hip while seated without cutting through the chair back.
-  const strapGeometry = new THREE.BufferGeometry();
-  const segments = 30, vertices = new Float32Array((segments + 1) * 2 * 3);
-  const indices = [];
-  for (let i = 0; i < segments; i++) indices.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
-  strapGeometry.setIndex(indices);
-  strapGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3).setUsage(THREE.DynamicDrawUsage));
-  const strap = add(root, strapGeometry, leather);
-  strap.frustumCulled = false;
+  // A short leather loop secures the sack at the belt and follows its swing.
+  const tether = add(root, new THREE.BoxGeometry(.031, 1, .013), leather);
+  const buckle = add(root, new THREE.TorusGeometry(.021, .0035, 7, 16), brass);
   root.add(sack, ornament.group);
 
   let roll = 0, rollV = 0, pitch = 0, pitchV = 0, previousSpeed = 0;
-  const vertex = V(), tangent = V(), across = V(), torso = V();
-  const strapPoints = Array.from({ length: 9 }, () => V());
-  const curve = new THREE.CatmullRomCurve3(strapPoints, true);
+  const belt = V(), knot = V(), direction = V(), up = V(0, 1, 0);
 
   return {
     root,
@@ -132,27 +124,14 @@ export function makeSantaAccessories() {
         parcel.model.position.set(parcel.x + .031 * roll, parcel.y + Math.min(.009, Math.abs(pitchV) * .013), parcel.z + .022 * pitch);
         parcel.model.rotation.set(-.08 + pitch * (1.1 + i * .25), parcel.angle + .30 * roll, parcel.angle * .37 + roll * (1 + i * .19));
       }
-      strapPoints[0].copy(chest).add(V(-.164, .128, .002));
-      strapPoints[1].copy(chest).add(V(-.143, .070, -.173));
-      strapPoints[2].copy(chest).add(V(-.053, -.060, -.207));
-      strapPoints[3].copy(pelvis).lerp(chest, .45).add(V(.089, .026, -.212));
-      strapPoints[4].copy(pelvis).lerp(chest, .43).add(V(.215, .047, -.121));
-      strapPoints[5].copy(sack.position).add(V(.014, -.036, -.05));
-      strapPoints[6].copy(pelvis).lerp(chest, .50).add(V(.209, .039, .146 - p.sitting * .05));
-      strapPoints[7].copy(chest).add(V(.02, -.092, .176));
-      strapPoints[8].copy(chest).add(V(-.151, .065, .097));
-      const attr = strapGeometry.getAttribute('position'), torsoHeight = Math.max(.1, chest.y - pelvis.y);
-      for (let i = 0; i <= segments; i++) {
-        const t = i / segments;
-        curve.getPoint(t, vertex);
-        curve.getTangent(t, tangent);
-        torso.copy(pelvis).lerp(chest, THREE.MathUtils.clamp((vertex.y - pelvis.y) / torsoHeight, 0, 1));
-        across.copy(vertex).sub(torso).cross(tangent).normalize().multiplyScalar(.016);
-        attr.setXYZ(i * 2, vertex.x + across.x, vertex.y + across.y, vertex.z + across.z);
-        attr.setXYZ(i * 2 + 1, vertex.x - across.x, vertex.y - across.y, vertex.z - across.z);
-      }
-      attr.needsUpdate = true;
-      strapGeometry.computeVertexNormals();
+      belt.copy(pelvis).lerp(chest, .27).add(V(.228, .030, .037 - .07 * p.sitting));
+      knot.set(-.038, -.031, -.028).applyEuler(sack.rotation).add(sack.position);
+      direction.copy(knot).sub(belt);
+      tether.position.copy(belt).lerp(knot, .5);
+      tether.scale.y = direction.length();
+      tether.quaternion.setFromUnitVectors(up, direction.normalize());
+      buckle.position.copy(belt);
+      buckle.rotation.y = .75;
       const action = p.costumeAction;
       ornament.group.visible = action?.kind === 'hang-star' && !action.released && action.amount > .03;
       if (ornament.group.visible) {

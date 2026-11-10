@@ -2,10 +2,10 @@
 
 ## Santa's Christmas details (November 10, 2026)
 
-- Santa now has nearby, directional sleigh bells, gold flecks driven by his ski edges, and a small green gift sack with holly and shifting parcels. The sack rides a cross-body strap and settles against his hip on the chair.
+- Santa now has nearby, directional sleigh bells, gold flecks driven by his ski edges, and a small green gift sack with holly and shifting parcels. The sack clips to his belt and settles against his hip on the chair.
 - Santa sometimes takes a short detour to a reachable fir branch. He hangs a star by hand, leaves it for a minute and returns to his route. Nearby visitors at his stops can get a hat tip. Solo and multiplayer run the same simulation and save its seasonal state.
 - The first sighting reveals a stamped gift tag and a three-note bell chord. The existing badge and map setting are kept. The notification honors reduced-motion settings, and both sounds use the game mixer.
-- Unit checks and first visual reviews passed. A Grizzly Road replay verified a physically reachable bough, hanging, departure and expiry. A second art pass routed the strap around the coat and moved the sack down on the chair. Next: finish the matching-browser and shared-room checks, then publish the client and server.
+- All 182 unit tests and five pipeline checks passed. Chromium and WebKit passed the map, badge, reconnect and real offline audio graph checks. A Grizzly Road replay verified a physically reachable bough, hanging, departure and expiry. Two browser clients rendered the same hat tip and branch ornament. A final art pass put the sack on a short belt loop. Next: review the final attachment, smoke-test the container and publish the client and server.
 
 ## Santa naming (November 10, 2026, released)
 
