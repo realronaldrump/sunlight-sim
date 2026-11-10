@@ -1,6 +1,6 @@
 # Progress
 
-## Santa Sighting checkpoint (November 9, 2026)
+## Santa Sighting and live map (November 10, 2026, released)
 
 - The roaming Santa skier has live route selection across all 68 mapped skiable lines, gravity and ski-edge physics, trees and terrain, and real pickup, chair travel and dismount on all three lifts. The server publishes one skier and seat per room. Solo simulation runs in a worker. Both modes save checkpoints.
 - The costume is built on the full anatomical rig with sculpted features, swept hair, fleece, fabric shading, a moving stocking hat, decorated skis and poles, ski contact on uneven ground, tracks and spray. Reviewed initial Chromium close-up and full-body captures and corrected the exposed ski contact and costume seams.
@@ -8,7 +8,10 @@
 - November 10: Added the owner-requested Show Trump Santa on map setting. It saves per browser and starts off. It uses the skier's rendered position on the full trail map and minimap, including on a chair. The default full map fits the modeled ski area so the marker can be seen even at the edges.
 - The server image starts Node directly so the container stop signal reaches the handler that saves active rooms. The Compose volume also keeps the periodic checkpoints.
 - Reviewed the revised face, downhill stance and seated pose on High in Chromium WebGPU and WebKit WebGL. Both reproduced the same seat contact, and the downhill pose was within 7 mm of the snow surface. Captures are in `screenshots/santa-sighting/final/`.
-- Next: finish the map interaction check on the prebuilt client, verify restart persistence in the candidate container and deploy the matching client and mini-PC server.
+- The committed production build, 178 unit tests and five pipeline checks passed. Chromium and WebKit passed the map, achievement and two-client scenarios against the prebuilt artifact. Emulated iPhone WebKit passed the Flight menu toggle and trail map. The container test restored the exact saved position after stopping and restarting the process.
+- Release `af66754d25011c90df066b14330e7668ba105d16` is verified on `origin/main` after `git push origin main`. The mini-PC container is healthy at that SHA with the room checkpoint volume mounted. Vercel production deployment `dpl_5s9VaeLZoZDH74MFGcr6xjfWSQPT` serves the tested HTML and `index-OTslkpMy.js` at https://sunlight-sim.vercel.app.
+- Live Chromium and WebKit verified both maps and saved discoveries. Two clients agreed on the skier after joining and reconnecting through the live endpoint. WebKit used its normal route. Chromium's test used the public Funnel DNS address in the test browser because this Mac resolves the host privately. The Chromium replay used the exact deployment terrain files locally to speed up the two browser launches. Two raw WebSocket clients also received identical snapshots through the public relay.
+- The temporary staging verification secret was revoked and the local test servers were stopped. Visual captures of the ski, chair and map are in `screenshots/santa-sighting/final/`.
 
 ## Manual disembark and the missed-unload gag (November 9, 2026, released)
 

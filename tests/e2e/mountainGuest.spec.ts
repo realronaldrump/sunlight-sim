@@ -111,9 +111,13 @@ test('two friends and a reconnect see the same resident, even when they start fa
     await ready(second);
     await expect.poll(async () => (await sample(second)).players).toBe(1);
     const checkPair = async () => {
-      const [a, b] = await Promise.all([sample(page), sample(second)]);
-      expect(a.remote && b.remote).toBe(true);
-      expect(Math.hypot(a.pose.x - b.pose.x, a.pose.y - b.pose.y, a.pose.z - b.pose.z)).toBeLessThan(4);
+      // The socket can reconnect before the first new render. Compare the
+      // views after both browsers have had a chance to apply fresh snapshots.
+      await expect.poll(async () => {
+        const [a, b] = await Promise.all([sample(page), sample(second)]);
+        if (!a.remote || !b.remote) return Infinity;
+        return Math.hypot(a.pose.x - b.pose.x, a.pose.y - b.pose.y, a.pose.z - b.pose.z);
+      }, { timeout: 8000 }).toBeLessThan(4);
     };
     await checkPair();
     for (const p of [page, second]) await p.evaluate(async () => {

@@ -67,6 +67,8 @@ Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y c
 
 Teleportation is available only in the pause menu: return to base, choose a run or friend on the travel map, or recall your drone. B has no binding. The normal map is for navigation and inspection.
 
+**Show Trump Santa on map** in the pause menu or iPhone Flight menu adds his live position to the trail map and nearby minimap. It starts off and saves in your browser. A close, clear in-world sighting earns the Santa Sighting badge.
+
 In drone mode, **Show my skier** adds an optional marker that tracks your skier on the moving chair, with distance and an off-screen direction cue. Toggle it off for an unobstructed view.
 
 To ride a lift, enter the loading approach facing uphill. The arriving chair picks you up when its seat reaches the backs of your legs; you do not have to snap to the red stripe or release a particular key. Your skier bends into the seat, keeps the skis on the snow until they have clearance, then rides in real time. Nominal rides take about 11:34 on Primo, 9:00 on Segundo and 9:35 on Tercero at the published line speeds; actual duration depends on where contact occurs. You unload onto the snow ramp and ski clear. Choose 1×, 2×, 4×, 8× or 16× in the lift-speed controls, or press F to cycle through them. Only the occupied lift speeds up: other lifts, skiers, drone flight, scenery and daylight keep their normal timing. Speed resets at unloading, on pause, and on focus loss. In multiplayer the selected lift is shared, so its chairs and all riders stay synchronized. See ACCURACY.md for the remaining geometry and operating-speed limitations.
@@ -131,7 +133,7 @@ docker run --rm --network host --user 0 \
 
 `GET https://davis-mini-pc-1.tail59b3f5.ts.net:10000/sunlight/health` reports the deployed source SHA, room/player counts and drone-only protocol support. Set the Vercel production `VITE_SERVER_URL` to the endpoint above before building the client. Verify the matching public client and server together. All deployments require committing changes, `git push origin main`, and verifying the deployed commit is on `origin/main`.
 
-The service relies on the mini-PC and its internet connection being available. Rooms are ephemeral; clients automatically reconnect after an interruption. Existing alternatives below can host the same server.
+The service relies on the mini-PC and its internet connection being available. Clients automatically reconnect after an interruption. The roaming skier resumes from the saved room checkpoint, even after the room empties. Existing alternatives below can host the same server.
 
 ### Alternative: Multiplayer server on Fly.io
 
