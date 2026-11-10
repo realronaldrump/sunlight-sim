@@ -4,7 +4,7 @@ import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
 import type { MapPlayer } from './trailMap';
 import type { Point } from '../../../shared/mountainGuestNavigation';
-import { drawSantaMapMarker, SANTA_MAP_LABEL } from './santaMapMarker';
+import { drawSantaMapMarker, drawSantaMapTraces, SANTA_MAP_LABEL, type SantaMapTraces } from './santaMapMarker';
 import { mapHeading, mapPoint, nearestTrailPoint, type MapView } from './minimapGeometry';
 
 const ZOOM_SPANS = [457.2, 914.4, 1828.8]; // 1,500 / 3,000 / 6,000 ft, retained in meters for projection.
@@ -59,6 +59,7 @@ interface MinimapState {
   self: MapPlayer;
   others: MapPlayer[];
   santa: Point | null;
+  santaTraces?: SantaMapTraces | null;
   run: RunInfo | null;
   lift: string | null;
   active: boolean;
@@ -268,6 +269,7 @@ export class Minimap {
       const [x, y] = point(p.x, p.z);
       label(`${lift.name} lift`, x, y - 32, undefined, true);
     }
+    if (state.santaTraces) drawSantaMapTraces(g, state.santaTraces, point, 6.5);
     const nearby = this.resort.runs.map(run => ({ run, point: nearestTrailPoint(run.points, view.x, view.z) }))
       .filter(r => r.point.distance < view.span * .65)
       .sort((a, b) => Number(b.run.name === state.run?.name) - Number(a.run.name === state.run?.name) || a.point.distance - b.point.distance);

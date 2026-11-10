@@ -2,8 +2,9 @@ import type { ColliderGrid } from './collision';
 import { GuestNavigation, type GuestWaypoint, type Point } from './mountainGuestNavigation';
 import { createSkier, getUp, headingFromDir, PARAMS, stepSkier, type SkierState, type Vec3 } from './skiPhysics';
 import { createWalker, stepWalker, WalkSurfaces } from './walk';
-import { newSantaFestivities, readSantaFestivities, santaActionDuration, SANTA_STAR_LIFE, SANTA_STAR_RELEASE,
-  type SantaActionPose, type SantaFestivities, type SantaStarPose } from './santaFestivities';
+import { newSantaFestivities, readSantaFestivities, santaActionDuration, SANTA_FIR_LIMIT, SANTA_STAR_LIFE, SANTA_STAR_RELEASE,
+  SANTA_TRACK_LIFE, SANTA_TRACK_LIMIT, SANTA_TRACK_STEP, SANTA_WAVE_RANGE,
+  type SantaActionPose, type SantaFestivities, type SantaStarPose, type SantaTraces, type SantaVisitor } from './santaFestivities';
 
 const STEP = 1 / 30;
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
@@ -18,6 +19,8 @@ export interface GuestPose {
   speed: number; edge: number; skid: number; tuck: number; plow: number; fallen: number;
   airborne: boolean; touring: number; stride: number; pushing: boolean; waiting: boolean;
   ride: GuestRide | null;
+  age?: number;
+  waveReady?: boolean;
   action?: SantaActionPose;
   star?: SantaStarPose;
 }
@@ -47,10 +50,10 @@ export function readGuestCheckpoint(value: unknown, nav: GuestNavigation): Guest
   if (r && (!lift(r.lift) || !Number.isInteger(r.chair) || r.chair < 0 || r.chair >= nav.lifts[r.lift].chairCount ||
     !Number.isInteger(r.seat) || r.seat < 0 || r.seat >= nav.lifts[r.lift].def.seats ||
     !Number.isFinite(r.boardedAt) || !Number.isFinite(r.unloadAt))) return null;
-  return { ...p, festivities: readSantaFestivities(p.festivities, (x, z) => nav.contains(x, z)) };
+  return { ...p, festivities: readSantaFestivities(p.festivities, p.age, (x, z) => nav.contains(x, z)) };
 }
 
-/** One continuous skier per world. Nobody's position, camera or graphics preset enters this simulation. */
+/** One continuous skier per world. Visitors can get a greeting without changing his route. */
 export class MountainGuest {
   private s: GuestCheckpoint;
   private elapsed = 0;
@@ -61,6 +64,7 @@ export class MountainGuest {
   private waiting = false;
   private courseRetry = 0;
   private detours = 0;
+  private layingTrail = false;
 
   constructor(readonly nav: GuestNavigation, private colliders: ColliderGrid, seed: number, checkpoint?: GuestCheckpoint) {
     if (checkpoint) { this.s = structuredClone(checkpoint); return; }
@@ -80,23 +84,37 @@ export class MountainGuest {
   }
 
   get ride() { return this.s.ride; }
+  get age() { return this.s.age; }
   get run() { return this.s.run === null ? null : this.nav.courses[this.s.run]?.run.name ?? null; }
   checkpoint() { return structuredClone(this.s); }
 
+  /** The full history is for a new visitor. Regular updates carry only additions. */
+  santaTraces(after = -Infinity): SantaTraces {
+    const { tracks = [], firs = [] } = this.s.festivities ?? {};
+    let start = tracks.length;
+    while (start > 0 && tracks[start - 1][0] > after) start--;
+    return {
+      tracks: tracks.slice(start),
+      firs: after === -Infinity || (firs.at(-1)?.litAt ?? -Infinity) > after ? firs.slice() : undefined,
+    };
+  }
+
   pose(): GuestPose {
     const { st, ride, touring, stride, age, festivities } = this.s;
-    const action = festivities?.action, star = festivities?.star;
+    const action = festivities?.action, fir = festivities?.firs?.at(-1);
     const fallen = st.mode === 'fallen' ? ease(st.modeTime / .38) :
       st.mode === 'gettingUp' ? 1 - ease(st.modeTime / PARAMS.getUpTime) : 0;
     return {
       ...st.pos, heading: st.heading, speed: st.speed, edge: st.edge, skid: st.skid,
       tuck: st.tuck, plow: st.plow, fallen, airborne: !st.grounded && !ride,
-      touring, stride, pushing: this.pushing, waiting: this.waiting, ride,
+      touring, stride, pushing: this.pushing, waiting: this.waiting, ride, age,
+      waveReady: !ride && st.grounded && st.mode !== 'fallen' && st.mode !== 'gettingUp' && !action && !festivities?.stop &&
+        this.mayAnswerWave(this.s.route[this.s.cursor]),
       action: action && !ride && age < action.startedAt + santaActionDuration(action.kind) ? {
         kind: action.kind, heading: action.heading, anchor: action.anchor,
         progress: clamp((age - action.startedAt) / santaActionDuration(action.kind)),
       } : undefined,
-      star: star && star.until > age ? { x: star.x, y: star.y, z: star.z, remaining: star.until - age } : undefined,
+      star: fir && age - fir.litAt < SANTA_STAR_LIFE ? { ...fir.anchor, remaining: SANTA_STAR_LIFE - (age - fir.litAt) } : undefined,
     };
   }
 
@@ -158,7 +176,7 @@ export class MountainGuest {
     st.edge = 0; st.skid = 0; st.tuck = 0; st.plow = 0;
   }
 
-  advance(dt: number, liftTimes: number[], free: GuestSeatFree = () => true, open = true, visitors: readonly Vec3[] = []) {
+  advance(dt: number, liftTimes: number[], free: GuestSeatFree = () => true, open = true, visitors: readonly SantaVisitor[] = []) {
     const previous = this.s.liftTimes;
     this.s.liftTimes = liftTimes;
     // Real time moves the lifts. Bounded fixed steps handle timer stalls without a physics jump.
@@ -170,23 +188,52 @@ export class MountainGuest {
     for (let i = 1; i <= steps; i++) {
       const times = liftTimes.map((t, j) => previous[j] ? previous[j] + (t - previous[j]) * i / steps : t);
       this.step(times, last, free, open, visitors);
+      this.rememberSantaTrail();
       last = times;
     }
   }
 
+  private rememberSantaTrail() {
+    const { st, age, ride, touring, festivities: f } = this.s;
+    if (!f) return;
+    const tracks = f.tracks ??= [];
+    while (tracks.length && age - tracks[0][0] >= SANTA_TRACK_LIFE) tracks.shift();
+    while (f.firs?.length && age - f.firs[0].litAt >= SANTA_STAR_LIFE) f.firs.shift();
+    if (ride || !st.grounded || touring > .3 || st.mode === 'fallen' || st.mode === 'gettingUp') {
+      this.layingTrail = false;
+      return;
+    }
+    if (st.speed < 1.7) return;
+    const last = tracks.at(-1), d = last ? Math.hypot(st.pos.x - last[1], st.pos.z - last[2]) : Infinity;
+    if (d < (this.layingTrail ? SANTA_TRACK_STEP : .8)) return;
+    const edge = this.layingTrail && d < SANTA_TRACK_STEP * 1.5 ? Math.round(Math.abs(st.edge) * 20) / 20 : -1;
+    // Keep the checkpoints and the join packet small without losing the shape of the turns.
+    const round = (n: number) => Math.round(n * 100) / 100;
+    tracks.push([round(age), round(st.pos.x), round(st.pos.z), edge]);
+    if (tracks.length > SANTA_TRACK_LIMIT) tracks.shift();
+    this.layingTrail = true;
+  }
+
   /** This is the same state machine in the room server and the solo worker. */
-  private festiveStep(wp: GuestWaypoint | undefined, visitors: readonly Vec3[]) {
+  private festiveStep(wp: GuestWaypoint | undefined, visitors: readonly SantaVisitor[]) {
     const { st, age } = this.s;
     const f = this.s.festivities ??= newSantaFestivities(age, this.s.seed);
-    if (f.star && age >= f.star.until) f.star = undefined;
     const action = f.action;
     if (action) {
       const elapsed = age - action.startedAt, duration = santaActionDuration(action.kind);
-      if (action.kind === 'hang-star' && action.anchor && elapsed >= duration * SANTA_STAR_RELEASE && !f.star) {
-        f.star = { ...action.anchor, until: action.startedAt + duration + SANTA_STAR_LIFE };
+      if (action.kind === 'hang-star' && action.anchor && elapsed >= duration * SANTA_STAR_RELEASE) {
+        const firs = f.firs ??= [];
+        if ((firs.at(-1)?.litAt ?? -Infinity) < action.startedAt) {
+          firs.push({ anchor: action.anchor, tree: f.stop?.tree, litAt: age });
+          if (firs.length > SANTA_FIR_LIMIT) firs.shift();
+          f.searchAt = age + 140 + (this.s.seed >>> 0) % 91;
+        }
       }
       if (elapsed < duration) {
-        this.ski(0, .85, false, false, true);
+        if (action.kind === 'hat-tip' && wp?.lift === undefined && st.speed < .85) {
+          st.heading = angle(st.heading + clamp(angle(action.heading - st.heading) * STEP * 2.6, -STEP * 1.5, STEP * 1.5));
+        }
+        this.ski(0, .85, false, true);
         return true;
       }
       f.action = undefined;
@@ -194,10 +241,11 @@ export class MountainGuest {
     }
 
     if (f.stop && age >= f.stop.until) f.stop = undefined;
-    if (!f.stop && age >= f.searchAt && !wp?.gate && wp?.lift === undefined && st.speed < 3.2) {
-      const stop = this.nav.santaFirStop(st.pos);
-      f.searchAt = age + (stop ? 330 + (this.s.seed >>> 0) % 241 : 4);
-      if (stop) f.stop = { ...stop, from: { x: st.pos.x, z: st.pos.z }, until: age + 21 };
+    if (!f.stop && this.greetVisitor(f, wp, visitors)) return true;
+    if (!f.stop && age >= f.searchAt && !wp?.gate && wp?.lift === undefined && st.speed < 8 && st.normal.y > .94) {
+      const stop = this.nav.santaFirStop(st.pos, f.firs?.map(fir => fir.tree ?? fir.anchor));
+      f.searchAt = age + (stop ? 34 : 5);
+      if (stop) f.stop = { ...stop, from: { x: st.pos.x, z: st.pos.z }, until: age + 29 };
     }
     const stop = f.stop;
     if (stop) {
@@ -213,40 +261,66 @@ export class MountainGuest {
       const turn = angle(heading - st.heading);
       if (!stop.returning && distanceToStop < .24 && st.speed < .47 && Math.abs(turn) < .28) {
         f.action = { kind: 'hang-star', startedAt: age, heading, anchor: stop.anchor };
-        this.ski(0, .85, false, false, true);
+        this.ski(0, .85, false, true);
       } else if (st.speed > 2.5) {
         this.pushing = false;
-        this.ski(clamp(-turn * 1.5, -1, 1), .96, false, st.speed > 3.6, false);
+        this.ski(clamp(-turn * 1.5, -1, 1), .96, st.speed > 3.6, false, 2);
       } else this.tourTo(target, heading, true);
       return true;
     }
 
-    const stoppedAtLift = wp?.lift !== undefined && distance(st.pos, wp) < .65;
-    if (age >= f.greetAt && st.speed < .85 && (this.s.rest > 0 || stoppedAtLift)) {
-      let nearest: Vec3 | undefined, closest = 9;
-      for (const visitor of visitors) {
-        if (Math.abs(visitor.y - st.pos.y) > 2.7) continue;
-        const d = distance(visitor, st.pos);
-        if (d < closest) { nearest = visitor; closest = d; }
-      }
-      if (nearest) {
-        f.action = { kind: 'hat-tip', startedAt: age, heading: headingFromDir(nearest.x - st.pos.x, nearest.z - st.pos.z) };
-        f.greetAt = age + 40;
-        this.ski(0, .85, false, false, true);
-        return true;
-      }
-    }
     return false;
   }
 
-  private step(times: number[], previous: number[], free: GuestSeatFree, open: boolean, visitors: readonly Vec3[]) {
+  private mayAnswerWave(wp?: GuestWaypoint) {
+    const { st, age, festivities } = this.s;
+    return age >= (festivities?.waveAt ?? 0) && (st.speed < .85 ||
+      (!wp?.gate && wp?.lift === undefined && st.speed < 8.5 && st.normal.y > .955));
+  }
+
+  private greetVisitor(f: SantaFestivities, wp: GuestWaypoint | undefined, visitors: readonly SantaVisitor[]) {
+    if (!visitors.length) return false;
+    const { st, age, rest } = this.s;
+    const stopped = st.speed < .85;
+    const stoppedAtLift = wp?.lift !== undefined && distance(st.pos, wp) < .65;
+    const canGreet = stopped && age >= f.greetAt && (rest > 0 || stoppedAtLift);
+    const canAnswer = this.mayAnswerWave(wp);
+    if (!canGreet && !canAnswer) return false;
+    let wave: SantaVisitor | undefined, other: SantaVisitor | undefined;
+    let waveDistance = SANTA_WAVE_RANGE, otherDistance = 9;
+    for (const visitor of visitors) {
+      if (Math.abs(visitor.y - st.pos.y) > 2.7) continue;
+      const d = distance(visitor, st.pos);
+      if (canAnswer && visitor.waving && d < waveDistance && this.nav.clear(st.pos, visitor, .12, 1.5)) {
+        wave = visitor;
+        waveDistance = d;
+      } else if (canGreet && d < otherDistance) {
+        other = visitor;
+        otherDistance = d;
+      }
+    }
+    const visitor = wave ?? other;
+    if (!visitor) return false;
+    this.pushing = false;
+    if (!stopped) {
+      this.ski(0, 1, true, true, .7);
+      return true;
+    }
+    f.action = { kind: 'hat-tip', startedAt: age, heading: headingFromDir(visitor.x - st.pos.x, visitor.z - st.pos.z) };
+    if (wave) f.waveAt = age + 14;
+    f.greetAt = age + 45;
+    this.ski(0, .85, false, true);
+    return true;
+  }
+
+  private step(times: number[], previous: number[], free: GuestSeatFree, open: boolean, visitors: readonly SantaVisitor[]) {
     const s = this.s, st = s.st, probe = this.nav.probe;
     s.age += STEP;
     if (s.ride) { this.onChair(s.ride, times[s.ride.lift]); return; }
     if (st.mode === 'fallen' || st.mode === 'gettingUp') {
       if (s.festivities) s.festivities.action = undefined;
       this.pushing = this.waiting = false;
-      this.ski(0, 0, false, false, false);
+      this.ski(0, 0, false, false);
       if (st.modeTime > 2) getUp(st);
       return;
     }
@@ -263,11 +337,11 @@ export class MountainGuest {
       this.courseRetry -= STEP;
       if (s.rest <= 0 && this.courseRetry <= 0 && this.chooseRoute(open)) wp = s.route[s.cursor];
       else {
-        this.ski(0, .85, false, st.speed > 1.3, true);
+        this.ski(0, .85, st.speed > 1.3, true);
         return;
       }
     }
-    if (!wp) { this.ski(0, 0, false, false, false); return; }
+    if (!wp) { this.ski(0, 0, false, false); return; }
 
     const reached = (w: GuestWaypoint) => {
       if (distance(st.pos, w) < (w.gate ? 1.0 : Math.min(2.45, 1.4 + st.speed * .14))) return true;
@@ -288,7 +362,7 @@ export class MountainGuest {
     if (d + .45 < this.best) { this.best = d; this.stuck = 0; }
     else this.stuck += STEP;
     if (wp.lift !== undefined && !open) {
-      this.ski(0, .85, false, st.speed > 1.3, true);
+      this.ski(0, .85, st.speed > 1.3, true);
       return;
     }
 
@@ -341,7 +415,7 @@ export class MountainGuest {
     const amplitude = Math.min(3.8, 1.4 + st.speed * .18) * Math.max(base.groomed, base.piste);
     if (!tour && distance(st.pos, aim) > 5 && rise < -.10 && st.speed > 3) {
       // Connected turns vary with each outing and are cut short by trees or a narrow trail.
-      const phase = s.age * (.75 + (s.seed % 13) / 50) + s.seed % 120;
+      const phase = s.age * (.58 + (s.seed % 13) / 75) + s.seed % 120;
       const lateral = Math.sin(phase) * amplitude;
       const turn = { x: aim.x + Math.cos(desired) * lateral, z: aim.z - Math.sin(desired) * lateral };
       if (this.nav.contains(turn.x, turn.z) && this.nav.clear(st.pos, turn, 1.12)) {
@@ -350,17 +424,15 @@ export class MountainGuest {
     }
     const turn = angle(desired - st.heading);
     const wantsSlow = tour || !this.nav.clear(st.pos, aim, .51);
-    const topSpeed = wantsSlow ? 1.9 : clamp(9.3 + 3.1 * base.groomed - 3.5 * base.moguls - 6 * Math.abs(turn), 3.1, 13);
-    const brake = st.speed > topSpeed + 4.1 || (wantsSlow && st.speed > 3.4);
-    const plow = clamp((st.speed - topSpeed + .5) / 3);
+    const cruiseSpeed = wantsSlow ? 1.9 : clamp(5.7 + 1.7 * base.groomed - 2.2 * base.moguls - 3.4 * Math.abs(turn), 3, 7.4);
+    const plow = clamp((st.speed - cruiseSpeed + .2) / 4, 0, .8);
     this.pushing = st.speed < 3.2 && Math.abs(turn) < .55 && !wantsSlow;
-    this.ski(clamp(-turn * 1.65, -1, 1), plow, !wantsSlow && st.speed > 6 && Math.abs(turn) < .19 && st.speed < topSpeed - 1.2,
-      brake, false);
+    this.ski(clamp(-turn * 1.65, -1, 1), plow, wantsSlow && st.speed > 3.4, false, cruiseSpeed);
   }
 
-  private ski(steer: number, plow: number, tuck: boolean, stop: boolean, hold: boolean) {
+  private ski(steer: number, plow: number, stop: boolean, hold: boolean, cruiseSpeed?: number) {
     const { st } = this.s, x = st.pos.x, z = st.pos.z;
-    stepSkier(st, { steer, plow, tuck, stop, hold, push: this.pushing && !hold }, this.nav.probe, STEP);
+    stepSkier(st, { steer, plow, tuck: false, stop, hold, cruiseSpeed, push: this.pushing && !hold }, this.nav.probe, STEP);
     this.colliders.collide(st);
     if (!this.nav.contains(st.pos.x, st.pos.z)) {
       // The resort boundary is a hard stop. Undo just this integration step.

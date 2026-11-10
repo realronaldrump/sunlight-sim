@@ -3,8 +3,9 @@
 import { clamp, snowWindMix, terminalMix, nearbySkierMix, chairStrainMix, environmentMix, type AudioState } from './audioModel';
 import { COMIC, type ComicSound } from './comicSynth';
 import { babble, bootOnWood, branchKnock, clink, grinder, registerBeep, roomTone, steam } from './ambienceSynth';
-import { santaBellMix, santaChime, santaJingle } from './santaBells';
+import { santaBellMix, santaChime, santaJingle, santaSoundPosition } from './santaBells';
 import type { GuestPose } from '../../../shared/mountainGuest';
+import { SANTA_STAR_LIFE, type SantaLitFir } from '../../../shared/santaFestivities';
 import type { Vec3 } from '../../../shared/skiPhysics';
 export type { AudioState } from './audioModel';
 
@@ -203,6 +204,9 @@ export class SkiAudio {
   private santaDiscoveryBell?: AudioBuffer;
   private santaBellIn = 0;
   private santaBellCount = 0;
+  private heardFirs = new Map<SantaLitFir['litAt'], number>();
+
+  resetSantaFirs() { this.heardFirs.clear(); }
 
   santaPass(dt: number, guest: GuestPose | null, listener: Vec3, forward: Vec3) {
     const ctx = this.ctx;
@@ -213,7 +217,28 @@ export class SkiAudio {
     const n = this.santaBellCount++;
     this.santaBellIn = sound.interval + .075 * Math.sin(n * 2.47);
     this.santaBell ??= santaJingle(ctx);
-    this.oneShot(this.santaBell, sound.gain, .93 + .12 * Math.sin(n * 1.81), sound.pan, ctx.currentTime + .012, 'place', .37);
+    const at = ctx.currentTime + .012;
+    this.oneShot(this.santaBell, sound.gain, .93 + .12 * Math.sin(n * 1.81), sound.pan, at, 'place', .37, sound.cutoff);
+    if (sound.echo) this.oneShot(this.santaBell, sound.gain * .60, 1.04, sound.pan, at + .26, 'place', .32, sound.cutoff);
+  }
+
+  santaFirChimes(firs: readonly SantaLitFir[], age: number, listener: Vec3, forward: Vec3) {
+    const ctx = this.ctx;
+    if (!ctx || !this.audible) return;
+    for (const [key] of this.heardFirs) if (age - key >= SANTA_STAR_LIFE) this.heardFirs.delete(key);
+    for (const { anchor, litAt } of firs) {
+      const elapsed = age - litAt;
+      if (elapsed < 0 || elapsed >= SANTA_STAR_LIFE) continue;
+      const { distance, pan } = santaSoundPosition(anchor, listener, forward);
+      const heard = this.heardFirs.get(litAt) ?? 0;
+      const atRelease = elapsed < 1.3 && distance < 52 && !heard;
+      const upClose = distance < 12 && heard < 2;
+      if (!atRelease && !upClose) continue;
+      this.heardFirs.set(litAt, upClose ? 2 : 1);
+      this.santaDiscoveryBell ??= santaChime(ctx);
+      const gain = (.045 + .11 * (1 - distance / 52)) * (atRelease ? 1 : .68);
+      this.oneShot(this.santaDiscoveryBell, gain, atRelease ? 1.16 : .89, pan, ctx.currentTime + .01, 'place', 1, 5500);
+    }
   }
 
   santaDiscovery() {
@@ -226,12 +251,12 @@ export class SkiAudio {
     this.oneShot(this.santaDiscoveryBell, .10, 1.50, .25, at + .17, 'place', .63);
   }
 
-  private oneShot(sample: Sample | AudioBuffer, gain: number, rate: number, pan: number, at: number, group: Voice['group'], length?: number) {
+  private oneShot(sample: Sample | AudioBuffer, gain: number, rate: number, pan: number, at: number, group: Voice['group'], length?: number, cutoff?: number) {
     if (!this.audible || [...this.voices].filter(v => v.end > at).length >= 24) return;
     const ctx = this.ctx!, buffer = typeof sample === 'string' ? this.buffers.get(sample) ?? this.fallback : sample;
     const source = ctx.createBufferSource(); source.buffer = buffer; source.playbackRate.value = rate;
     const amp = ctx.createGain(), filter = ctx.createBiquadFilter(), panner = ctx.createStereoPanner();
-    filter.type = 'lowpass'; filter.frequency.value = group === 'chair' ? 4300 : group === 'place' ? 9000 : 6500; filter.Q.value = .55;
+    filter.type = 'lowpass'; filter.frequency.value = cutoff ?? (group === 'chair' ? 4300 : group === 'place' ? 9000 : 6500); filter.Q.value = .55;
     panner.pan.value = clamp(pan, -1, 1);
     const duration = Math.min(length ?? .85, buffer.duration/rate);
     amp.gain.setValueAtTime(0, at);

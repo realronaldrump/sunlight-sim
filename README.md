@@ -67,7 +67,9 @@ Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y c
 
 Teleportation is available only in the pause menu: return to base, choose a run or friend on the travel map, or recall your drone. B has no binding. The normal map is for navigation and inspection.
 
-**Show Santa on map** in the pause menu or iPhone Flight menu adds his live position to the trail map and nearby minimap. It starts off and saves in your browser. A close, clear in-world sighting earns the Santa Sighting badge.
+Listen for sleigh bells and look for gold flecks in Santa's ski tracks. When he hangs a star, lights climb the fir's branches and stay lit for 25 minutes of world time. His tracks last 15 minutes. Walk or ski near a decorated fir to hear it chime, and press **1** when prompted to wave to Santa. He can slow to a stop on gentle snow and tip his hat back.
+
+**Show Santa on map** in the pause menu or iPhone Flight menu adds his live position, recent tracks and decorated firs. It starts off and saves in your browser. A close, clear in-world sighting earns the Santa Sighting badge.
 
 In drone mode, **Show my skier** adds an optional marker that tracks your skier on the moving chair, with distance and an off-screen direction cue. Toggle it off for an unobstructed view.
 

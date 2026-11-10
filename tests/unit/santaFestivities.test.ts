@@ -36,7 +36,7 @@ function fixture() {
 }
 
 describe('Santa on the mountain', () => {
-  it('walks to a modeled bough, hangs a star and leaves it for a minute', () => {
+  it('hangs a star on a modeled bough and saves the fir for later visitors', () => {
     const { navigation: nav, colliders } = world;
     const { cp, stop } = fixture();
     const candidates = colliders.query(cp.st.pos.x, cp.st.pos.z).flatMap(c =>
@@ -44,7 +44,7 @@ describe('Santa on the mountain', () => {
     expect(candidates).toContainEqual(stop.anchor);
     cp.festivities = { searchAt: 0, greetAt: 1000 };
     const guest = new MountainGuest(nav, colliders, 187, cp);
-    let last = guest.pose(), maxStep = 0, hanging = false, firstLight = 0, lastLight = 0, departed = false;
+    let last = guest.pose(), maxStep = 0, hanging = false, firstLight = 0, departed = false;
     for (let i = 1; i <= 30 * 82; i++) {
       guest.advance(dt, nav.lifts.map(() => wall + i * dt));
       const p = guest.pose();
@@ -55,40 +55,55 @@ describe('Santa on the mountain', () => {
           firstLight = i * dt;
           expect(hanging).toBe(true);
           const saved = readGuestCheckpoint(JSON.parse(JSON.stringify(guest.checkpoint())), nav)!;
-          expect(new MountainGuest(nav, colliders, 187, saved).pose().star).toEqual(p.star);
+          expect(new MountainGuest(nav, colliders, 187, saved).santaTraces().firs).toEqual([
+            { anchor: stop.anchor, tree: stop.tree, litAt: saved.age },
+          ]);
         }
-        lastLight = i * dt;
         departed ||= Math.hypot(p.x - stop.anchor.x, p.z - stop.anchor.z) > 2;
       }
       last = p;
     }
     expect(maxStep).toBeLessThan(.22);
     expect(firstLight).toBeGreaterThan(2);
-    expect(lastLight - firstLight).toBeGreaterThanOrEqual(SANTA_STAR_LIFE);
-    expect(lastLight - firstLight).toBeLessThan(SANTA_STAR_LIFE + 1.1);
     expect(departed).toBe(true);
-    expect(last.star).toBeUndefined();
+    expect(last.star?.remaining).toBeGreaterThan(20 * 60);
+
+    const later = guest.checkpoint(), fir = guest.santaTraces().firs![0];
+    later.age = fir.litAt + SANTA_STAR_LIFE - .15;
+    later.festivities!.searchAt = later.age + 100;
+    const restored = new MountainGuest(nav, colliders, 187, readGuestCheckpoint(later, nav)!);
+    expect(restored.santaTraces().firs).toEqual([fir]);
+    restored.advance(.25, nav.lifts.map(() => wall + 82.25));
+    expect(restored.pose().star).toBeUndefined();
+    expect(restored.santaTraces().firs).toEqual([]);
   });
 
-  it('gives one shared hat tip to players near the same stop', () => {
+  it('answers an actual wave with one hat tip that both players see', () => {
     const { navigation: nav } = world;
     const { cp } = fixture();
-    cp.festivities = { searchAt: 1000, greetAt: 0 };
+    cp.festivities = { searchAt: 1000, greetAt: 1000 };
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(wall * 1000);
       const lobby = new Lobby(nav.lifts, world, new Map([['GREET', cp]]));
       const received: ServerMsg[][] = [[], []];
       const [a, b] = received.map((queue, i) => lobby.join({ send: m => queue.push(m), close() {} }, 'GREET', `Skier ${i}`, '#bb3311')!);
-      const state = (dist: number): NetSkier => ({
-        ...cp.st.pos, z: cp.st.pos.z - dist, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0,
-      });
+      const bearing = Array.from({ length: 16 }, (_, i) => i * Math.PI / 8).find(angle => {
+        const x = cp.st.pos.x + Math.sin(angle) * 11.5, z = cp.st.pos.z + Math.cos(angle) * 11.5;
+        return Math.abs(nav.probe.height(x, z) - cp.st.pos.y) < 2.6 && nav.clear(cp.st.pos, { x, z }, .12, 1.5);
+      })!;
+      expect(bearing).toBeDefined();
+      const state = (dist: number, act?: NetSkier['act']): NetSkier => {
+        const x = cp.st.pos.x + Math.sin(bearing) * dist, z = cp.st.pos.z + Math.cos(bearing) * dist;
+        return { x, y: nav.probe.height(x, z), z, heading: bearing, vx: 0, vy: 0, vz: 0,
+          mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0, act };
+      };
       const latest = (i: number) => received[i].filter(m => m.type === 'snapshot').at(-1)?.mountainGuest;
-      a.room.handle(a.id, { type: 'state', s: state(21), teleport: true });
-      b.room.handle(b.id, { type: 'state', s: state(21), teleport: true });
+      a.room.handle(a.id, { type: 'state', s: state(11.5, 'point'), teleport: true });
+      b.room.handle(b.id, { type: 'state', s: state(21, 'wave'), teleport: true });
       vi.setSystemTime((wall + .15) * 1000); lobby.tick();
       expect(latest(0)?.action).toBeUndefined();
-      a.room.handle(a.id, { type: 'state', s: state(5), teleport: true });
+      a.room.handle(a.id, { type: 'state', s: state(11.5, 'wave'), teleport: true });
       vi.setSystemTime((wall + .25) * 1000); lobby.tick();
       expect(latest(0)?.action?.kind).toBe('hat-tip');
       expect(latest(0)?.action).toEqual(latest(1)?.action);
@@ -108,10 +123,13 @@ describe('Santa audio', () => {
     const north = { x: 0, y: 0, z: -1 };
     const at = (dx: number) => ({ x: p.x + dx, y: p.y + 1.1, z: p.z });
     const close = santaBellMix(p, at(-3), north)!;
-    const faint = santaBellMix(p, at(21), north)!;
+    const faint = santaBellMix(p, at(44), north)!;
     expect(close.pan).toBeGreaterThan(.6);
     expect(faint.pan).toBeLessThan(-.6);
     expect(faint.gain).toBeLessThan(close.gain * .32);
+    expect(faint.gain).toBeGreaterThan(.012);
+    expect(faint.echo).toBe(true);
+    expect(faint.cutoff).toBeLessThan(close.cutoff);
     expect(santaBellMix(p, at(SANTA_BELL_RANGE + 1), north)).toBeNull();
     expect(santaBellMix({ ...p, speed: .3 }, at(-3), north)).toBeNull();
   });

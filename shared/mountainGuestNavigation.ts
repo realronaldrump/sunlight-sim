@@ -129,23 +129,24 @@ export class GuestNavigation {
   }
 
   /** Find a real bough near safe snow, with enough clearance for a brief stop. */
-  santaFirStop(p: Point): SantaFirStop | null {
-    const trees = new Set(this.colliders.query(p.x, p.z));
+  santaFirStop(p: Point, decorated: readonly Point[] = []): SantaFirStop | null {
+    const trees = new Set(this.colliders.query(p.x, p.z, this.contacts, 19));
     const here = this.probe.height(p.x, p.z);
-    let best: SantaFirStop | null = null, closest = 11;
+    let best: SantaFirStop | null = null, closest = 16;
     for (const c of trees) {
       const tree = c.fir;
-      if (!tree || Math.abs(tree.y - here) > 4.2 || distance(p, tree) > 14) continue;
+      if (!tree || Math.abs(tree.y - here) > 6 || distance(p, tree) > 19) continue;
+      if (decorated.some(other => distance(other, tree) < 2)) continue;
       if (this.colliders.query(tree.x, tree.z, this.contacts).some(b => b.type === 'box' && coversPoint(b, tree.x, tree.z))) continue;
-      for (const anchor of ornamentBranches(tree, here + 4.2)) {
+      for (const anchor of ornamentBranches(tree, here + 6)) {
         const dx = anchor.x - tree.x, dz = anchor.z - tree.z, radius = Math.hypot(dx, dz) || 1;
         const at = { x: anchor.x + (dx * .69 - dz * .10) / radius, z: anchor.z + (dz * .69 + dx * .10) / radius };
         const d = distance(at, p);
-        if (d >= closest || !this.contains(at.x, at.z)) continue;
+        if (d >= closest || !this.contains(at.x, at.z) || !this.contains(anchor.x, anchor.z)) continue;
         const ground = this.probe.height(at.x, at.z), reach = anchor.y - ground;
         if (reach < 1.29 || reach > 1.77 || this.probe.normal(at.x, at.z, { x: 0, y: 1, z: 0 }).y < .961) continue;
         if (this.blocked(at.x, at.z, ground, .64) || !this.clear(p, at, .60, .46)) continue;
-        best = { at, anchor };
+        best = { at, anchor, tree };
         closest = d;
       }
     }

@@ -6,7 +6,7 @@ import { DIFF_LABEL } from './hud';
 import { formatDistance } from './units';
 import { IPHONE } from '../platform';
 import type { Point } from '../../../shared/mountainGuestNavigation';
-import { drawSantaMapMarker, SANTA_MAP_LABEL } from './santaMapMarker';
+import { drawSantaMapMarker, drawSantaMapTraces, SANTA_MAP_LABEL, type SantaMapTraces } from './santaMapMarker';
 
 export interface MapPlayer { id?: string; name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 /** Extra drawing on top of the runs: a route to follow, a recorded line, a group's position. */
@@ -20,7 +20,7 @@ const css = `
 #tmap .tip { position: absolute; padding: 6px 10px; background: rgba(10,20,35,.9); border-radius: 6px; font-size: 13px; pointer-events: none; display: none; white-space: nowrap; }
 #tmap .legend { position: absolute; right: 16px; bottom: 16px; background: rgba(10,20,35,.75); padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.9; pointer-events: none; }
 #tmap .legend span.diff { margin-right: 6px; }
-#tmap .santa-key { color: #ffdfa2; }
+#tmap .santa-key, #tmap .santa-traces-key { color: #ffdfa2; }
 #tmap .close { position: absolute; right: 16px; top: 12px; background: rgba(255,255,255,.15); border: 0; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 `;
 
@@ -38,7 +38,9 @@ export class TrailMap {
   players: MapPlayer[] = [];
   overlays: MapOverlay[] = [];
   santa: Point | null = null;
+  santaTraces: SantaMapTraces | null = null;
   private santaKey: HTMLElement;
+  private santaTracesKey: HTMLElement;
   onTeleport?: (runName: string) => void;
   onJoinPlayer?: (name: string) => void;
   private hover: RunInfo | null = null;
@@ -52,13 +54,14 @@ export class TrailMap {
         <div><span class="diff green"></span>Easiest</div><div><span class="diff blue"></span>More Difficult</div>
         <div><span class="diff black"></span>Most Difficult</div><div><span class="diff double"></span>Experts Only</div>
         <div><span class="diff park"></span>Terrain Park</div><div style="color:#ff6b6b">&#9473; Chairlift</div>
-        <div class="santa-key" hidden>● ${SANTA_MAP_LABEL}</div><div class="map-instructions"></div></div>`;
+        <div class="santa-key" hidden>● ${SANTA_MAP_LABEL}</div><div class="santa-traces-key" hidden>··· Santa’s tracks &nbsp; ★ Decorated fir</div><div class="map-instructions"></div></div>`;
     this.cv = document.createElement('canvas');
     this.root.prepend(this.cv);
     document.body.appendChild(this.root);
     this.g = this.cv.getContext('2d')!;
     this.tip = this.root.querySelector('.tip')!;
     this.santaKey = this.root.querySelector('.santa-key')!;
+    this.santaTracesKey = this.root.querySelector('.santa-traces-key')!;
     (this.root.querySelector('.close') as HTMLButtonElement).onclick = () => this.toggle(false);
     const ob = this.root.querySelector('.orient') as HTMLButtonElement;
     ob.onclick = () => { this.flip = !this.flip; ob.textContent = this.flip ? 'North up' : 'Trail map view'; this.draw(); };
@@ -269,6 +272,8 @@ export class TrailMap {
         g.fillStyle = '#fff'; g.fillText(p.label, sx, sy - 12);
       }
     }
+    this.santaTracesKey.hidden = !this.santaTraces || (!this.santaTraces.firs.length && this.santaTraces.tracks.length < 2);
+    if (this.santaTraces) drawSantaMapTraces(g, this.santaTraces, (x, z) => this.toScreen(x, z), 9);
     // labels (greedy, skip overlaps)
     const placed: [number, number, number, number][] = [];
     g.font = '600 12px -apple-system, sans-serif';

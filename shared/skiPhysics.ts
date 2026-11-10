@@ -40,6 +40,8 @@ export interface SkiInput {
   push: boolean;   // pole/skate push on flats (same key as tuck at low speed)
   /** Standing in a lift line: poles planted to hold position on the sloped loading snow. */
   hold?: boolean;
+  /** An AI skier's target for progressive braking on snow, in meters per second. */
+  cruiseSpeed?: number;
 }
 
 export type SkierMode = 'skiing' | 'air' | 'fallen' | 'gettingUp' | 'riding' | 'standing';
@@ -243,6 +245,11 @@ function substep(st: SkierState, input: SkiInput, terrain: TerrainProbe, dt: num
     if (st.plow > 0.02 && vtLen > 0.05) {
       const f = Math.min(P.plowDecel * st.plow * Nmag * Math.min(1, vtLen / 1.5), (m * vtLen) / dt);
       F.x -= (vt.x / vtLen) * f; F.y -= (vt.y / vtLen) * f; F.z -= (vt.z / vtLen) * f;
+    }
+    if (input.cruiseSpeed !== undefined && vtLen > input.cruiseSpeed) {
+      // A controlled edge scrub builds with excess speed. Airborne momentum is untouched.
+      const resistance = m * Math.min(8, (vtLen - input.cruiseSpeed) * 4.6) / vtLen;
+      F.x -= resistance * vt.x; F.y -= resistance * vt.y; F.z -= resistance * vt.z;
     }
     // ---- poling / skating on the flats ----
     if (input.push && vPar >= -0.2 && vtLen < P.pushMaxSpeed && ski.y > -0.2) {

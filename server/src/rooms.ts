@@ -10,7 +10,7 @@ import type { NetDrone } from '../../shared/protocol';
 import { MountainGuest, readGuestCheckpoint, type GuestCheckpoint } from '../../shared/mountainGuest';
 import type { GuestNavigation } from '../../shared/mountainGuestNavigation';
 import type { ColliderGrid } from '../../shared/collision';
-import type { Vec3 } from '../../shared/skiPhysics';
+import type { SantaVisitor } from '../../shared/santaFestivities';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
@@ -51,8 +51,10 @@ export class Room {
   // seat occupancy: `${lift}/${chair}` -> seat -> player id
   seats = new Map<string, Map<number, string>>();
   private guestTick = now();
+  private tracesAfter: number;
   constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea, readonly guest?: MountainGuest) {
     this.liftClocks = lifts.map(() => new LiftClock());
+    this.tracesAfter = guest?.age ?? 0;
     const saved = guest?.checkpoint();
     // Resume the same trip after an empty room or a restart. Nobody is on the
     // other chairs yet, so only the resident's occupied cable needs anchoring.
@@ -72,7 +74,8 @@ export class Room {
       s: { x: 0, y: 0, z: 0, heading: 0, vx: 0, vy: 0, vz: 0, mode: 'standing', edge: 0, plow: 0, tuck: 0, fallen: 0 },
     };
     this.players.set(id, p);
-    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, mountainGuest: this.guest?.pose(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
+    conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, mountainGuest: this.guest?.pose(),
+      santaTraces: this.guest?.santaTraces(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
     return p;
   }
@@ -292,8 +295,9 @@ export class Room {
       }
     }
     if (this.guest) {
-      const visitors = [...this.players.values()].flatMap<Vec3>(p => p.drone ? [p.drone] :
-        p.initialized && p.controlMode !== 'drone' ? [p.s] : []);
+      const visitors = [...this.players.values()].flatMap<SantaVisitor>(p => p.drone ? [p.drone] :
+        p.initialized && p.controlMode !== 'drone' ? [{ x: p.s.x, y: p.s.y, z: p.s.z,
+          waving: !p.ride && p.s.act === 'wave' && t - p.t < .5 }] : []);
       this.guest.advance(t - this.guestTick, this.liftClocks.map(clock => clock.now(t)),
         (lift, chair, seat) => !this.seats.get(`${lift}/${chair}`)?.has(seat), true, visitors);
     }
@@ -303,6 +307,14 @@ export class Room {
 
   broadcast(msg: ServerMsg, except?: string) {
     for (const p of this.players.values()) if (p.id !== except) p.conn.send(msg);
+  }
+
+  publishSantaTraces() {
+    const guest = this.guest;
+    if (!guest || guest.age - this.tracesAfter < .25) return;
+    const traces = guest.santaTraces(this.tracesAfter);
+    this.tracesAfter = guest.age;
+    if (traces.firs || traces.tracks.length) this.broadcast({ type: 'santaTraces', traces });
   }
 
   /** Drop players that have been silent for too long. */
@@ -366,6 +378,7 @@ export class Lobby {
       if (r.size === 0) { this.rememberGuest(r); this.rooms.delete(code); continue; }
       const snap = r.snapshot();
       r.broadcast(snap);
+      r.publishSantaTraces();
     }
   }
 }

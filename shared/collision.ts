@@ -23,10 +23,11 @@ export class ColliderGrid {
     }
   }
 
-  query(x: number, z: number, out: Collider[] = []) {
+  query(x: number, z: number, out: Collider[] = [], radius = this.cell) {
     out.length = 0;
     const i = Math.floor(x / this.cell), j = Math.floor(z / this.cell);
-    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    const reach = Math.ceil(radius / this.cell);
+    for (let di = -reach; di <= reach; di++) for (let dj = -reach; dj <= reach; dj++) {
       const a = this.cells.get(this.key(i + di, j + dj));
       if (a) for (const c of a) out.push(c);
     }

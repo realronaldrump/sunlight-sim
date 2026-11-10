@@ -934,7 +934,9 @@ export class Game {
       this.terrainMat.slopeOverlay.value = this.slopeOverlay ? 1 : 0;
       this.hud.toast(this.slopeOverlay ? 'Slope overlay on: green < 15, blue 15-25, black 25-35, orange 35-45, red > 45 deg' : 'Slope overlay off', 4);
     }
-    const santaVisitor = this.ready && !this.flyMode ? this.drone.state?.pos ?? this.player.st.pos : undefined;
+    const visitorPos = this.drone.state?.pos ?? (this.onFoot.active ? this.onFoot.st.pos : this.player.st.pos);
+    const santaVisitor = this.ready && !this.flyMode ? { x: visitorPos.x, y: visitorPos.y, z: visitorPos.z,
+      waving: !this.drone.active && !this.player.ride && this.input.enabled && this.gestureState?.kind === 'wave' } : undefined;
     this.mountainGuest.tickLocal(dt, this.player.ride, santaVisitor);
     const guestRide = this.mountainGuest.ride;
     this.lifts.update([
@@ -996,7 +998,9 @@ export class Game {
     const mapSelf = { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true };
     const mapOthers = [...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{ name: 'Your skier', color: this.playerColor, x: st.pos.x, z: st.pos.z, heading: st.heading }] : [])];
     const santa = this.options.showSantaOnMap ? this.mountainGuest.pose : null;
+    const santaTraces = this.options.showSantaOnMap ? this.mountainGuest.traces : null;
     this.trailMap.santa = santa;
+    this.trailMap.santaTraces = santaTraces;
     if (this.trailMap.visible) {
       this.trailMap.players = [mapSelf, ...mapOthers];
       const L = this.lesson;
@@ -1006,7 +1010,7 @@ export class Game {
       if (Math.random() < 0.2) this.trailMap.draw();
     }
     this.minimap.update(dt, {
-      self: mapSelf, others: mapOthers, santa, run,
+      self: mapSelf, others: mapOthers, santa, santaTraces, run,
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: !this.droneOnly && this.ready && !this.trailMap.visible, drone: this.drone.active,
     });
@@ -1085,6 +1089,7 @@ export class Game {
   }
 
   async joinRoom(room: string) {
+    if (this.net?.room !== room) this.audio.resetSantaFirs();
     this.net?.disconnect();
     if (this.net) this.scene.remove(this.net.group);
     this.net = new NetClient(this.player, this.lifts, this.droneOnly);
@@ -1095,7 +1100,8 @@ export class Game {
     this.scene.add(this.net.group);
     this.net.onChat = (n, t) => this.chat.add(n, t);
     this.net.onGesture = (r, act) => this.friendGesture(r, act);
-    this.net.onMountainGuest = (pose, at) => this.mountainGuest.receiveRemote(pose, at);
+    this.net.onMountainGuest = (pose, at, reset) => this.mountainGuest.receiveRemote(pose, at, reset);
+    this.net.onSantaTraces = (traces, reset) => this.mountainGuest.receiveTraces(traces, reset);
     this.net.localExtras = () => {
       const x: Record<string, unknown> = {};
       if (this.onFoot.active) {
@@ -1490,6 +1496,7 @@ export class Game {
     }
     this.audio.update(dt, sound);
     this.audio.santaPass(dt, guest, listener, forward);
+    if (guest?.age !== undefined) this.audio.santaFirChimes(this.mountainGuest.traces.firs, guest.age, listener, forward);
     this.drone.audio.update(this.audio.ctx,flight,this.audio.volume,this.audio.enabled,this.drone.fpv);
   }
 
@@ -1503,12 +1510,15 @@ export class Game {
 
   private updateHints() {
     if (this.drone.active) { this.hud.hint(null); return; }
+    const wave = () => !this.flyMode && this.input.enabled &&
+      this.mountainGuest.canWave(this.camera, this.onFoot.active ? this.onFoot.st.pos : this.player.st.pos, this.colliders);
     if (this.onFoot.active) {
       const f = this.onFoot;
       if (f.seat) this.hud.hint('Sitting. <b>E</b> or walk to stand up. <b>1</b> wave, <b>2</b> point.');
       else if (f.carrying && this.nearPoi('rack', 3.2)) this.hud.hint('Ski rack. Press <b>K</b> to leave your skis here.');
       else if (!f.carrying && this.rackedAt && Math.hypot(this.rackedAt.x - f.st.pos.x, this.rackedAt.z - f.st.pos.z) < 3.5) this.hud.hint('Your skis. Press <b>K</b> to pick them up.');
       else if (this.nearPoi('seat', 1.5)) this.hud.hint('Press <b>E</b> to sit down.');
+      else if (wave()) this.hud.hint('Press <b>1</b> to wave to Santa.');
       else this.hud.hint(f.canClickIn() && f.carrying ? 'On foot in ski boots. Press <b>K</b> to click into your skis.' : null);
       return;
     }
@@ -1527,6 +1537,8 @@ export class Game {
       this.hud.hint(`${path.def.name}: face uphill and let the chair scoop you up. Next chair in ${wait} s.`);
     } else if (pl.st.mode === 'fallen' && pl.st.grounded && pl.st.speed < 1) {
       this.hud.hint('You fell. Press <b>R</b> to get up');
+    } else if (wave()) {
+      this.hud.hint('Press <b>1</b> to wave to Santa.');
     } else if (!this.tagging && this.lessonNear < 30) {
       this.hud.hint(`${LESSON_NAME} ski lesson with ${INSTRUCTOR_NAME}. Press <b>L</b> to tag along and learn the route.`);
     } else this.hud.hint(null);

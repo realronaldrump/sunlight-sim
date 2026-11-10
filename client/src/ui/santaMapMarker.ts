@@ -1,4 +1,45 @@
+import type { SantaLitFir, SantaTrack } from '../../../shared/santaFestivities';
+
 export const SANTA_MAP_LABEL = 'Santa';
+export interface SantaMapTraces { firs: readonly SantaLitFir[]; tracks: readonly SantaTrack[] }
+
+export function drawSantaMapTraces(g: CanvasRenderingContext2D, traces: SantaMapTraces,
+  project: (x: number, z: number) => readonly number[], size: number) {
+  g.save();
+  g.beginPath();
+  for (let i = 0; i < traces.tracks.length; i++) {
+    const [, x, z, edge] = traces.tracks[i], [sx, sy] = project(x, z);
+    if (i === 0 || edge < 0) g.moveTo(sx, sy);
+    else g.lineTo(sx, sy);
+  }
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.setLineDash([2, 5]);
+  g.strokeStyle = '#674028';
+  g.lineWidth = 4;
+  g.stroke();
+  g.strokeStyle = '#ffdb8e';
+  g.lineWidth = 2;
+  g.stroke();
+  g.setLineDash([]);
+  for (const { anchor } of traces.firs) {
+    const [x, y] = project(anchor.x, anchor.z);
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const angle = i * Math.PI / 5 - Math.PI / 2, r = size * (i % 2 ? .43 : 1);
+      const sx = x + Math.cos(angle) * r, sy = y + Math.sin(angle) * r;
+      if (i === 0) g.moveTo(sx, sy);
+      else g.lineTo(sx, sy);
+    }
+    g.closePath();
+    g.lineWidth = 3;
+    g.strokeStyle = '#603322';
+    g.stroke();
+    g.fillStyle = '#ffd778';
+    g.fill();
+  }
+  g.restore();
+}
 
 /** A stocking hat on a red map badge, distinct from the player arrows and lift symbols. */
 export function drawSantaMapMarker(g: CanvasRenderingContext2D, x: number, y: number, radius: number) {

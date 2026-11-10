@@ -4,6 +4,7 @@ import { SantaDiscovery, SANTA_ACHIEVEMENT_KEY, sightLine } from '../../client/s
 import { ColliderGrid } from '../../shared/collision';
 import { MountainGuest, readGuestCheckpoint } from '../../shared/mountainGuest';
 import { createSkier } from '../../shared/skiPhysics';
+import { SANTA_TRACK_LIFE } from '../../shared/santaFestivities';
 import type { ServerMsg } from '../../shared/protocol';
 import { Lobby } from '../../server/src/rooms';
 import { fsLoader } from '../harness/world';
@@ -40,7 +41,7 @@ describe('the resident skier', () => {
   it('skis, boards and progresses through multiple courses without relocating', () => {
     const { navigation: nav, colliders } = world;
     const guest = new MountainGuest(nav, colliders, 187);
-    let previous = guest.pose(), speed = 0, step = 0, edge = 0, seenLift = false;
+    let previous = guest.pose(), speed = 0, step = 0, edge = 0, seenLift = false, litFirs = 0;
     const targets = new Set<string | null>();
     for (let i = 1; i <= 30 * 4200; i++) {
       guest.advance(dt, nav.lifts.map(() => wall + i * dt));
@@ -49,16 +50,23 @@ describe('the resident skier', () => {
       speed = Math.max(speed, p.speed);
       edge = Math.max(edge, Math.abs(p.edge));
       seenLift ||= !!p.ride;
+      if (i % 30 === 0) litFirs = Math.max(litFirs, guest.santaTraces().firs!.length);
       targets.add(guest.run);
       previous = p;
     }
-    expect(speed).toBeGreaterThan(9);
+    expect(speed).toBeGreaterThan(6);
+    expect(speed).toBeLessThan(9);
     expect(edge).toBeGreaterThan(.4);
     expect(step).toBeLessThan(.95);
     expect(seenLift).toBe(true);
     expect(nav.contains(previous.x, previous.z)).toBe(true);
     expect(targets.size).toBeGreaterThan(3);
     expect(guest.checkpoint().visits.filter(Boolean).length).toBeGreaterThanOrEqual(2);
+    expect(litFirs).toBeGreaterThanOrEqual(2);
+    const { tracks } = guest.santaTraces();
+    expect(tracks.length).toBeGreaterThan(30);
+    expect(tracks.some(([at, , , edge]) => at < guest.age - 60 && edge > .25)).toBe(true);
+    expect(tracks[0][0]).toBeGreaterThan(guest.age - SANTA_TRACK_LIFE);
   });
 
   it.each([0, 1, 2])('boards lift %i only at chair contact, rides to its ramp and skis away', (index) => {
@@ -101,6 +109,10 @@ describe('the resident skier', () => {
     state.st.pos = rider.p; state.st.heading = rider.heading; state.st.mode = 'riding';
     state.ride = { lift: 0, chair: next.index, seat, boardedAt: next.arrive, unloadAt: next.arrive + lift.rideTime() };
     state.liftTimes[0] = at;
+    state.age = 320;
+    const anchor = { x: 79, y: nav.probe.height(79, -997) + 1.5, z: -997 };
+    state.festivities = { searchAt: 600, greetAt: 0, firs: [{ anchor, litAt: 80 }],
+      tracks: [[82, anchor.x - 2.6, anchor.z, -1], [83, anchor.x, anchor.z, .4]] };
 
     const history = new Map<string, unknown>([['TEST', state]]);
     const lobby = new Lobby(nav.lifts, world, history);
@@ -112,11 +124,15 @@ describe('the resident skier', () => {
     expect(snapshot(0)?.mountainGuest).toEqual(snapshot(1)?.mountainGuest);
     expect(snapshot(0)?.mountainGuest?.ride).toEqual(state.ride);
     expect(distance(snapshot(0)!.mountainGuest!, state.st.pos)).toBeLessThan(.25);
+    const welcome = (i: number) => messages[i].filter(m => m.type === 'welcome').at(-1);
+    expect(welcome(0)?.santaTraces).toEqual({ firs: state.festivities.firs, tracks: state.festivities.tracks });
+    expect(welcome(1)?.santaTraces).toEqual(welcome(0)?.santaTraces);
     lobby.leave(a.room.code, a.id); lobby.leave(b.room.code, b.id);
     expect(lobby.rooms.size).toBe(0);
     const checkpoint = readGuestCheckpoint(JSON.parse(JSON.stringify(history.get('TEST'))), nav)!;
     expect(checkpoint.ride).toEqual(state.ride);
     expect(connect(1).room.guest?.pose().ride).toEqual(state.ride);
+    expect(welcome(1)?.santaTraces).toEqual(welcome(0)?.santaTraces);
     expect(distance(connect(0).room.guest!.pose(), checkpoint.st.pos)).toBeLessThan(.25);
   });
 });

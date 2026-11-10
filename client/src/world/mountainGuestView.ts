@@ -2,7 +2,8 @@ import * as THREE from 'three/webgpu';
 import type { Collider, ColliderGrid } from '../../../shared/collision';
 import type { GuestCheckpoint, GuestPose } from '../../../shared/mountainGuest';
 import type { TerrainProbe, Vec3 } from '../../../shared/skiPhysics';
-import { SANTA_STAR_RELEASE } from '../../../shared/santaFestivities';
+import { SANTA_STAR_LIFE, SANTA_STAR_RELEASE, SANTA_TRACK_LIFE, SANTA_TRACK_LIMIT, SANTA_WAVE_RANGE,
+  type SantaLitFir, type SantaTraces, type SantaTrack, type SantaVisitor } from '../../../shared/santaFestivities';
 import { createChairSwing, swingingRiderPoint } from '../../../shared/chairSwing';
 import type { LiftSystem } from '../lifts/liftSystem';
 import { orientSkier } from '../skier/orientation';
@@ -11,6 +12,8 @@ import type { GuestResort } from './mountainGuestWorld';
 import type { GuestWorkerRequest, GuestWorkerResponse } from './mountainGuestWorker';
 import { makeSantaSkier } from './santaOutfit';
 import { makeSantaOrnament } from './santaOrnament';
+import { SantaFirLights, SANTA_FIR_VIEW_RANGE } from './santaFirLights';
+import { SantaSkiTrail } from './santaSkiTrail';
 import { SantaDiscovery, SIGHTING_RANGE, sightLine } from './santaDiscovery';
 
 const STATE = 'sunlight.mountain-guest.v1';
@@ -27,11 +30,14 @@ export class MountainGuestView {
   readonly discovery = new SantaDiscovery(storage());
   pose: GuestPose | null = null;
   remote = false;
+  readonly traces: { firs: SantaLitFir[]; tracks: SantaTrack[] } = { firs: [], tracks: [] };
   private samples: Sample[] = [];
   private rig: ReturnType<typeof makeSantaSkier> | null = null;
   private spray = new SnowSpray();
   private sparks = new SnowSpray(true);
   private firStar: ReturnType<typeof makeSantaOrnament> | null = null;
+  private decoratedFirs = new Map<number, SantaFirLights>();
+  private trail: SantaSkiTrail | null = null;
   private sparksIn = 0;
   private actionAnchor = new THREE.Vector3();
   private inverseBody = new THREE.Quaternion();
@@ -71,6 +77,7 @@ export class MountainGuestView {
     this.local.onmessage = ({ data }: MessageEvent<GuestWorkerResponse>) => {
       if (data.type === 'error') { console.warn('Mountain guest world:', data.reason); return; }
       this.receive(data.pose, data.at);
+      if (data.traces) this.receiveTraces(data.traces, data.type === 'ready');
       if (data.saved) this.saved = data.saved;
       if (data.type === 'ready') {
         const ride = data.saved.ride;
@@ -86,7 +93,7 @@ export class MountainGuestView {
 
   private post(m: GuestWorkerRequest) { this.local?.postMessage(m); }
 
-  receiveRemote(pose: GuestPose, at: number) {
+  receiveRemote(pose: GuestPose, at: number, reset = false) {
     this.remote = true;
     if (this.local) {
       this.flush();
@@ -95,7 +102,26 @@ export class MountainGuestView {
       this.localReady = false;
       this.samples = [];
     }
+    if (reset) {
+      this.samples = [];
+      this.oldRide = null;
+    }
     this.receive(pose, at);
+  }
+
+  receiveTraces(update?: SantaTraces, reset = false) {
+    if (reset) {
+      this.traces.firs = [];
+      this.traces.tracks = [];
+      for (const fir of this.decoratedFirs.values()) fir.dispose();
+      this.decoratedFirs.clear();
+    }
+    if (update?.firs) this.traces.firs = update.firs;
+    const tracks = this.traces.tracks;
+    const after = tracks.at(-1)?.[0] ?? -Infinity;
+    for (const mark of update?.tracks ?? []) if (mark[0] > after) tracks.push(mark);
+    if (tracks.length > SANTA_TRACK_LIMIT) tracks.splice(0, tracks.length - SANTA_TRACK_LIMIT);
+    this.trail?.refresh();
   }
 
   private receive(pose: GuestPose, at: number) {
@@ -104,13 +130,12 @@ export class MountainGuestView {
     if (this.samples.length > 9) this.samples.shift();
   }
 
-  tickLocal(dt: number, occupied: { lift: number; chair: number; seat: number } | null, visitor?: Vec3) {
+  tickLocal(dt: number, occupied: { lift: number; chair: number; seat: number } | null, visitor?: SantaVisitor) {
     if (!this.localReady) return;
     const at = Date.now() / 1000;
     if (at - this.localTick >= 1 / 16) {
       this.localTick = at;
-      this.post({ type: 'step', at, occupied, times: this.lifts.paths.map((_, i) => this.lifts.now(i)), open: !this.lifts.closed,
-        visitor: visitor && { x: visitor.x, y: visitor.y, z: visitor.z } });
+      this.post({ type: 'step', at, occupied, times: this.lifts.paths.map((_, i) => this.lifts.now(i)), open: !this.lifts.closed, visitor });
     }
     if ((this.saveIn -= dt) <= 0) { this.saveIn = 5; this.flush(); }
   }
@@ -128,6 +153,7 @@ export class MountainGuestView {
     const turn = Math.atan2(Math.sin(q.heading - p.heading), Math.cos(q.heading - p.heading));
     return {
       ...(f < .5 ? p : q), x: lerp(p.x, q.x, f), y: lerp(p.y, q.y, f), z: lerp(p.z, q.z, f),
+      age: p.age !== undefined && q.age !== undefined ? lerp(p.age, q.age, f) : q.age,
       heading: p.heading + turn * f, speed: lerp(p.speed, q.speed, f),
       edge: lerp(p.edge, q.edge, f), skid: lerp(p.skid, q.skid, f), plow: lerp(p.plow, q.plow, f),
       tuck: lerp(p.tuck, q.tuck, f), fallen: lerp(p.fallen, q.fallen, f),
@@ -143,7 +169,8 @@ export class MountainGuestView {
   update(dt: number, camera: THREE.Camera, now: number, night = 0) {
     const p = this.sample((this.local ? Date.now() / 1000 : now) - .12);
     this.pose = p;
-    this.updateFirStar(p?.star, camera, now, night);
+    this.updateFirStar(p?.age === undefined ? p?.star : undefined, camera, now, night);
+    this.updateTraces(p?.age ?? 0, camera, now, night);
     if (!p) return;
     let sitting = 0, preparation = 0, footY: number | undefined;
     let x = p.x, y = p.y, z = p.z, heading = p.heading;
@@ -202,7 +229,7 @@ export class MountainGuestView {
       amount: ease((a.progress - .025) / .32) * (1 - ease((a.progress - .63) / .35)),
       yaw: Math.atan2(Math.sin(a.heading - heading), Math.cos(a.heading - heading)),
       anchor: reach,
-      released: a.progress >= SANTA_STAR_RELEASE || !!p.star,
+      released: a.progress >= SANTA_STAR_RELEASE,
     };
     model.update({ ...p, time: now % 1000, sitting, liftPreparation: preparation, footGroundY: footY, skiContact, rockX, rockZ,
       touring: { amount: p.touring, stride: p.stride }, costumeAction });
@@ -210,7 +237,7 @@ export class MountainGuestView {
 
     const onEdges = !p.ride && !p.airborne && p.fallen < .1 && p.speed > 3 && p.touring < .25;
     const spray = range < 90 && onEdges && (this.sprayTimer -= dt) <= 0;
-    const spark = range < 36 && onEdges && p.speed > 4 && Math.abs(p.edge) > .21 && (this.sparksIn -= dt) <= 0;
+    const spark = range < 48 && onEdges && p.speed > 3.7 && Math.abs(p.edge) > .21 && (this.sparksIn -= dt) <= 0;
     if (spray || spark) {
       this.forward.set(-Math.sin(heading), 0, -Math.cos(heading));
       const width = .14 + .19 * p.plow;
@@ -223,12 +250,44 @@ export class MountainGuestView {
         this.spray.emit(this.left, this.right, this.forward, .10 + .18 * p.skid + .08 * Math.abs(p.edge), .53, p.speed * .63);
       }
       if (spark) {
-        this.sparksIn = .14;
-        this.sparks.emit(this.left, this.right, this.forward, .105 + .19 * Math.abs(p.edge), .77, p.speed * .62);
+        this.sparksIn = .10;
+        this.sparks.emit(this.left, this.right, this.forward, .105 + .19 * Math.abs(p.edge), .86, p.speed * .67);
       }
     }
     this.spray.update(dt);
     this.sparks.update(dt);
+  }
+
+  private updateTraces(age: number, camera: THREE.Camera, now: number, night: number) {
+    const { tracks, firs } = this.traces;
+    let expired = 0;
+    while (expired < tracks.length && age - tracks[expired][0] >= SANTA_TRACK_LIFE) expired++;
+    if (expired) tracks.splice(0, expired);
+    if (tracks.length && !this.trail) {
+      this.trail = new SantaSkiTrail(this.probe);
+      this.group.add(this.trail.mesh);
+    }
+    this.trail?.update(tracks, age, now, camera.position);
+
+    if (firs.length && age - firs[0].litAt >= SANTA_STAR_LIFE) {
+      this.traces.firs = firs.filter(fir => age - fir.litAt < SANTA_STAR_LIFE);
+    }
+    for (const [id, display] of this.decoratedFirs) {
+      if (this.traces.firs.some(fir => fir.litAt === id)) continue;
+      display.dispose();
+      this.decoratedFirs.delete(id);
+    }
+    for (const fir of this.traces.firs) {
+      const p = fir.tree ?? fir.anchor;
+      const distance = Math.hypot(p.x - camera.position.x, p.y - camera.position.y, p.z - camera.position.z);
+      let display = this.decoratedFirs.get(fir.litAt);
+      if (!display && distance < SANTA_FIR_VIEW_RANGE && fir.litAt <= age) {
+        display = new SantaFirLights(fir, this.probe);
+        this.decoratedFirs.set(fir.litAt, display);
+        this.group.add(display.group);
+      }
+      display?.update(age, now, night, distance);
+    }
   }
 
   private updateFirStar(star: GuestPose['star'], camera: THREE.Camera, now: number, night: number) {
@@ -241,6 +300,18 @@ export class MountainGuestView {
     group.position.set(star.x, star.y, star.z);
     group.rotation.set(.06 * Math.sin(phase * 1.8), star.x * .91 + .28 * Math.cos(phase * .85), .13 * Math.sin(phase * 1.43));
     glow(ease(star.remaining / 2.3), night, Math.sin(phase * 3));
+  }
+
+  canWave(camera: THREE.Camera, player: Vec3, colliders: ColliderGrid) {
+    const p = this.pose;
+    if (!p?.waveReady || Math.abs(p.y - player.y) > 2.7 ||
+      Math.hypot(p.x - player.x, p.z - player.z) >= SANTA_WAVE_RANGE) return false;
+    camera.updateMatrixWorld();
+    this.sight.set(p.x, p.y + 1.4, p.z);
+    if (this.clip.copy(this.sight).sub(camera.position).dot(camera.getWorldDirection(this.forward)) < .5) return false;
+    this.clip.copy(this.sight).project(camera);
+    return Math.abs(this.clip.x) < .86 && Math.abs(this.clip.y) < .86 &&
+      sightLine(camera.position, this.sight, this.probe.height, colliders, this.colliders);
   }
 
   observe(dt: number, camera: THREE.Camera, active: boolean, colliders: ColliderGrid) {

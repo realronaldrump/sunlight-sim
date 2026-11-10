@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loadGuestWorld } from '../../client/src/world/mountainGuestWorld';
 import { MountainGuest } from '../../shared/mountainGuest';
 import { createSkier } from '../../shared/skiPhysics';
+import { sightLine } from '../../client/src/world/santaDiscovery';
 import { fsLoader } from '../harness/world';
 
 const params = 'autostart=1&quality=low&ambient=0&mute=1&weather=clear&snowmemory=0';
@@ -21,6 +22,7 @@ test('the optional map marker and an in-world sighting are saved independently',
   const spot = { x: 79, z: -997 };
   saved.st = createSkier({ ...spot, y: navigation.probe.height(spot.x, spot.z) }, -Math.PI / 2);
   saved.route = []; saved.cursor = 0; saved.rest = 100;
+  saved.festivities = { searchAt: 1000, greetAt: 1000 };
   await page.addInitScript(({ saved, key }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(saved)); }, { saved, key: savedKey });
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -75,6 +77,9 @@ test('the optional map marker and an in-world sighting are saved independently',
   await look(Math.PI / 2);
   await expect(page.locator('#santa-gift-tag')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#santa-gift-tag')).toContainText('Santa Sighting');
+  await expect(page.getByText('to wave to Santa.')).toBeVisible();
+  await page.keyboard.press('1');
+  await page.waitForFunction(() => (window as any).game.mountainGuest.pose.action?.kind === 'hat-tip');
   await page.waitForTimeout(620);
   await page.locator('#santa-gift-tag').screenshot({ path: info.outputPath('santa-gift-tag.png') });
   await page.keyboard.press('Escape');
@@ -94,6 +99,58 @@ test('the optional map marker and an in-world sighting are saved independently',
   await openMap();
   await expect(mapKey).toBeHidden();
   expect(await page.evaluate(() => (window as any).game.mountainGuest.discovery.foundAt)).toBe(unlocked);
+  expect(errors).toEqual([]);
+});
+
+test('arriving later still reveals a decorated fir and ski tracks after Santa is gone', async ({ page }, info) => {
+  const resort = JSON.parse(new TextDecoder().decode(await fsLoader('/world/resort.json')));
+  const { navigation: nav, colliders } = await loadGuestWorld('/world', resort, fsLoader);
+  const guest = new MountainGuest(nav, colliders, 1539);
+  let fir;
+  for (let i = 1; i <= 30 * 650; i++) {
+    guest.advance(1 / 30, nav.lifts.map(() => 1_800_000_000 + i / 30));
+    if (i % 30) continue;
+    const p = guest.pose(), traces = guest.santaTraces();
+    fir = traces.firs?.find(f => f.tree && guest.age - f.litAt > 160 &&
+      Math.hypot(p.x - f.anchor.x, p.z - f.anchor.z) > 400 &&
+      traces.tracks.some(([at, x, z, edge]) => guest.age - at > 75 && edge >= 0 && Math.hypot(x - f.anchor.x, z - f.anchor.z) < 35));
+    if (fir) break;
+  }
+  expect(fir?.tree).toBeDefined();
+  const tree = fir!.tree!, target = { x: tree.x, y: tree.y + tree.height * .43, z: tree.z };
+  const view = Array.from({ length: 20 }, (_, i) => {
+    const angle = i * Math.PI / 10;
+    const x = tree.x + Math.cos(angle) * 20, z = tree.z + Math.sin(angle) * 20;
+    return { x, y: nav.probe.height(x, z) + 1.72, z };
+  }).find(p => nav.contains(p.x, p.z) && Math.abs(p.y - target.y) < 4 &&
+    sightLine(p, { x: target.x, y: target.y, z: target.z }, nav.probe.height, colliders));
+  const eye = view ?? { x: tree.x - 20, z: tree.z, y: nav.probe.height(tree.x - 20, tree.z) + 1.72 };
+  await page.addInitScript(({ saved, key }) => {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(saved));
+  }, { saved: guest.checkpoint(), key: savedKey });
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  const look = async () => {
+    await ready(page);
+    await page.evaluate(async ({ eye, target }) => {
+      const g = (window as any).game;
+      await g.hf.ensureArea(0, eye.x, -eye.z, 150);
+      await g.lookAt(eye.x, eye.z, target.x, target.y, target.z, 1.72);
+    }, { eye, target });
+    await page.waitForFunction(litAt => {
+      const { mountainGuest: m } = (window as any).game;
+      return m.traces.firs.some((f: any) => f.litAt === litAt) && m.decoratedFirs.get(litAt)?.group.visible &&
+        m.group.getObjectByName('santa-fir-bulbs')?.count > 16 && m.group.getObjectByName('santa-ski-trail')?.visible &&
+        !m.group.getObjectByName('mountain-guest')?.visible;
+    }, fir!.litAt);
+  };
+  await page.goto('/?' + params);
+  await look();
+  await page.keyboard.press('H');
+  await page.keyboard.press('V');
+  await page.screenshot({ path: info.outputPath('santa-fir-afterward.png') });
+  await page.reload();
+  await look();
   expect(errors).toEqual([]);
 });
 
@@ -147,7 +204,7 @@ test('two friends and a reconnect see the same resident, even when they start fa
   } finally { await second.close(); }
 });
 
-test('nearby Santa bells and the discovery chord reach the game audio graph', async ({ page }) => {
+test('directional bells, fir chimes and the discovery chord reach the game audio graph', async ({ page }) => {
   await page.goto('/?' + params);
   await ready(page);
   const result = await page.evaluate(async () => {
@@ -158,13 +215,20 @@ test('nearby Santa bells and the discovery chord reach the game audio graph', as
     const input = { speed: 0, skid: 0, edge: 0, grounded: true, groomed: 1, moguls: 0, plow: 0,
       riding: false, nearTerminal: 1000, towerPass: false, fell: false, inAir: false, altitude: 2800 };
     const out: Record<string, { voices: number; l: number; r: number }> = {};
-    for (const kind of ['near', 'far', 'chord', 'muted']) {
+    for (const kind of ['near', 'lead', 'far', 'chord', 'muted', 'release', 'approach']) {
       const ctx = new OfflineAudioContext(2, 24000, 24000), a = new Audio();
       a.enabled = kind !== 'muted';
       a.start(ctx);
       a.update(1 / 60, input, 0);
-      a.santaPass(1 / 60, kind === 'far' || kind === 'chord' ? { ...pose, x: 40 } : pose, listener, forward);
+      const x = kind === 'near' ? 5 : kind === 'lead' ? 42 : 72;
+      a.santaPass(1 / 60, { ...pose, x }, listener, forward);
       if (kind === 'chord' || kind === 'muted') a.santaDiscovery();
+      if (kind === 'release' || kind === 'approach' || kind === 'muted') {
+        const f = [{ litAt: 80, anchor: { x: kind === 'release' ? 28 : 7, y: 2801.3, z: 0 } }];
+        const age = kind === 'release' ? 80.4 : 300;
+        a.santaFirChimes(f, age, listener, forward);
+        a.santaFirChimes(f, age + .1, listener, forward);
+      }
       const voices = a.activeVoices;
       const render = await ctx.startRendering();
       const l = render.getChannelData(0), r = render.getChannelData(1);
@@ -179,11 +243,16 @@ test('nearby Santa bells and the discovery chord reach the game audio graph', as
     return out;
   });
   expect(result.near.voices).toBe(1);
+  expect(result.lead.voices).toBe(2);
   expect(result.far.voices).toBe(0);
   expect(result.chord.voices).toBe(3);
   expect(result.muted.voices).toBe(0);
+  expect(result.release.voices).toBe(1);
+  expect(result.approach.voices).toBe(1);
   expect(result.near.r).toBeGreaterThan(result.near.l * 1.5);
   expect(result.near.r).toBeGreaterThan(result.far.r * 2);
+  expect(result.lead.r).toBeGreaterThan(result.far.r);
+  expect(result.release.r).toBeGreaterThan(result.far.r);
   expect(result.chord.r + result.chord.l).toBeGreaterThan((result.far.r + result.far.l) * 2);
   expect(result.muted.r + result.muted.l).toBeLessThan(.000001);
 });

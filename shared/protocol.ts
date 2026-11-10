@@ -2,6 +2,7 @@
 import type { LiftPlayback, LiftSpeed } from './liftClock';
 import type { ChairSwing } from './chairSwing';
 import type { GuestPose } from './mountainGuest';
+import type { SantaTraces } from './santaFestivities';
 
 export const MAX_PLAYERS = 8;
 export const TICK_HZ = 15;
@@ -40,11 +41,12 @@ export type ClientMsg =
   | { type: 'ping'; t: number };
 
 export type ServerMsg =
-  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose }
+  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose; santaTraces?: SantaTraces }
   | { type: 'error'; reason: string }
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }
   | { type: 'snapshot'; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; mountainGuest?: GuestPose }
+  | { type: 'santaTraces'; traces: SantaTraces }
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
   | { type: 'unloaded'; id: string }

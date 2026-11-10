@@ -1,5 +1,11 @@
 # Progress
 
+## Santa's lit firs and tracks (November 10, 2026, release in progress)
+
+- Santa now skis upright at a slower pace, gives a hat tip in response to the existing wave gesture, and can pause for a waving skier on gentle snow. The same replay peaked at 18 mph after the change, down from 32 mph. The resident still completes courses and boards and unloads at all three lifts.
+- Firs light up from the lower branches when he releases his star. The bulbs cast a warm glow on the snow, and the fir chimes at release or when a visitor approaches. The lights last 25 minutes and the ski grooves and gold flecks last 15 minutes of world time. Both are shared and saved, and the optional Santa map shows them. Directional sleigh bells can be heard farther ahead of a pass.
+- Build, 182 unit tests, five pipeline checks and all eight Santa browser scenarios passed. Reviewed the lit fir and tracks at 20 m in daylight with Santa over 400 m away, and the fir at dusk with Santa beside it. Captures are in `screenshots/santa-magic/`. Next, verify the committed production client and server image, then push and check both public services.
+
 ## Santa's Christmas details (November 10, 2026, released)
 
 - Santa now has nearby, directional sleigh bells, gold flecks driven by his ski edges, and a small green gift sack with holly and shifting parcels. The sack clips to his belt and settles against his hip on the chair.

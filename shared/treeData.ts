@@ -73,13 +73,13 @@ export function coniferBoughs(kind: 0 | 1, detail: 'high' | 'low') {
 
 const nearBoughs = [coniferBoughs(0, 'high'), coniferBoughs(1, 'high')];
 
-export function* ornamentBranches(tree: FirInstance, maxY: number) {
+export function* ornamentBranches(tree: FirInstance, maxY: number, reachFraction = .77) {
   const yaw = tree.seed / 255 * Math.PI * 2, lean = (tree.seed * 7 % 255) / 255 * .04 - .02;
   const c = Math.cos(yaw), s = Math.sin(yaw), cl = Math.cos(lean), sl = Math.sin(lean);
   const width = tree.radius / CONIFER_RADIUS, height = tree.height / CONIFER_HEIGHT;
   for (const b of nearBoughs[tree.kind]) {
     if (tree.y - .2 + (b.level - .85) * height > maxY + .8) break;
-    const pitch = Math.atan2(b.drop, b.reach), along = b.reach * .77;
+    const pitch = Math.atan2(b.drop, b.reach), along = b.reach * reachFraction;
     const reach = along * Math.cos(pitch) * width;
     const x = Math.cos(b.angle) * reach, z = -Math.sin(b.angle) * reach;
     const y = (b.level - along * Math.sin(pitch)) * height;

@@ -6,6 +6,7 @@ import { resortClock } from '../world/resortClock';
 import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../../../shared/protocol';
 import { TICK_HZ } from '../../../shared/protocol';
 import type { GuestPose } from '../../../shared/mountainGuest';
+import type { SantaTraces } from '../../../shared/santaFestivities';
 import type { LiftSpeed } from '../../../shared/liftClock';
 import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
@@ -69,7 +70,8 @@ export class NetClient {
   private rttBest = Infinity;
   onChat?: (name: string, text: string) => void;
   onStatus?: (text: string) => void;
-  onMountainGuest?: (pose: GuestPose, at: number) => void;
+  onMountainGuest?: (pose: GuestPose, at: number, reset?: boolean) => void;
+  onSantaTraces?: (traces: SantaTraces | undefined, reset?: boolean) => void;
   private teleportPending = false;
   private pendingBoard: { lift: number; chair: number; seat: number; at: number; saved: SkierState } | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -173,7 +175,8 @@ export class NetClient {
     this.lifts.clockOffset = 0;
     this.lifts.clocks.forEach((clock, i) => clock.sync(m.liftPlayback?.[i] ?? {time:m.serverTime,at:m.serverTime,rate:1}, m.serverTime));
     this.rttBest=Infinity;
-    if (m.mountainGuest) this.onMountainGuest?.(m.mountainGuest, m.serverTime);
+    this.onSantaTraces?.(m.santaTraces, true);
+    if (m.mountainGuest) this.onMountainGuest?.(m.mountainGuest, m.serverTime, true);
     for (const p of m.players) this.addRemote(p);
     this.send({ type: 'ping', t: Date.now() / 1000 });
     clearInterval(this.pingTimer);
@@ -254,6 +257,7 @@ export class NetClient {
           this.setRemoteDrone(r,p.drone ?? null);
         }
         break;
+      case 'santaTraces': this.onSantaTraces?.(m.traces); break;
       case 'boarded':
         if (m.id === this.id) {
           if (this.droneOnly) break;
