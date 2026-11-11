@@ -180,7 +180,7 @@ export class SnowballFights {
       at: a.fall.at, seed: a.fall.seed, pos: a.st.pos, targetPos: a.st.pos, velocity: a.st.vel });
     for (const [id, e] of this.gear) {
       const actor = actors.find(a => a.id === id);
-      if (at - e.at > .9 && (!actor || actor.active) || at - e.at > 45) { e.sale.clear(); this.group.remove(e.sale.group); this.gear.delete(id); }
+      if (at - e.at > .9 && (!actor || actor.active)) { e.sale.clear(); this.group.remove(e.sale.group); this.gear.delete(id); }
       else {
         // Render the seeded gear on a fixed clock too, so packet arrival and FPS do not change its path.
         const age = Math.min(8, Math.max(0, at - e.at));

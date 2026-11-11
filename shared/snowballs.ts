@@ -83,6 +83,7 @@ export class SnowballWorld {
     this.tickAt = at;
     for (const shot of this.shots.values()) {
       const start = Math.max(from, shot.at), end = Math.min(at, shot.at + SNOWBALL.life);
+      if (end < start) { this.shots.delete(shot.id); continue; }
       const steps = Math.ceil(Math.max(0, end - start) * 150);
       let hit: SnowballHit | null = null;
       for (let i = 0; i <= steps; i++) {
@@ -115,6 +116,7 @@ export class SnowballWorld {
     }
     this.replies = this.replies.filter(r => {
       if (at < r.due) return true;
+      if (at - r.due > 5) return false;
       const a = actors.find(a => a.id === r.npc), b = actors.find(a => a.id === r.player);
       if (!a || !b) return false;
       if (!a.active && at < r.due + 5) return true; // finish gathering their skis first

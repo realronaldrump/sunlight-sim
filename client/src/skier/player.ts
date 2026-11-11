@@ -74,6 +74,7 @@ export class Player {
 
   teleport(x: number, z: number, heading: number) {
     this.snowballFall = undefined;
+    this.model.resetSnowballs();
     if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l, true); }
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, heading);
     this.sitBlend = 0; this.fallenBlend = 0; this.pickupOffset = null; this.inLoadZone = -1;

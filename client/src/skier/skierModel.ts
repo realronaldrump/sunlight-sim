@@ -78,6 +78,7 @@ export class SkierModel {
 
   hitBySnowball(seed: number) { this.snowFall = { age: 0, side: seed % 2 ? 1 : -1, spin: .7 + (seed % 7) / 7 }; }
   throwSnowball(yaw: number) { this.snowThrow = { age: 0, yaw }; }
+  resetSnowballs() { this.snowFall = this.snowThrow = null; }
 
   constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
     this.human = new HumanBody(jacket, skin, lod);
@@ -108,6 +109,7 @@ export class SkierModel {
   }
   /** Dress as a particular resort guest: jacket, skin tone, helmet (or beanie colour) and body size. */
   dress(look: { jacket: number; skin: number[]; hatColor: number; scale?: number }) {
+    this.resetSnowballs();
     this.setJacket(look.jacket);
     this.human.setSkin(new THREE.Color(look.skin[0], look.skin[1], look.skin[2]));
     this.setHelmet(look.hatColor);

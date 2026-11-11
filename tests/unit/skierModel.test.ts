@@ -43,6 +43,8 @@ describe('skier rendering', () => {
     for (let i = 0; i < 130; i++) model.update({ ...pose, time: 4 + i / 60, fallen: Math.max(0, 1 - i / 96) });
     model.update({ ...pose, time: 7, fallen: 0 });
     expect((model as any).skis.every((s: THREE.Object3D) => s.visible)).toBe(true);
+    model.hitBySnowball(17); model.resetSnowballs(); model.update({...pose,time:8});
+    expect((model as any).skis.every((s: THREE.Object3D) => s.visible)).toBe(true);
   });
 
   it('keeps finite poses attached to the skier after world translation and rotation', () => {

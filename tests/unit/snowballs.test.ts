@@ -58,6 +58,14 @@ describe('snowball flight and knockdowns', () => {
     for (let i = 0; i < 70; i++) w.throw(actor(`other${i}`), 0, .1, 1);
     expect(w.shots.size).toBe(SNOWBALL.max);
   });
+  it('never replays expired impacts or retaliation after a suspended tab resumes', () => {
+    const a=actor(), b=actor('b',-12), w=new SnowballWorld(()=>0);
+    w.throw(a,0,.15,0);w.drain();w.advance(50,[a,b]);
+    expect(w.shots.size).toBe(0);expect(w.drain()).toEqual([]);expect(b.active).toBe(true);
+    const npc={...actor('npc/1',-10),kind:'npc' as const}, fight=new SnowballWorld(()=>0), aim=aimSnowball(a,npc);
+    fight.throw(a,aim.yaw,aim.pitch,0);run(fight,[a,npc],0,2);fight.drain();npc.active=true;
+    fight.advance(50,[a,npc]);expect(fight.drain()).toEqual([]);
+  });
   it('tips a skier while preserving momentum, then uses normal slope friction and recovery', () => {
     const st = createSkier({ x: 0, y: 0, z: 0 }); st.vel = { x: 0, y: 0, z: -10 }; st.speed = 10;
     snowballKnockdown(st, hit);

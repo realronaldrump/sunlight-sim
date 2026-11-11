@@ -10,7 +10,7 @@ import { loadWorld, makeProbe } from '../harness/world';
 const idle = { steer: 0, tuck: false, plow: 0, stop: false, push: false };
 vi.mock('../../client/src/skier/skierModel', async () => {
   const { Group } = await import('three/webgpu');
-  return { SkierModel: class { root = new Group(); update() {} } };
+  return { SkierModel: class { root = new Group(); update() {} resetSnowballs() {} } };
 });
 let paths: LiftPath[], stations: LiftStations;
 beforeAll(async () => {
