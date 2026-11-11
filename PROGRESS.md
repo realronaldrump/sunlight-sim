@@ -1,5 +1,13 @@
 # Progress
 
+## Snowball fights (November 11, 2026, in progress)
+
+- Q, right click and LB toss ballistic snowballs at players and ordinary NPC slope skiers. Room authority validates origins, aim, cooldowns and hits. Multiplayer slope NPCs now have shared identities, clothing and physics. Throws are predicted immediately and reconciled by ID. Welcome packets include in-flight balls.
+- A hit causes a momentum-preserving fall, seeded flailing and tumbling, and four flying pieces of ski equipment. The skier slides under the existing snow physics. R gets a stopped player back up. NPCs recover and may throw back. The owner requested BOOP! occasionally; it is mixed into hit pops and toasts. Added compact snow sounds through the existing mixer, a powder burst, an aim ring and control help.
+- Starting build, 182 unit tests and five pipeline checks passed. With snowballs, build and all 195 unit tests passed. Chromium passed all three snowball scenarios and both smoke checks. WebKit passed NPC retaliation and player knockdowns. A missed moving room-NPC shot led to refining the bounded assist against current server positions; three consecutive WebKit room-NPC replays then passed. Final regression includes both browsers, right-click return fire, social gestures and ordinary skiing.
+- Reviewed Chromium captures of an NPC hit, detached gear, a friend hit and the fallen player's view. Fixed the snowball hint overlapping the drone button. Captures are in `screenshots/snowballs/`.
+- Next: finish moving-target and cross-browser regression checks, inspect the final animation captures, commit and push main, release the matching server and client, and verify the live exchange. Base pedestrians, the lesson group and Santa retain their schedules and are outside the ordinary slope-skier snowball population.
+
 ## Santa's lit firs and tracks (November 10, 2026, released)
 
 - Santa now skis upright at a slower pace, gives a hat tip in response to the existing wave gesture, and can pause for a waving skier on gentle snow. The same replay peaked at 18 mph after the change, down from 32 mph. The resident still completes courses and boards and unloads at all three lifts.

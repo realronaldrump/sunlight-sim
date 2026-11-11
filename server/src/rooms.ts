@@ -11,6 +11,8 @@ import { MountainGuest, readGuestCheckpoint, type GuestCheckpoint } from '../../
 import type { GuestNavigation } from '../../shared/mountainGuestNavigation';
 import type { ColliderGrid } from '../../shared/collision';
 import type { SantaVisitor } from '../../shared/santaFestivities';
+import { SNOWBALL, SnowballWorld, aimSnowball, type SnowballActor } from '../../shared/snowballs';
+import { SlopeSkiers } from '../../shared/slopeSkiers';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
@@ -52,8 +54,20 @@ export class Room {
   seats = new Map<string, Map<number, string>>();
   private guestTick = now();
   private tracesAfter: number;
-  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea, readonly guest?: MountainGuest) {
+  readonly snowballs: SnowballWorld;
+  readonly slopeSkiers?: SlopeSkiers;
+  constructor(public code: string, private lifts: LiftPath[], private flightArea = droneArea, readonly guest?: MountainGuest,
+    world?: { navigation: GuestNavigation; colliders: ColliderGrid }) {
     this.liftClocks = lifts.map(() => new LiftClock());
+    this.snowballs = new SnowballWorld(world ? (x, z) => world.navigation.probe.height(x, z) : () => -Infinity, world?.colliders);
+    if (world) this.slopeSkiers = new SlopeSkiers(world.navigation.courses.map(c => c.run), world.navigation.probe, world.colliders,
+      Array.from(code).reduce((s, c) => Math.imul(s, 31) + c.charCodeAt(0), 17));
+    this.snowballs.onHit = hit => {
+      if (!hit.target) return;
+      this.slopeSkiers?.hit(hit);
+      const p = this.players.get(hit.target);
+      if (p) { p.s = { ...p.s, mode: 'fallen', fallen: 1, tuck: 0, plow: 0, snowballFall: { at: hit.at, seed: hit.seed } }; }
+    };
     this.tracesAfter = guest?.age ?? 0;
     const saved = guest?.checkpoint();
     // Resume the same trip after an empty room or a restart. Nobody is on the
@@ -75,7 +89,8 @@ export class Room {
     };
     this.players.set(id, p);
     conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, mountainGuest: this.guest?.pose(),
-      santaTraces: this.guest?.santaTraces(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
+      santaTraces: this.guest?.santaTraces(), snowballs: [...this.snowballs.shots.values()], slopeSkiers: this.slopeSkiers?.snapshot(),
+      liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
     return p;
   }
@@ -124,6 +139,21 @@ export class Room {
     const t = now();
     p.lastRx = t;
     switch (msg.type) {
+      case 'snowball': {
+        if (typeof msg.token !== 'string' || !/^[a-z0-9]{1,16}$/i.test(msg.token)) return;
+        const actors = this.snowballActors(), actor = actors.find(a => a.id === id);
+        let { yaw, pitch } = msg;
+        // Reconcile the small aim assist with current authority positions, never a client-supplied hit.
+        const target = actors.find(a => a.id === msg.target && a.id !== id && a.active);
+        if (actor && target && [yaw, pitch].every(Number.isFinite) && Math.abs(pitch) <= .66 &&
+            Math.hypot(actor.pos.x - target.pos.x, actor.pos.z - target.pos.z) <= SNOWBALL.range) {
+          const aim = aimSnowball(actor, target);
+          if (Math.abs(Math.atan2(Math.sin(aim.yaw - yaw), Math.cos(aim.yaw - yaw))) < .26 && Math.abs(aim.pitch - pitch) < .2) ({ yaw, pitch } = aim);
+        }
+        if (actor) this.snowballs.throw(actor, yaw, pitch, t, msg.token);
+        this.publishSnowballs();
+        return;
+      }
       case 'state': {
         const s = msg.s;
         if (!s || ![s.x, s.y, s.z, s.heading, s.vx, s.vy, s.vz].every(Number.isFinite)) return;
@@ -163,7 +193,11 @@ export class Room {
         const k = sp > MAX_SPEED ? MAX_SPEED / sp : 1;
         const tumble = s.tumble && [s.tumble.pitch, s.tumble.roll].every(v => Number.isFinite(v) && Math.abs(v) < 30)
           ? { ...s.tumble } : undefined;
-        p.s = { ...s, swing: undefined, tumble, vx: s.vx * k, vy: s.vy * k, vz: s.vz * k, mode: String(s.mode).slice(0, 12) };
+        const snowballFall = p.s.snowballFall;
+        const recovering = snowballFall && (t - snowballFall.at < 1.5 || s.mode === 'fallen' || s.mode === 'gettingUp');
+        p.s = { ...s, swing: undefined, tumble, vx: s.vx * k, vy: s.vy * k, vz: s.vz * k, mode: String(s.mode).slice(0, 12),
+          snowballFall: recovering ? snowballFall : undefined };
+        if (snowballFall && t - snowballFall.at < 1.5) { p.s.mode = 'fallen'; p.s.fallen = 1; }
         p.initialized = true;
         p.t = t;
         return;
@@ -301,8 +335,25 @@ export class Room {
       this.guest.advance(t - this.guestTick, this.liftClocks.map(clock => clock.now(t)),
         (lift, chair, seat) => !this.seats.get(`${lift}/${chair}`)?.has(seat), true, visitors);
     }
+    this.slopeSkiers?.advance(Math.max(0, Math.min(.25, t - this.guestTick)), [...this.players.values()]
+      .filter(p => p.initialized && p.controlMode !== 'drone' && !p.drone && !p.ride).map(p => ({ x: p.s.x, y: p.s.y, z: p.s.z })));
+    this.snowballs.advance(t, this.snowballActors());
+    this.publishSnowballs();
     this.guestTick = t;
-    return { type: 'snapshot', serverTime: t, mountainGuest: this.guest?.pose(), liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
+    return { type: 'snapshot', serverTime: t, mountainGuest: this.guest?.pose(), slopeSkiers: this.slopeSkiers?.snapshot(),
+      liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].map(info) };
+  }
+
+  private snowballActors(): SnowballActor[] {
+    return [...this.players.values()].map<SnowballActor>(p => ({ id: p.id, name: p.name, kind: 'player',
+      pos: { x: p.s.x, y: p.s.y, z: p.s.z }, vel: { x: p.s.vx, y: p.s.vy, z: p.s.vz }, heading: p.s.heading,
+      active: p.initialized && now() - p.t < 2 && p.controlMode !== 'drone' && !p.drone && !p.ride &&
+        ['skiing', 'standing'].includes(p.s.mode) && p.s.fallen < .1 })).concat(this.slopeSkiers?.actors() ?? []);
+  }
+
+  private publishSnowballs() {
+    const events = this.snowballs.drain();
+    if (events.length) this.broadcast({ type: 'snowballs', events });
   }
 
   broadcast(msg: ServerMsg, except?: string) {
@@ -357,7 +408,7 @@ export class Lobby {
         const saved = readGuestCheckpoint(this.guestCheckpoints.get(code), navigation);
         guest = new MountainGuest(navigation, colliders, seed, saved ?? undefined);
       }
-      r = new Room(code, this.lifts, droneArea, guest);
+      r = new Room(code, this.lifts, droneArea, guest, this.world);
       this.rooms.set(code, r);
     }
     const p = r.join(conn, name, color, controlMode);

@@ -22,7 +22,7 @@ export class CameraRig {
 
   constructor(public camera: THREE.PerspectiveCamera, dom: HTMLElement, private ground: (x: number, z: number) => number) {
     let lx = 0, ly = 0;
-    dom.addEventListener('mousedown', (e) => { if (!this.enabled) return; this.dragging = true; lx = e.clientX; ly = e.clientY; });
+    dom.addEventListener('mousedown', (e) => { if (!this.enabled || e.button !== 0) return; this.dragging = true; lx = e.clientX; ly = e.clientY; });
     window.addEventListener('mouseup', () => (this.dragging = false));
     window.addEventListener('mousemove', (e) => {
       if (!this.dragging || !this.enabled) return;

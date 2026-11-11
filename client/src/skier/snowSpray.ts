@@ -45,6 +45,18 @@ export class SnowSpray {
     return this.seed / 4294967296;
   }
 
+  /** The compact ball breaks into soft powder and heavier clumps at contact. */
+  burst(at: { x: number; y: number; z: number }, seed: number) {
+    this.seed = seed >>> 0;
+    for (let n = 0; n < 65; n++) {
+      const i = this.cursor, k = i * 3; this.cursor = (i + 1) % CAPACITY;
+      this.positions[k] = at.x; this.positions[k + 1] = at.y; this.positions[k + 2] = at.z;
+      const yaw = this.random() * Math.PI * 2, speed = .6 + this.random() * 3.2;
+      this.velocities[k] = Math.sin(yaw) * speed; this.velocities[k + 1] = .3 + this.random() * 3.1; this.velocities[k + 2] = Math.cos(yaw) * speed;
+      this.ages[i] = 0; this.lives[i] = .35 + this.random() * .65; this.radii[i] = .025 + this.random() * .11;
+    }
+  }
+
   emit(left: THREE.Vector3, right: THREE.Vector3, direction: THREE.Vector3, width: number, strength: number, speed: number) {
     if (speed < 2) return;
     const force = THREE.MathUtils.clamp((width - 0.1) * 5 + (strength - 0.7), 0.05, 1.7);

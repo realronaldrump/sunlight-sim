@@ -8,6 +8,7 @@ import type { LiftSystem } from '../lifts/liftSystem';
 import { BOARD_FACING_COS } from '../../../shared/lifts';
 import { carriedSwing, createChairSwing, stepChairSwing, swingingRiderPoint, chairReleaseVelocity, type ChairSwing } from '../../../shared/chairSwing';
 import { MISSED, missedSwing, flingVelocity } from '../../../shared/missedUnload';
+import { snowballKnockdown, type SnowballHit, type SnowballFall } from '../../../shared/snowballs';
 
 export interface RideState { lift: number; chair: number; seat: number; boardedAt: number; unloadAt: number }
 
@@ -54,6 +55,14 @@ export class Player {
   gag: 'missed' | 'jump' | null = null;
   private emptyChair: { lift: number; chair: number; swing: ChairSwing; left: number } | null = null;
   private lastLift = 0;
+  snowballFall: SnowballFall | undefined;
+  knockBySnowball(hit: SnowballHit) {
+    if (this.ride || this.st.mode === 'fallen') return;
+    snowballKnockdown(this.st, hit);
+    this.snowballFall = { at: hit.at, seed: hit.seed };
+    this.gesture = null;
+    this.model.hitBySnowball(hit.seed);
+  }
 
   constructor(pos: THREE.Vector3, heading: number, private probe: TerrainProbe, private colliders: ColliderGrid, private lifts: LiftSystem) {
     this.st = createSkier({ x: pos.x, y: pos.y, z: pos.z }, heading);
@@ -64,6 +73,7 @@ export class Player {
   get rideSwing() { return carriedSwing(this.chairSwing, this.ride ? this.lifts.chairSwing?.(this.ride.lift, this.ride.chair) : undefined); }
 
   teleport(x: number, z: number, heading: number) {
+    this.snowballFall = undefined;
     if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l, true); }
     this.st = createSkier({ x, y: this.probe.height(x, z), z }, heading);
     this.sitBlend = 0; this.fallenBlend = 0; this.pickupOffset = null; this.inLoadZone = -1;

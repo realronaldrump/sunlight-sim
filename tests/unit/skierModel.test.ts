@@ -32,6 +32,19 @@ describe('skier rendering', () => {
     expect(meshes.some(m => m.geometry.type === 'CapsuleGeometry')).toBe(false);
   });
 
+  it('releases skis during a snowball tumble and restores the finite rig after getting up', () => {
+    const model = new SkierModel(); model.hitBySnowball(17);
+    for (let i = 0; i < 120; i++) {
+      model.update({ ...pose, time: 2 + i / 60, fallen: 1 });
+      model.root.updateMatrixWorld(true);
+      expect((model as any).skis.every((s: THREE.Object3D) => !s.visible)).toBe(true);
+      expect((model as any).body.rotation.toArray().slice(0,3).every(Number.isFinite)).toBe(true);
+    }
+    for (let i = 0; i < 130; i++) model.update({ ...pose, time: 4 + i / 60, fallen: Math.max(0, 1 - i / 96) });
+    model.update({ ...pose, time: 7, fallen: 0 });
+    expect((model as any).skis.every((s: THREE.Object3D) => s.visible)).toBe(true);
+  });
+
   it('keeps finite poses attached to the skier after world translation and rotation', () => {
     const model = new SkierModel();
     const skin = model.root.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh;

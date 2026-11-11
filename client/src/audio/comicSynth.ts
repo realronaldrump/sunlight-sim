@@ -47,5 +47,14 @@ export function whistle(ctx: Ctx) {
   return b;
 }
 
-export const COMIC = { boing, whoosh, thud, whistle };
+function snow(ctx: Ctx, hit: boolean) {
+  const b = buffer(ctx, hit ? .28 : .18), d = b.getChannelData(0), sr = ctx.sampleRate, r = rng(hit ? 91 : 29); let lp = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr, n = r() * 2 - 1; lp += (n - lp) * (hit ? .17 : .08);
+    const envelope = Math.min(1, t / .006) * Math.exp(-t * (hit ? 19 : 26));
+    d[i] = (hit ? lp * 1.9 + n * .16 : (n - lp) * .27) * envelope;
+  }
+  return b;
+}
+export const COMIC = { boing, whoosh, thud, whistle, snowToss: (ctx: Ctx) => snow(ctx, false), snowHit: (ctx: Ctx) => snow(ctx, true) };
 export type ComicSound = keyof typeof COMIC;

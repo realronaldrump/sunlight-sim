@@ -3,7 +3,9 @@
 // that starts near that lift's top, chosen to suit their ability. At the bottom they head back into the
 // lift lines (handled by baseLife.ts). A few more start mid-run near the player so slopes are never empty.
 import * as THREE from 'three/webgpu';
-import { createSkier, stepSkier, SkierState, TerrainProbe, headingFromDir } from '../../../shared/skiPhysics';
+import { createSkier, stepSkier, getUp, SkierState, TerrainProbe, headingFromDir } from '../../../shared/skiPhysics';
+import { snowballKnockdown, type SnowballActor, type SnowballFall, type SnowballHit } from '../../../shared/snowballs';
+import type { SlopeSkier } from '../../../shared/slopeSkiers';
 import { SkiBot, PERSONAS, Persona } from '../../../shared/skiBot';
 import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
@@ -11,7 +13,7 @@ import type { RunInfo } from '../game';
 import type { LiftSystem } from '../lifts/liftSystem';
 import { makeGuest, type Guest } from './guests';
 
-interface Agent { st: SkierState; bot: SkiBot; model: SkierModel; time: number; run: string; fromLift: boolean; guest: Guest }
+interface Agent { st: SkierState; bot: SkiBot; model: SkierModel; time: number; run: string; fromLift: boolean; guest: Guest; snowballFall?: SnowballFall }
 
 export class AmbientSkiers {
   readonly group = new THREE.Group();
@@ -19,6 +21,8 @@ export class AmbientSkiers {
   private spare: SkierModel[] = [];
   private runs: RunInfo[];
   private lastLiftT: number[] = [];
+  private remote: { skiers: SlopeSkier[]; at: number } | null = null;
+  private remoteModels = new Map<number, { model: SkierModel; st: SkierState; time: number; hit?: number }>();
   /** A skier finished their run at the bottom. Return true when the base area takes them (into a lift line). */
   onFinish: ((guest: Guest, st: SkierState) => boolean) | null = null;
   /** Share of the usual number of skiers on the hill (Resort Day: quiet early, busy midday, none after the sweep). */
@@ -30,11 +34,29 @@ export class AmbientSkiers {
   }
 
   /** Skiers on the snow right now (for their tracks and wear). */
-  skiers() { return this.agents.map((a) => ({ id: a.guest.id, st: a.st })); }
+  skiers() { return this.remote ? [...this.remoteModels].map(([id, a]) => ({ id, st: a.st })) : this.agents.map((a) => ({ id: a.guest.id, st: a.st })); }
+
+  snowballActors(): SnowballActor[] { return this.skiers().map(a => ({ id: `npc/${a.id}`, name: 'Skier', kind: 'npc',
+    pos: a.st.pos, vel: a.st.vel, heading: a.st.heading, active: a.st.grounded && ['skiing', 'standing'].includes(a.st.mode) })); }
+  snowballModel(id: string) {
+    const n = Number(id.slice(4)); return this.remote ? this.remoteModels.get(n)?.model : this.agents.find(a => a.guest.id === n)?.model;
+  }
+  knockDown(hit: SnowballHit) {
+    const a = this.agents.find(a => `npc/${a.guest.id}` === hit.target);
+    if (a) { snowballKnockdown(a.st, hit); a.snowballFall = { at: hit.at, seed: hit.seed }; }
+  }
+  snowballFalls() { return this.remote ? this.remote.skiers.filter(a => a.snowballFall).map(a => ({ id: `npc/${a.id}`, fall: a.snowballFall!, st: a.st })) :
+    this.agents.filter(a => a.snowballFall).map(a => ({ id: `npc/${a.guest.id}`, fall: a.snowballFall!, st: a.st })); }
+
+  /** A single room simulation supplies both the visible NPCs and snowball collision targets. */
+  receive(skiers: SlopeSkier[], at: number) {
+    if (!this.remote) { for (const a of this.agents) this.release(a); this.agents = []; }
+    this.remote = { skiers, at };
+  }
 
   /** Read-only contacts for spatial pass-by sound; uses the same state as the visible skiers. */
   soundSources() {
-    return this.agents.map(a => ({ pos: a.st.pos, speed: a.st.speed, skid: a.st.skid,
+    return this.skiers().map(a => ({ pos: a.st.pos, speed: a.st.speed, skid: a.st.skid,
       groomed: this.probe.surface(a.st.pos.x, a.st.pos.z).groomed,
       active: a.st.grounded && a.st.mode !== 'riding' && a.st.mode !== 'air' }));
   }
@@ -113,6 +135,7 @@ export class AmbientSkiers {
   }
 
   update(dt: number, player: THREE.Vector3, camera: THREE.Vector3) {
+    if (this.remote) { this.updateRemote(dt, camera); return; }
     if (this.lifts) {
       {
         this.lifts.paths.forEach((path, li) => {
@@ -142,10 +165,11 @@ export class AmbientSkiers {
       a.time += dt;
       const inp = a.bot.input(a.st, dt);
       stepSkier(a.st, inp, this.probe, dt);
-      if (a.st.mode === 'fallen' && a.st.speed < 0.5 && a.st.modeTime > 2.5) { a.st.mode = 'standing'; }
+      if (a.st.mode === 'fallen' && a.st.speed < 1 && a.st.modeTime > 3) getUp(a.st);
+      if (a.snowballFall && !['fallen', 'gettingUp'].includes(a.st.mode)) a.snowballFall = undefined;
       const far = Math.hypot(a.st.pos.x - player.x, a.st.pos.z - player.z) > 1700;
-      if (a.bot.done && !far) this.onFinish?.(a.guest, a.st);
-      if (a.bot.done || far || a.time > 900) { this.release(a); this.agents.splice(i, 1); continue; }
+      if (a.bot.done && !far && !a.snowballFall) this.onFinish?.(a.guest, a.st);
+      if ((a.bot.done && !a.snowballFall) || far || a.time > 900) { this.release(a); this.agents.splice(i, 1); continue; }
       const dCam = Math.hypot(a.st.pos.x - camera.x, a.st.pos.z - camera.z);
       a.model.root.visible = dCam < 400;
       if (!a.model.root.visible) continue;
@@ -154,4 +178,34 @@ export class AmbientSkiers {
       a.model.update({ speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid, fallen: a.st.mode === 'fallen' ? 1 : 0, sitting: 0, time: a.time, pushing: inp.push && a.st.speed < 3 });
     }
   }
+
+  private updateRemote(dt: number, camera: THREE.Vector3) {
+    const ids = new Set(this.remote!.skiers.map(a => a.id));
+    for (const [id, a] of this.remoteModels) if (!ids.has(id)) {
+      a.model.root.visible = false; this.spare.push(a.model); this.remoteModels.delete(id);
+    }
+    for (const s of this.remote!.skiers) {
+      let a = this.remoteModels.get(s.id);
+      if (!a) {
+        const model = this.spare.pop() ?? new SkierModel(new THREE.Color(s.jacket), 'crowd');
+        model.dress(s); model.root.name = `room-skier-${s.id}`; this.group.add(model.root);
+        a = { model, st: structuredClone(s.st), time: 0 }; this.remoteModels.set(s.id, a);
+      }
+      a.time += dt;
+      // Short bounded extrapolation keeps the target and body together between 15 Hz packets.
+      const old = a.st.pos, lag = Math.max(0, Math.min(.12, Date.now() / 1000 + (this.clockOffset ?? 0) - this.remote!.at));
+      const target = { x: s.st.pos.x + s.st.vel.x * lag, y: s.st.pos.y, z: s.st.pos.z + s.st.vel.z * lag };
+      const k = Math.hypot(old.x - target.x, old.z - target.z) > 8 ? 1 : 1 - Math.exp(-18 * dt);
+      a.st = { ...s.st, pos: { x: old.x + (target.x - old.x) * k, y: old.y + (target.y - old.y) * k, z: old.z + (target.z - old.z) * k } };
+      if (s.snowballFall && a.hit !== s.snowballFall.at) { a.hit = s.snowballFall.at; a.model.hitBySnowball(s.snowballFall.seed); }
+      a.model.root.visible = Math.hypot(a.st.pos.x - camera.x, a.st.pos.z - camera.z) < 400;
+      if (!a.model.root.visible) continue;
+      a.model.root.position.set(a.st.pos.x, a.st.pos.y, a.st.pos.z);
+      orientSkier(a.model.root, a.st.heading, a.st.normal);
+      a.model.update({ speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid,
+        fallen: a.st.mode === 'fallen' ? 1 : a.st.mode === 'gettingUp' ? Math.max(0, 1 - a.st.modeTime / 1.6) : 0,
+        sitting: 0, time: a.time, pushing: a.st.speed < 3 });
+    }
+  }
+  clockOffset = 0;
 }

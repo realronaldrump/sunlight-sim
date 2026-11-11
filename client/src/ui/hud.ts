@@ -77,9 +77,10 @@ export class Hud {
       <kbd>F</kbd>: cycle lift speed (1×, 2×, 4×, 8×, 16×)<br>
       <kbd>L</kbd>: tag along with the Snowriders' Club lesson when you are near them<br>
       <kbd>1</kbd>: wave &nbsp; <kbd>2</kbd>: point downhill (friends see both)<br>
+      <kbd>Q</kbd> / right click: throw a snowball. Look toward a skier to aim. Hits cause a yard sale!<br>
       On foot: <kbd>K</kbd> at a ski rack leaves or picks up your skis, <kbd>E</kbd> sits at a free table<br>
       <kbd>K</kbd>: step out of / click into your skis. On foot, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk, <kbd>Shift</kbd> jogs, the lodge doors are open<br>
-      <kbd>Esc</kbd> / <kbd>P</kbd>: pause menu, ski log, teleport and options<br><kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera<br>
+      <kbd>Esc</kbd> / <kbd>P</kbd>: pause menu, ski log, teleport and options<br><kbd>T</kbd>: chat &nbsp; <kbd>N</kbd>: sound &nbsp; <kbd>H</kbd>: hide this help<br>Gamepad: left stick steer/tuck/brake, A stop, B get up, Y camera, LB snowball<br>
       Enter the loading lane facing uphill. The arriving chair picks you up where it reaches you. Drag the mouse to look around.`;
     document.body.appendChild(help);
     this.speedEl = document.getElementById('h-speed')!; this.slopeEl = document.getElementById('h-slope')!;

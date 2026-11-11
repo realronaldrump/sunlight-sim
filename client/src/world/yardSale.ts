@@ -6,6 +6,7 @@ import { skiPole, skiWithBindings } from '../skier/skiEquipment';
 export class YardSale {
   readonly group = new THREE.Group();
   active = false;
+  private flying: { object: THREE.Object3D; v: THREE.Vector3; spin: THREE.Vector3; pole: boolean; landed: boolean }[] = [];
   constructor() { this.group.name = 'yard-sale'; this.group.visible = false; }
 
   /** Scatter the gear ahead of the landing, along the direction of travel. */
@@ -47,5 +48,40 @@ export class YardSale {
     this.group.visible = true; this.active = true;
   }
 
-  clear() { this.group.clear(); this.group.visible = false; this.active = false; }
+  /** Bindings release as the skier tumbles. Deterministic velocities give friends the same yard sale. */
+  launch(at: { x: number; y: number; z: number }, velocity: { x: number; y: number; z: number }, seed: number) {
+    this.clear();
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < 4; i++) {
+      const pole = i > 1, object = pole ? skiPole() : skiWithBindings();
+      object.position.set(at.x + (i % 2 ? .2 : -.2), at.y + (pole ? 1 : .12), at.z);
+      object.rotation.set(random(), random() * Math.PI * 2, random());
+      this.group.add(object);
+      this.flying.push({ object, pole, landed: false,
+        v: new THREE.Vector3(velocity.x * .65 + (random() - .5) * 4, 1.4 + random() * 2.1, velocity.z * .65 + (random() - .5) * 4),
+        spin: new THREE.Vector3((random() - .5) * 12, (random() - .5) * 9, (random() - .5) * 8) });
+    }
+    this.group.visible = this.active = true;
+  }
+
+  update(dt: number, height: (x: number, z: number) => number) {
+    for (const a of this.flying) {
+      const p = a.object.position;
+      if (!a.landed) {
+        a.v.y -= 9.81 * dt; p.addScaledVector(a.v, dt);
+        a.object.rotation.x += a.spin.x * dt; a.object.rotation.y += a.spin.y * dt; a.object.rotation.z += a.spin.z * dt;
+        const ground = height(p.x, p.z) + .035;
+        if (p.y <= ground) {
+          p.y = ground; a.landed = true; a.v.y = 0;
+          a.object.rotation.set(a.pole ? Math.PI / 2 : 0, a.object.rotation.y, 0, 'YXZ');
+        }
+      } else {
+        const drag = Math.max(0, 1 - dt * (a.pole ? 3.5 : 1.8));
+        a.v.multiplyScalar(drag); p.x += a.v.x * dt; p.z += a.v.z * dt;
+        p.y = height(p.x, p.z) + .035;
+      }
+    }
+  }
+
+  clear() { this.flying = []; this.group.clear(); this.group.visible = false; this.active = false; }
 }

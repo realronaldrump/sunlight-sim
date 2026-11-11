@@ -3,6 +3,8 @@ import type { LiftPlayback, LiftSpeed } from './liftClock';
 import type { ChairSwing } from './chairSwing';
 import type { GuestPose } from './mountainGuest';
 import type { SantaTraces } from './santaFestivities';
+import type { SnowballEvent, SnowballFall, SnowballShot } from './snowballs';
+import type { SlopeSkier } from './slopeSkiers';
 
 export const MAX_PLAYERS = 8;
 export const TICK_HZ = 15;
@@ -19,6 +21,7 @@ export interface NetSkier {
   /** A gesture friends can see: a wave, or a point toward actYaw (radians, relative to heading). */
   act?: 'wave' | 'point';
   actYaw?: number;
+  snowballFall?: SnowballFall;
 }
 
 export interface NetRide { lift: number; chair: number; seat: number; boardedAt?: number }
@@ -38,14 +41,16 @@ export type ClientMsg =
   | { type: 'liftFall'; swing: ChairSwing; /** jumped off by choice, before the ramp */ jump?: boolean }
   | { type: 'liftSpeed'; rate?: LiftSpeed; cancel?: boolean; fast?: boolean }
   | { type: 'chat'; text: string }
+  | { type: 'snowball'; yaw: number; pitch: number; token: string; target?: string }
   | { type: 'ping'; t: number };
 
 export type ServerMsg =
-  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose; santaTraces?: SantaTraces }
+  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose; santaTraces?: SantaTraces; snowballs?: SnowballShot[]; slopeSkiers?: SlopeSkier[] }
   | { type: 'error'; reason: string }
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }
-  | { type: 'snapshot'; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; mountainGuest?: GuestPose }
+  | { type: 'snapshot'; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; mountainGuest?: GuestPose; slopeSkiers?: SlopeSkier[] }
+  | { type: 'snowballs'; events: SnowballEvent[] }
   | { type: 'santaTraces'; traces: SantaTraces }
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }

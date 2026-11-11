@@ -73,6 +73,11 @@ export class SkierModel {
   private lastTime = 0;
   private accessories?: SkierCostume['accessories'];
   private plantSide = 1;  // which pole (+1 right, -1 left)
+  private snowFall: { age: number; side: number; spin: number } | null = null;
+  private snowThrow: { age: number; yaw: number } | null = null;
+
+  hitBySnowball(seed: number) { this.snowFall = { age: 0, side: seed % 2 ? 1 : -1, spin: .7 + (seed % 7) / 7 }; }
+  throwSnowball(yaw: number) { this.snowThrow = { age: 0, yaw }; }
 
   constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
     this.human = new HumanBody(jacket, skin, lod);
@@ -112,7 +117,7 @@ export class SkierModel {
   /** Update joint positions. Local frame: feet at origin, skier faces -z, +x right. */
   update(p: SkierPose) {
     const t = p.time;
-    const gear = p.gear !== false;
+    const gear = p.gear !== false && !(this.snowFall && (this.snowFall.age < .8 || p.fallen > .08));
     for (const o of [...this.skis, ...this.poles]) o.visible = gear;
     const sit = p.sitting, tour = (p.touring?.amount ?? 0) * (1 - sit);
     const stride = (p.touring?.stride ?? 0) * Math.PI;
@@ -126,6 +131,8 @@ export class SkierModel {
     if (es !== 0 && es !== this.lastEdgeSign && p.speed > 3 && p.tuck < 0.3 && sit === 0) { this.plant = 1; this.plantSide = es; }
     if (es !== 0) this.lastEdgeSign = es;
     const dt = Math.max(0, Math.min(0.1, t - this.lastTime)); this.lastTime = t;
+    if (this.snowThrow) { this.snowThrow.age += dt; if (this.snowThrow.age > .65) this.snowThrow = null; }
+    if (this.snowFall) { this.snowFall.age += dt; if (this.snowFall.age > 1 && p.fallen < .08) this.snowFall = null; }
     this.plant = Math.max(0, this.plant - dt * 2.1);
     // ---- stance parameters ----
     const prepare = (p.liftPreparation ?? 0) * (1 - sit);
@@ -205,6 +212,16 @@ export class SkierModel {
         handR.lerp(shR.clone().addScaledVector(dir, 0.57), k);
       }
     }
+    if (this.snowThrow && !this.snowFall && sit < .1) {
+      const u = this.snowThrow.age / .65, reach = Math.sin(Math.min(1, u * 3) * Math.PI * .7);
+      const dir = V(-Math.sin(this.snowThrow.yaw), .16, -Math.cos(this.snowThrow.yaw));
+      handR.lerp(shR.clone().addScaledVector(dir, .57).add(V(0, .12 * (1 - u), .18 * (1 - u))), reach);
+    }
+    if (this.snowFall && this.snowFall.age < 1.25) {
+      const u = this.snowFall.age, k = Math.sin(Math.min(1, u / .18) * Math.PI / 2) * Math.max(0, 1 - u / 1.25);
+      handL.lerp(chest.clone().add(V(-.55, .18 + .22 * Math.sin(u * 19), -.15)), k);
+      handR.lerp(chest.clone().add(V(.55, .2 + .22 * Math.cos(u * 17), .1)), k);
+    }
     const action = p.costumeAction;
     const tip = action?.kind === 'hat-tip' ? action.amount : 0;
     const headTilt = new THREE.Euler(-.10 + .3 * p.tuck + .15 * tip,
@@ -278,5 +295,12 @@ export class SkierModel {
     const f = p.airborne ? 0 : p.fallen;
     this.body.rotation.set(-0.25 * f, 0, this.fallSide * f * 1.35);
     this.body.position.set(this.fallSide * f * 0.35, f * 0.12, 0);
+    if (this.snowFall) {
+      const { age, side, spin } = this.snowFall, topple = Math.min(1, age / .3);
+      const tumble = Math.min(1, p.speed / 7) * Math.exp(-age * 1.7);
+      this.body.rotation.set(-.25 * topple + Math.sin(age * 10 * spin) * tumble * .75,
+        Math.sin(age * 7) * tumble * .3, side * (topple * 1.35 + Math.sin(age * 12 * spin) * tumble * .8));
+      this.body.position.set(side * topple * .3, .1 + Math.abs(Math.sin(age * 12)) * tumble * .16, 0);
+    }
   }
 }

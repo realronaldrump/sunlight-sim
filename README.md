@@ -56,6 +56,7 @@ Start on skis just west of the main lodge deck, beside a ski rack. Press W to pu
 | F | Cycle the occupied lift through 1×, 2×, 4×, 8× and 16× speed |
 | L | Tag along with the Snowriders' Club lesson when you are near them (again to leave) |
 | 1 / 2 | Wave / point downhill (friends see it and are told which run you point down) |
+| Q / right click | Toss a snowball. Look toward a nearby skier for a little aim assist |
 | K | Step out of / click into your skis; at a lodge ski rack, leave or pick up your skis |
 | E | On foot: sit at a free table or bench, or stand up |
 | Esc / P | Pause menu: ski log, teleport destinations, clock, weather and options |
@@ -63,7 +64,9 @@ Start on skis just west of the main lodge deck, beside a ski rack. Press W to pu
 | N | Sound on/off |
 | H | Show/hide help |
 
-Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, Start opens the pause menu.
+Gamepad: left stick steers (up tucks, down brakes), A hockey stop, B get up, Y camera, LB throws a snowball, Start opens the pause menu.
+
+**Snowball fights happen wherever you ski.** Press Q, right click, or tap LB to toss one at a friend or an ordinary NPC skier. The small ring shows who you are aiming at. Snowballs arc through the air and break against snow, trees, walls or skiers. A hit sends the skier tumbling into a yard sale, with skis and poles flying and skittering across the snow. Your downhill momentum carries you into the slide. Once you stop, press R to get up and gather your gear. NPCs recover by themselves and may boop you right back. There is a brief packing pause between throws, unlimited snow and no score or match to join. In multiplayer everyone shares the same slope NPCs, throws and knockdowns. Lift riders, people on foot and drone pilots sit out the fight.
 
 Teleportation is available only in the pause menu: return to base, choose a run or friend on the travel map, or recall your drone. B has no binding. The normal map is for navigation and inspection.
 
@@ -84,6 +87,7 @@ To ride a lift, enter the loading approach facing uphill. The arriving chair pic
 - **Resort Day or Free Explore** (pause menu, Clock). Free Explore keeps the time you choose and runs the lifts at any hour. Resort Day runs a shared day (an hour every six minutes): lifts load 9 AM to 4 PM, the crowd follows the hour, ski patrol sweeps at closing and ropes off the runs, and the cats come out at dusk under a moonlit, starry sky.
 - **Weather** (pause menu): Changing sends snow squalls drifting through on the shared clock; one can hide Mount Sopris from the summit and later reveal it, and when one passes over you the sky greys and it snows. Clear and Light snow are also available.
 - **With friends.** Rack your skis, sit together on the deck, wave and point downhill. Friends see you walking in ski boots or seated at the table.
+- **Snowball fights.** Boop a friend or slope skier with Q, right click or LB. Hits cause a tumble and a flying yard sale. NPCs can recover and throw back.
 - **Get off the lift yourself.** Press Space (or the Stand up button) on the unload ramp at the top. Stay seated and the skis clip the missed-unload gate, the chair whirls you twice round the bull wheel and flings you into a yard sale. Press too early and, after one warning, you jump off and fall. Auto disembark is an option in the pause menu.
 - **Sound of a place.** The lodge has room tone, conversation, cups and the espresso machine; aspen groves hush the wind; exposed ridges gust.
 - **Ski log** (pause menu): session, today and all-time distance, vertical, time skiing and on lifts, speeds and ski days; every descent with its line and an elevation and speed profile; and a mountain map of trails not yet skied, partly skied and completed, with laps.

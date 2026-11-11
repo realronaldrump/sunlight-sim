@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { SnowballFights } from './world/snowballs';
 import { Heightfield } from './terrain/heightfield';
 import { TerrainRenderer } from './terrain/terrainRenderer';
 import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrainMaterial';
@@ -130,6 +131,7 @@ export class Game {
   /** Test hook: hours of traffic regardless of the time of day. */
   snowHoursOverride: number | null = null;
   ambient: AmbientSkiers | null = null;
+  snowballs!: SnowballFights;
   mountainGuest!: MountainGuestView;
   private santaGiftTag = new SantaGiftTag();
   private trackFade = 0;
@@ -318,6 +320,8 @@ export class Game {
       obstacles: (x,z) => this.colliders.query(x,z),
     }, this.camera,this.renderer.domElement,this.scene,this.droneOnly);
     this.drone.hud.onToggle = () => this.toggleDrone();
+    this.snowballs = new SnowballFights(this);
+    this.scene.add(this.snowballs.group);
     this.drone.hud.onCamera = () => this.drone.cycleCamera();
     this.playerMarker = new PlayerMarker();
     this.drone.hud.onMarker = () => { this.playerMarker.toggle(); this.drone.hud.marker(this.playerMarker.enabled); };
@@ -922,6 +926,7 @@ export class Game {
     }
     if (actions.help) { if (this.drone.active) this.drone.hud.help(); else this.hud.toggleHelp(); }
     if (this.input.enabled && !this.droneOnly && (actions.wave || actions.point)) this.startGesture(actions.wave ? 'wave' : 'point');
+    if (actions.snowball && this.input.enabled) this.snowballs.throw();
     this.updateGesture(dt);
     if (actions.mute) { this.audio.enabled = !this.audio.enabled; this.hud.toast(this.audio.enabled ? 'Sound on' : 'Sound off'); }
     if (actions.map) this.trailMap.toggle();
@@ -965,6 +970,7 @@ export class Game {
     }
     this.updateCamera(dt);
     this.mountainGuest.update(dt, this.camera, resortClock.now(), this.env.night.value);
+    this.snowballs.update(dt);
     if (this.mountainGuest.observe(dt, this.camera, this.input.enabled && !this.flyMode && !document.hidden, this.colliders)) {
       this.options.santaSighting(this.mountainGuest.discovery.foundAt);
       this.santaGiftTag.reveal();
@@ -1093,6 +1099,12 @@ export class Game {
     this.net?.disconnect();
     if (this.net) this.scene.remove(this.net.group);
     this.net = new NetClient(this.player, this.lifts, this.droneOnly);
+    this.net.onSnowballs = events => this.snowballs.receive(events);
+    this.net.onSnowballReset = shots => this.snowballs.reset(shots);
+    this.net.onSlopeSkiers = (skiers, at) => {
+      if (!this.ambient && !this.droneOnly) { this.ambient = new AmbientSkiers(this.resort.runs, this.probe, 0); this.scene.add(this.ambient.group); }
+      if (this.ambient) { this.ambient.clockOffset = this.net!.serverNow() - Date.now() / 1000; this.ambient.receive(skiers, at); }
+    };
     this.net.localDrone = () => {
       const s=this.drone.state;
       return s ? {x:s.pos.x,y:s.pos.y,z:s.pos.z,yaw:s.yaw,pitch:s.pitch,bank:s.bank,tilt:s.tilt,rpm:s.rpm} : null;
@@ -1104,6 +1116,7 @@ export class Game {
     this.net.onSantaTraces = (traces, reset) => this.mountainGuest.receiveTraces(traces, reset);
     this.net.localExtras = () => {
       const x: Record<string, unknown> = {};
+      if (this.player.snowballFall && ['fallen', 'gettingUp'].includes(this.player.st.mode)) x.snowballFall = this.player.snowballFall;
       if (this.onFoot.active) {
         const s = this.onFoot.seat;
         x.mode = s ? 'sitting' : 'walking';

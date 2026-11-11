@@ -7,6 +7,8 @@ import type { ClientMsg, ServerMsg, PlayerInfo, NetSkier, NetDrone } from '../..
 import { TICK_HZ } from '../../../shared/protocol';
 import type { GuestPose } from '../../../shared/mountainGuest';
 import type { SantaTraces } from '../../../shared/santaFestivities';
+import type { SnowballEvent, SnowballShot } from '../../../shared/snowballs';
+import type { SlopeSkier } from '../../../shared/slopeSkiers';
 import type { LiftSpeed } from '../../../shared/liftClock';
 import { SkierModel } from '../skier/skierModel';
 import { orientSkier } from '../skier/orientation';
@@ -62,6 +64,10 @@ export class NetClient {
   supportsLiftSpeed = false;
   /** The server lets riders get off by themselves (older servers unload everyone at the ramp). */
   supportsManualUnload = false;
+  supportsSnowballs = false;
+  onSnowballs?: (events: SnowballEvent[]) => void;
+  onSnowballReset?: (shots: SnowballShot[]) => void;
+  onSlopeSkiers?: (skiers: SlopeSkier[], at: number) => void;
   localDrone: (() => NetDrone | null) | null = null;
   remotes = new Map<string, RemoteSkier>();
   readonly group = new THREE.Group();
@@ -172,6 +178,9 @@ export class NetClient {
     this.clockOffset = m.serverTime - Date.now() / 1000; resortClock.offset = this.clockOffset;
     this.supportsLiftSpeed = !!m.liftPlayback;
     this.supportsManualUnload = !!m.manualUnload;
+    this.supportsSnowballs = Array.isArray(m.snowballs);
+    this.onSnowballReset?.(m.snowballs ?? []);
+    if (m.slopeSkiers) this.onSlopeSkiers?.(m.slopeSkiers, m.serverTime);
     this.lifts.clockOffset = 0;
     this.lifts.clocks.forEach((clock, i) => clock.sync(m.liftPlayback?.[i] ?? {time:m.serverTime,at:m.serverTime,rate:1}, m.serverTime));
     this.rttBest=Infinity;
@@ -245,6 +254,7 @@ export class NetClient {
         break;
       }
       case 'snapshot':
+        if (m.slopeSkiers) this.onSlopeSkiers?.(m.slopeSkiers, m.serverTime);
         if (m.mountainGuest) this.onMountainGuest?.(m.mountainGuest, m.serverTime);
         if (m.liftPlayback) this.lifts.clocks.forEach((clock, i) => { if (m.liftPlayback?.[i]) clock.sync(m.liftPlayback[i], Math.max(m.serverTime, this.serverNow())); });
         for (const p of m.players) {
@@ -258,6 +268,7 @@ export class NetClient {
         }
         break;
       case 'santaTraces': this.onSantaTraces?.(m.traces); break;
+      case 'snowballs': this.onSnowballs?.(m.events); break;
       case 'boarded':
         if (m.id === this.id) {
           if (this.droneOnly) break;
@@ -317,6 +328,7 @@ export class NetClient {
   cancelLiftSpeed() { this.send({ type: 'liftSpeed', cancel: true }); }
 
   chat(text: string) { this.send({ type: 'chat', text }); }
+  throwSnowball(yaw: number, pitch: number, token: string, target?: string) { this.sendState(); this.send({ type: 'snowball', yaw, pitch, token, target }); }
 
   serverNow() { return Date.now() / 1000 + this.clockOffset; }
 
