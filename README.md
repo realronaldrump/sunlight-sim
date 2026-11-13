@@ -193,6 +193,14 @@ The upper-left minimap follows your position while skiing and riding lifts. Nort
 
 Choose **Map only** to hide the header, trail key and zoom controls while keeping the live map on screen. Choose **Details** to bring them back. **V** hides or restores the whole minimap. **+** and **−** select map widths of 1,500 ft, 3,000 ft or 6,000 ft (shown as 1.1 mi). Settings persist in this browser. **M** opens the full trail map. Use the pause menu for teleport destinations. Clicking the minimap itself does not teleport you.
 
+## Pins and ski routes
+
+Press **M** and click a destination to drop a pin. The map finds a route from your skier over the actual snow, including connected lifts when needed. Follow the cyan line on the snow and both maps. Purple dashes are lift rides; dotted amber marks walking where a ski route cannot avoid it. Named steps show trail difficulty. The guide updates when you leave the route, board a chair or get off, and announces arrival at the pin.
+
+Routing prefers marked runs and easier terrain, checks trees, buildings and steep banks, and minimizes walking before travel time. Short poling and shuffling around a lift stay on skis. A pin inside an obstacle or outside the ski area does not produce an invented straight path. In Resort Day, closed lifts are excluded. Routes reflect the modeled terrain and estimated trail corridors, and can include advanced runs where the destination requires them.
+
+In multiplayer, each person has a pin and route in their jacket color. Friends see them on both maps and nearby snow; **Route to [name]’s pin** plans a route from your own position to the same destination. Late arrivals see existing routes, and reconnecting restores your pin. **Clear pin** removes your own guidance for everyone. Teleporting remains a separate pause-menu action; select **Drop a pin** to switch that map back to route planning.
+
 ## Chairlift easter egg
 
 On a chair, WASD or the arrow keys shift your weight. A small lean settles; repeated rocking in time with the swing can make you lose your seat. The chair creaks under motion, and a fall carries your momentum into freefall and the terrain landing. Once you stop sliding, press **R** to get up and ski from there. Chair motion and falls are visible in multiplayer. The fall threshold and recovery are gameplay approximations.

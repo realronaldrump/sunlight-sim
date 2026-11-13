@@ -48,14 +48,14 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url?.startsWith('/health')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, release:process.env.RELEASE_SHA ?? 'development', snowballs:true, droneOnly:true, liftSpeed:true, chairFalls:true, manualUnload:true, mountainGuest:true, santaFestivities:true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
+    res.end(JSON.stringify({ ok: true, release:process.env.RELEASE_SHA ?? 'development', routes:true, snowballs:true, droneOnly:true, liftSpeed:true, chairFalls:true, manualUnload:true, mountainGuest:true, santaFestivities:true, rooms: lobby.rooms.size, players: [...lobby.rooms.values()].reduce((a, r) => a + r.size, 0) }));
     return;
   }
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Sunlight Mountain multiplayer server. Connect with WebSocket.\n');
 });
 
-const wss = new WebSocketServer({ server, maxPayload: 16 * 1024 });
+const wss = new WebSocketServer({ server, maxPayload: 128 * 1024 });
 
 wss.on('connection', (ws: WebSocket) => {
   let room: string | null = null;

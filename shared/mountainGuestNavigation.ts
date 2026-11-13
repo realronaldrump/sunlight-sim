@@ -48,7 +48,7 @@ interface LiftLink {
   index: number; seat: number; from: number; to: number; load: Point; approach: GuestWaypoint; exit: GuestWaypoint;
 }
 
-class Frontier {
+export class Frontier {
   private entries: { node: number; priority: number }[] = [];
   get size() { return this.entries.length; }
   push(node: number, priority: number) {
@@ -123,6 +123,13 @@ export class GuestNavigation {
   }
 
   contains(x: number, z: number) { return this.area.contains(x, z); }
+
+  /** Read-only topology shared by the player route planner. Its travel costs are separate. */
+  routingGrid() {
+    return { x0: this.x0, z0: this.z0, width: this.width, rows: this.rows, cell: CELL,
+      heights: this.heights, snow: this.snow, directions: NEIGHBORS,
+      point: (i: number) => this.point(i), links: (i: number) => this.links(i) };
+  }
 
   blocked(x: number, z: number, y: number, padding: number) {
     return this.colliders.query(x, z, this.contacts).some(c => c.top > y + .3 && (c.bottom === undefined || y + 1.65 > c.bottom) && coversPoint(c, x, z, padding));

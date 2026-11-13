@@ -1,5 +1,12 @@
 # Progress
 
+## Shared pins and ski navigation (November 13, 2026, verification in progress)
+
+- Implemented map pin placement, terrain-aware downhill routing, connected lift transfers, explicit unavoidable walking, full-map/minimap overlays, snow-level guidance, section instructions, rerouting and arrival. Each room participant shares a separate pin and route, including late-join and reconnect handling. Friends can route to another person's pin. See D42 and README.
+- Build, all 212 unit tests and five pipeline checks pass. Eight new routing/network checks cover exact destinations, unavoidable ascent, obstacle avoidance, no lift shortcut in progress, lodge to summit via Tercero and Primo with zero walking, downhill return, operating hours, current-chair routing, bounded room annotations and late arrivals. All six Chromium/WebKit navigation scenarios pass against an isolated static build: pin-to-chair-to-arrival, multiplayer late joins/follow/reconnect/independent clear, and blocked/outside pins. An earlier development run was interrupted by hot reload; the static-build replay resolves that failure.
+- Inspected full maps, shared friend routes and the cyan snow guide in `screenshots/navigation/`. Grouped the base-area instructions, removed sub-foot list entries and cleared the hovered-run highlight when dropping a pin. Planning never runs on the rendering thread. Final phone layout and production-artifact regression checks remain.
+- NEXT: verify the committed client/server artifact, finish phone and relevant regression checks, push main, deploy both components and verify the live endpoint. The separate map-board relocation is being committed and deployed by its owning chat; preserve that work and its release notes.
+
 ## Forest and skier animation follow-through (November 13, 2026, released; map relocation pending)
 
 - Resumed from local tree commit `8cfd688`. Starting build, 198 unit tests and five pipeline checks passed. The checkout was clean on `main`, one commit ahead of `origin/main`.

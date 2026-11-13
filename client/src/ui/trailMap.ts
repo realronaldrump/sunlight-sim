@@ -7,6 +7,8 @@ import { formatDistance } from './units';
 import { IPHONE } from '../platform';
 import type { Point } from '../../../shared/mountainGuestNavigation';
 import { drawSantaMapMarker, drawSantaMapTraces, SANTA_MAP_LABEL, type SantaMapTraces } from './santaMapMarker';
+import type { MapRoute } from '../../../shared/skiNavigation';
+import { drawMapRoutes } from './routeDrawing';
 
 export interface MapPlayer { id?: string; name: string; color: string; x: number; z: number; heading: number; self?: boolean }
 /** Extra drawing on top of the runs: a route to follow, a recorded line, a group's position. */
@@ -37,6 +39,8 @@ export class TrailMap {
   travelEnabled = false;
   players: MapPlayer[] = [];
   overlays: MapOverlay[] = [];
+  routes: MapRoute[] = [];
+  onPin?: (point: Point) => void;
   santa: Point | null = null;
   santaTraces: SantaMapTraces | null = null;
   private santaKey: HTMLElement;
@@ -105,7 +109,7 @@ export class TrailMap {
     else if (!wasVisible) this.travelEnabled = travel;
     this.root.querySelector('.map-instructions')!.textContent = this.travelEnabled
       ? `${IPHONE ? 'Tap' : 'Click'} a run or friend to teleport there.`
-      : `${IPHONE ? 'Pinch' : 'Scroll'} to zoom, drag to pan. Teleport from the pause menu.`;
+      : `${IPHONE ? 'Tap' : 'Click'} to drop a pin. ${IPHONE ? 'Pinch' : 'Scroll'} to zoom, drag to pan.`;
     this.root.classList.toggle('show', this.visible);
     if (this.visible) {
       const dpr = Math.min(2, devicePixelRatio);
@@ -114,6 +118,11 @@ export class TrailMap {
       if (this.scale === 1) this.fit();
       this.draw();
     }
+  }
+
+  enablePinMode() {
+    this.travelEnabled = false;
+    this.root.querySelector('.map-instructions')!.textContent = `${IPHONE ? 'Tap' : 'Click'} to drop a pin. Drag to pan.`;
   }
 
   private bindEvents() {
@@ -126,6 +135,7 @@ export class TrailMap {
     };
     this.cv.style.touchAction='none';
     this.cv.addEventListener('pointerdown',e => {
+      if (e.button !== 0) return;
       e.preventDefault();
       if(!pointers.size) { moved=false;travel=0; }
       else moved=true;
@@ -165,6 +175,10 @@ export class TrailMap {
         const friend=this.pickPlayer(e.clientX,e.clientY), run=this.pick(e.clientX,e.clientY);
         if(friend && this.onJoinPlayer){this.onJoinPlayer(friend.id ?? friend.name);this.toggle(false);}
         else if(run && this.onTeleport){this.onTeleport(run.name);this.toggle(false);}
+      } else if (existed && !moved && !pointers.size && this.visible) {
+        const [x, z] = this.toWorld(e.clientX, e.clientY);
+        this.hover = null; this.tip.style.display = 'none';
+        this.onPin?.({ x, z }); this.draw();
       }
     });
     for(const event of ['pointercancel','lostpointercapture']) this.cv.addEventListener(event,e => {pointers.delete((e as PointerEvent).pointerId);moved=true;});
@@ -289,6 +303,7 @@ export class TrailMap {
       g.fillStyle = '#111'; g.textBaseline = 'middle'; g.textAlign = 'left';
       g.fillText(lb.name, box[0] + 17, sy + 0.5);
     }
+    drawMapRoutes(g, this.routes, (x, z) => this.toScreen(x, z));
     // players
     for (const p of this.players) {
       const [sx, sy] = this.toScreen(p.x, p.z);

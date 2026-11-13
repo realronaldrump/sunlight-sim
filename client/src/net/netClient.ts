@@ -18,6 +18,7 @@ import type { SkierState } from '../../../shared/skiPhysics';
 import { DroneModel } from '../drone/droneModel';
 import { carriedSwing, createChairSwing, swingingRiderPoint } from '../../../shared/chairSwing';
 import type { ChairSwing } from '../../../shared/chairSwing';
+import type { SharedRoute } from '../../../shared/skiNavigation';
 
 interface Sample { t: number; s: NetSkier }
 
@@ -65,6 +66,10 @@ export class NetClient {
   /** The server lets riders get off by themselves (older servers unload everyone at the ramp). */
   supportsManualUnload = false;
   supportsSnowballs = false;
+  supportsRoutes = false;
+  readonly routes = new Map<string, SharedRoute>();
+  private localRoute: SharedRoute | null = null;
+  private routeTimer: ReturnType<typeof setTimeout> | undefined;
   onSnowballs?: (events: SnowballEvent[]) => void;
   onSnowballReset?: (shots: SnowballShot[]) => void;
   onSlopeSkiers?: (skiers: SlopeSkier[], at: number) => void;
@@ -163,8 +168,9 @@ export class NetClient {
     if (r.drone) { this.group.remove(r.drone.root); r.drone.dispose(); }
     (r.label.material as THREE.SpriteMaterial).map?.dispose(); r.label.material.dispose();
   }
-  private clearRemotes() { for(const r of this.remotes.values())this.removeRemote(r); this.remotes.clear(); }
+  private clearRemotes() { for(const r of this.remotes.values())this.removeRemote(r); this.remotes.clear(); this.routes.clear(); }
   disconnect() {
+    clearTimeout(this.routeTimer);
     this.stopped=true; clearTimeout(this.reconnectTimer); clearInterval(this.pingTimer);
     this.ws?.close(); this.connected=false; this.clearRemotes();
     window.removeEventListener('online',this.resume); document.removeEventListener('visibilitychange',this.resume);
@@ -173,12 +179,27 @@ export class NetClient {
 
   private send(m: ClientMsg) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }
 
+  shareRoute(route: SharedRoute | null) {
+    this.localRoute = route;
+    clearTimeout(this.routeTimer);
+    // Coalesce a pin followed by its finished route; guarantee the latest update
+    // reaches the room even when planning completes inside its rate limit.
+    if (!route) { if (this.supportsRoutes) this.send({ type: 'route', route: null }); return; }
+    this.routeTimer = setTimeout(() => {
+      if (this.connected && this.supportsRoutes) this.send({ type: 'route', route: this.localRoute });
+    }, 350);
+  }
+
   private onWelcome(m: Extract<ServerMsg, { type: 'welcome' }>) {
     this.id = m.id; this.room = m.room; this.connected = true;
     this.clockOffset = m.serverTime - Date.now() / 1000; resortClock.offset = this.clockOffset;
     this.supportsLiftSpeed = !!m.liftPlayback;
     this.supportsManualUnload = !!m.manualUnload;
     this.supportsSnowballs = Array.isArray(m.snowballs);
+    this.supportsRoutes = Array.isArray(m.routes);
+    this.routes.clear();
+    for (const r of m.routes ?? []) this.routes.set(r.id, r.route);
+    this.shareRoute(this.localRoute);
     this.onSnowballReset?.(m.snowballs ?? []);
     if (m.slopeSkiers) this.onSlopeSkiers?.(m.slopeSkiers, m.serverTime);
     this.lifts.clockOffset = 0;
@@ -247,8 +268,10 @@ export class NetClient {
 
   private onMessage(m: ServerMsg) {
     switch (m.type) {
+      case 'route': if (m.id !== this.id) { if (m.route) this.routes.set(m.id, m.route); else this.routes.delete(m.id); } break;
       case 'joined': this.addRemote(m.player); this.onChat?.('', `${m.player.name} joined`); break;
       case 'left': {
+        this.routes.delete(m.id);
         const r = this.remotes.get(m.id);
         if (r) { this.removeRemote(r); this.remotes.delete(m.id); this.onChat?.('', `${r.name} left`); }
         break;

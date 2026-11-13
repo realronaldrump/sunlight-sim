@@ -6,6 +6,8 @@ import type { MapPlayer } from './trailMap';
 import type { Point } from '../../../shared/mountainGuestNavigation';
 import { drawSantaMapMarker, drawSantaMapTraces, SANTA_MAP_LABEL, type SantaMapTraces } from './santaMapMarker';
 import { mapHeading, mapPoint, nearestTrailPoint, type MapView } from './minimapGeometry';
+import type { MapRoute } from '../../../shared/skiNavigation';
+import { drawMapRoutes } from './routeDrawing';
 
 const ZOOM_SPANS = [457.2, 914.4, 1828.8]; // 1,500 / 3,000 / 6,000 ft, retained in meters for projection.
 const STORAGE_KEY = 'sunlight.minimap';
@@ -64,6 +66,7 @@ interface MinimapState {
   lift: string | null;
   active: boolean;
   drone?: boolean;
+  routes?: MapRoute[];
 }
 
 type Box = [number, number, number, number];
@@ -282,6 +285,7 @@ export class Minimap {
       }
       if (named.size >= 5) break;
     }
+    drawMapRoutes(g, state.routes ?? [], point, false);
     // Friends use their jacket colors. The local marker is always cyan and drawn last.
     for (const friend of state.others) {
       const [x, y] = point(friend.x, friend.z);

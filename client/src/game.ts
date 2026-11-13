@@ -15,6 +15,7 @@ import { TreeSystem } from './trees/trees';
 import { RunSystem } from './runs/runs';
 import { TrailMap } from './ui/trailMap';
 import { Minimap } from './ui/minimap';
+import { NavigationGuide } from './navigation/navigationGuide';
 import { NetClient } from './net/netClient';
 import { showMenu, showRoomBox, ChatUI } from './ui/menu';
 import { detectGraphics, PRESETS, QualityPreset, pixelRatioFor } from './quality';
@@ -102,6 +103,7 @@ export class Game {
   runs!: RunSystem;
   trailMap!: TrailMap;
   minimap!: Minimap;
+  navigation!: NavigationGuide;
   net: NetClient | null = null;
   private shareInvite?: () => Promise<void>;
   chat!: ChatUI;
@@ -294,6 +296,7 @@ export class Game {
     this.trailMap.onJoinPlayer = (name) => { if (this.options.visible && this.trailMap.travelEnabled) void this.pauseTravel(() => this.joinFriend(name)); };
     this.minimap = new Minimap(this.resort, WORLD_BASE);
     this.minimap.onOpenMap = () => this.trailMap.toggle(true);
+    this.navigation = new NavigationGuide(this);
     if (this.surface) {
       const s = this.surface;
       const tex = new THREE.DataTexture(s.data, s.w, s.h, THREE.RGBAFormat);
@@ -1009,6 +1012,9 @@ export class Game {
     const santaTraces = this.options.showSantaOnMap ? this.mountainGuest.traces : null;
     this.trailMap.santa = santa;
     this.trailMap.santaTraces = santaTraces;
+    this.navigation.update(dt);
+    const mapRoutes = this.navigation.mapRoutes();
+    this.trailMap.routes = mapRoutes;
     if (this.trailMap.visible) {
       this.trailMap.players = [mapSelf, ...mapOthers];
       const L = this.lesson;
@@ -1018,7 +1024,7 @@ export class Game {
       if (Math.random() < 0.2) this.trailMap.draw();
     }
     this.minimap.update(dt, {
-      self: mapSelf, others: mapOthers, santa, santaTraces, run,
+      self: mapSelf, others: mapOthers, santa, santaTraces, run, routes: mapRoutes,
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: !this.droneOnly && this.ready && !this.trailMap.visible, drone: this.drone.active,
     });
@@ -1101,6 +1107,7 @@ export class Game {
     this.net?.disconnect();
     if (this.net) this.scene.remove(this.net.group);
     this.net = new NetClient(this.player, this.lifts, this.droneOnly);
+    this.net.shareRoute(this.navigation.shared);
     this.net.onSnowballs = events => this.snowballs.receive(events);
     this.net.onSnowballReset = shots => this.snowballs.reset(shots);
     this.net.onSlopeSkiers = (skiers, at) => {

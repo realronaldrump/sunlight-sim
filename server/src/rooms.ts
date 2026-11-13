@@ -13,13 +13,14 @@ import type { ColliderGrid } from '../../shared/collision';
 import type { SantaVisitor } from '../../shared/santaFestivities';
 import { SNOWBALL, SnowballWorld, aimSnowball, type SnowballActor } from '../../shared/snowballs';
 import { SlopeSkiers } from '../../shared/slopeSkiers';
+import { readSharedRoute, type SharedRoute } from '../../shared/skiNavigation';
 import {
   ClientMsg, ServerMsg, PlayerInfo, NetSkier, MAX_PLAYERS, MAX_SPEED, sanitizeName, sanitizeColor, sanitizeRoom,
 } from '../../shared/protocol';
 
 export interface Conn { send(msg: ServerMsg): void; close(): void }
 
-interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; liftSpeed?: LiftSpeed; swingAt?: number }
+interface Player extends PlayerInfo { conn: Conn; lastRx: number; unloadAt?: number; initialized: boolean; liftSpeed?: LiftSpeed; swingAt?: number; routeAt?: number }
 
 let liftCache: LiftPath[] | null = null;
 let droneArea: FlightArea | null = null;
@@ -50,6 +51,7 @@ export const now = () => Date.now() / 1000;
 export class Room {
   readonly liftClocks: LiftClock[];
   players = new Map<string, Player>();
+  readonly routes = new Map<string, SharedRoute>();
   // seat occupancy: `${lift}/${chair}` -> seat -> player id
   seats = new Map<string, Map<number, string>>();
   private guestTick = now();
@@ -89,6 +91,7 @@ export class Room {
     };
     this.players.set(id, p);
     conn.send({ type: 'welcome', id, room: this.code, serverTime: now(), manualUnload: true, mountainGuest: this.guest?.pose(),
+      routes: [...this.routes].map(([id, route]) => ({ id, route })),
       santaTraces: this.guest?.santaTraces(), snowballs: [...this.snowballs.shots.values()], slopeSkiers: this.slopeSkiers?.snapshot(),
       liftPlayback: this.liftClocks.map(clock => clock.snapshot()), players: [...this.players.values()].filter((q) => q.id !== id).map(info) });
     this.broadcast({ type: 'joined', player: info(p) }, id);
@@ -100,6 +103,7 @@ export class Room {
     if (!p) return;
     this.freeSeat(p);
     this.players.delete(id);
+    this.routes.delete(id);
     this.broadcast({ type: 'left', id });
   }
 
@@ -139,6 +143,17 @@ export class Room {
     const t = now();
     p.lastRx = t;
     switch (msg.type) {
+      case 'route': {
+        // Large geometry is sent only when a route changes, never with 15 Hz snapshots.
+        // Clearing is always immediate; updates are bounded per participant.
+        if (msg.route !== null && t - (p.routeAt ?? 0) < .25) return;
+        const route = readSharedRoute(msg.route, (x, z) => this.flightArea?.contains(x, z) ?? Math.hypot(x, z) < 5000, this.lifts.length);
+        if (route === undefined) return;
+        p.routeAt = t;
+        if (route) this.routes.set(id, route); else this.routes.delete(id);
+        this.broadcast({ type: 'route', id, route });
+        return;
+      }
       case 'snowball': {
         if (typeof msg.token !== 'string' || !/^[a-z0-9]{1,16}$/i.test(msg.token)) return;
         const actors = this.snowballActors(), actor = actors.find(a => a.id === id);

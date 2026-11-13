@@ -5,6 +5,7 @@ import type { GuestPose } from './mountainGuest';
 import type { SantaTraces } from './santaFestivities';
 import type { SnowballEvent, SnowballFall, SnowballShot } from './snowballs';
 import type { SlopeSkier } from './slopeSkiers';
+import type { SharedRoute } from './skiNavigation';
 
 export const MAX_PLAYERS = 8;
 export const TICK_HZ = 15;
@@ -42,15 +43,17 @@ export type ClientMsg =
   | { type: 'liftSpeed'; rate?: LiftSpeed; cancel?: boolean; fast?: boolean }
   | { type: 'chat'; text: string }
   | { type: 'snowball'; yaw: number; pitch: number; token: string; target?: string }
+  | { type: 'route'; route: SharedRoute | null }
   | { type: 'ping'; t: number };
 
 export type ServerMsg =
-  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose; santaTraces?: SantaTraces; snowballs?: SnowballShot[]; slopeSkiers?: SlopeSkier[] }
+  | { type: 'welcome'; id: string; room: string; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; manualUnload?: boolean; mountainGuest?: GuestPose; santaTraces?: SantaTraces; snowballs?: SnowballShot[]; slopeSkiers?: SlopeSkier[]; routes?: { id: string; route: SharedRoute }[] }
   | { type: 'error'; reason: string }
   | { type: 'joined'; player: PlayerInfo }
   | { type: 'left'; id: string }
   | { type: 'snapshot'; serverTime: number; players: PlayerInfo[]; liftPlayback?: LiftPlayback[]; mountainGuest?: GuestPose; slopeSkiers?: SlopeSkier[] }
   | { type: 'snowballs'; events: SnowballEvent[] }
+  | { type: 'route'; id: string; route: SharedRoute | null }
   | { type: 'santaTraces'; traces: SantaTraces }
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
