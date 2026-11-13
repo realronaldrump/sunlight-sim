@@ -4,6 +4,17 @@ import { bakeImpostorAtlas, modelRadius, solidSampler } from '../../client/src/t
 import { ASPEN_CLUMPS, CONIFER_VARIANTS, aspenClumpIndex, coniferBoughs } from '../../shared/treeData';
 
 describe('winter tree geometry', () => {
+  it('keeps repeating bark UVs out of the transparent twig atlas', () => {
+    for (let v = 0; v < ASPEN_CLUMPS.length; v++) {
+      const g = aspenGeometry('high', v), uv = g.getAttribute('uv');
+      const twigs = g.groups[1];
+      for (let i = twigs.start; i < twigs.start + twigs.count; i++) {
+        expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
+        expect(uv.getY(i)).toBeLessThanOrEqual(1);
+      }
+      g.dispose();
+    }
+  });
   it('preserves the measured tree height and ground contact for every species and LOD', () => {
     for (const detail of ['high', 'low'] as const) {
       const forms = [0, 1, 2, 3].flatMap(v => [coniferGeometry(0, detail, v), coniferGeometry(1, detail, v)]);

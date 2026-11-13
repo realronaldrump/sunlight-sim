@@ -131,7 +131,8 @@ function stem(ox: number, oz: number, height: number, girth: number, seed: numbe
       const d2 = new THREE.Vector3(Math.cos(a2), dir.y * 0.8 + r() * 0.5, Math.sin(a2)).normalize();
       const l2 = len * (0.35 + r() * 0.35);
       const e = p.clone().addScaledVector(d2, l2);
-      crown.push(tube([p, e], [r0 * 0.35, r0 * 0.08], 3, 1.6, () => branchCol));
+      // Woody shoots stay continuous. Only the fine sprig cards use the alpha atlas.
+      bark.push(tube([p, e], [r0 * 0.35, r0 * 0.08], 3, 1.6, () => branchCol));
       // a real winter crown stays see-through: one sprig plane per side shoot, none on every third
       if ((k + i) % 3 !== 2) crown.push(...twigCards(p.clone().lerp(e, 0.3), d2, l2 * 1.1 + 0.3, 0.5 + r() * 0.3, r() * Math.PI, (k + i) % TWIG_ROWS, 0.9 + r() * 0.2, center, false));
     }
@@ -226,7 +227,7 @@ export function aspenTwigCanvas(): HTMLCanvasElement {
   const r = rand(113);
   for (let row = 0; row < TWIG_ROWS; row++) {
     const cy = Hh - (row + 0.5) * 512; // canvas rows are flipped relative to texture v
-    sprig(g, r, 4, cy, (r() - 0.5) * 0.12, W * 0.92, 6.5, 4);
+    sprig(g, r, 4, cy, (r() - 0.5) * 0.12, W * 0.92, 6.5, 3);
     // extra spurs fill the card without making a solid fan
     for (let k = 0; k < 6; k++) {
       const x = 90 + k * 140 + r() * 50;

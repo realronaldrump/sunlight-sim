@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import {
   Fn, texture, uv, vec2, vec3, float, attribute, transformNormalToView, positionWorld, positionLocal, positionGeometry,
   cameraPosition, length, smoothstep, normalViewGeometry, normalView, positionViewDirection, faceDirection,
-  diffuseColor, dot, max, pow, sin, cos, time, mix,
+  diffuseColor, dot, max, pow, sin, cos, time, mix, uniform, screenCoordinate, fract,
 } from 'three/tsl';
 import { coniferGeometry, aspenGeometry, oakGeometry, crossQuadGeometry } from './treeAssets';
 import { coniferAtlasCanvas } from './conifer';
@@ -20,6 +20,7 @@ const CELL = 64;
 const HIGH_DETAIL_DIST = 85;
 /** Trees closer than this shade the snow at their base. */
 const CONTACT_DIST = 130;
+const LOD_BLEND = 20;
 const OAK_VARIANTS = 2;
 const UP = new THREE.Vector3(0, 1, 0), RIGHT = new THREE.Vector3(1, 0, 0);
 
@@ -78,7 +79,6 @@ interface TileData {
   x: Float32Array; z: Float32Array; y: Float32Array; h: Float32Array; r: Float32Array; s: Uint8Array; seed: Uint8Array;
   mesh: THREE.InstancedMesh | null;
   cellOf: Int32Array; // cell key per tree index
-  hidden: Set<number>; // cell keys hidden (near) in this tile's impostor mesh
   excluded: Uint8Array;
   slope: Float32Array; // ground gradient (dy/dx, dy/dz) per tree, NaN until first needed
 }
@@ -100,6 +100,7 @@ export class TreeSystem {
   total = 0;
   loaded = 0;
   private lastCam = new THREE.Vector3(1e9, 0, 0);
+  private viewPosition = uniform(new THREE.Vector3());
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private q2 = new THREE.Quaternion();
@@ -112,6 +113,11 @@ export class TreeSystem {
     private buildings: { points: number[][] }[] = [], msaa = true, private ground?: (x: number, z: number) => number) {
     this.group.name = 'trees';
     const dist = length(positionWorld.sub(cameraPosition));
+    const lodDistance = length(positionWorld.xz.sub(this.viewPosition.xz));
+    const farWeight = smoothstep(this.nearDist - LOD_BLEND, this.nearDist + LOD_BLEND, lodDistance);
+    // Complementary coverage masks avoid a double-dark transparent overlap. The 40 m band is
+    // continuous as the camera moves, even between the CPU's instance-list refreshes.
+    const noise = fract(fract(dot(screenCoordinate.xy, vec2(.06711056, .00583715))).mul(52.9829189));
     const coniferCanvas = coniferAtlasCanvas(), twigCanvas = aspenTwigCanvas(), barkCanvas = aspenBarkCanvas();
 
     const nearMat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9 });
@@ -130,16 +136,20 @@ export class TreeSystem {
     barkMat.positionNode = sway(0.02);
     const twigTex = canvasTexture(twigCanvas);
     const twigMat = new THREE.MeshStandardNodeMaterial({
-      vertexColors: true, map: twigTex, alphaTest: msaa ? 0.08 : 0.4, side: THREE.DoubleSide, roughness: 0.95,
+      vertexColors: true, map: twigTex, alphaTest: msaa ? 0.16 : 0.4, side: THREE.DoubleSide, roughness: 0.95,
     });
     twigMat.alphaToCoverage = msaa;
     twigMat.normalNode = normalViewGeometry;
-    twigMat.opacityNode = float(1).add(dist.div(90)).min(2.2);
+    twigMat.opacityNode = float(1).add(dist.div(160)).min(1.7);
     twigMat.positionNode = sway(0.02);
     twigMat.setupLightingModel = () => new FoliageLighting(0.12, 0.5);
     // shadows keep only the solid twigs, so crowns cast lacy rather than card-shaped shadows
     twigMat.maskShadowNode = texture(twigTex).a.greaterThan(0.45);
     twigMat.envMapIntensity = 0.6;
+    for (const m of [nearMat, coniferMat, barkMat, twigMat]) m.maskNode = farWeight.lessThanEqual(noise);
+    nearMat.maskShadowNode = barkMat.maskShadowNode = farWeight.lessThan(.5);
+    coniferMat.maskShadowNode = farWeight.lessThan(.5).and(texture(coniferMat.map).a.greaterThan(.4));
+    twigMat.maskShadowNode = farWeight.lessThan(.5).and(texture(twigTex).a.greaterThan(.45));
 
     const caps = [[14000, 4000, 9000, 6000], [24000, 12000, 30000, 16000]];
     const share = [CONIFER_VARIANTS, CONIFER_VARIANTS, ASPEN_CLUMPS.length, OAK_VARIANTS];
@@ -178,7 +188,7 @@ export class TreeSystem {
     mat.alphaToCoverage = msaa;
     // Per-tree data in one buffer (WebGPU allows eight): tint in xyz, atlas column plus yaw turn in w.
     const tree = attribute('tree', 'vec4'), view = attribute('view', 'float');
-    const turn = tree.w.fract().mul(Math.PI * 2);
+    const turn = tree.w.fract().mul(Math.PI * 2 * 256 / 255);
     const tuv = vec2(uv().x.add(tree.w.floor()).div(MODELS.length), uv().y.add(view).mul(0.5));
     const texel = texture(albedo, tuv);
     mat.colorNode = texel.rgb.mul(tree.xyz);
@@ -192,6 +202,7 @@ export class TreeSystem {
     mat.opacityNode = texel.a.mul(cover).mul(float(1).sub(smoothstep(this.farDist * 0.85, this.farDist, dist)));
     mat.setupLightingModel = () => new FoliageLighting(0.2, 0.4);
     mat.envMapIntensity = 0.5;
+    mat.maskNode = farWeight.greaterThan(noise);
     this.impostorMat = mat;
 
     // Contact shade: each near tree darkens the snow in its well and under its boughs. It multiplies
@@ -244,7 +255,7 @@ export class TreeSystem {
         if(inside)excluded[i]=1;
       }
     }
-    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, cellOf: new Int32Array(n), hidden: new Set(), excluded, slope: new Float32Array(n * 2).fill(NaN) };
+    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, cellOf: new Int32Array(n), excluded, slope: new Float32Array(n * 2).fill(NaN) };
     for (let i = 0; i < n; i++) {
       const k = cellKey(Math.floor(x[i] / CELL), Math.floor(z[i] / CELL));
       t.cellOf[i] = k;
@@ -295,31 +306,37 @@ export class TreeSystem {
 
   /** Update the near/far split around the camera. */
   update(cam: THREE.Vector3) {
+    this.viewPosition.value.copy(cam);
     this.group.visible = this.enabled;
     if (!this.enabled) return;
     if (cam.distanceToSquared(this.lastCam) < 10 * 10) return;
     this.lastCam.copy(cam);
     const ci = Math.floor(cam.x / CELL), cj = Math.floor(cam.z / CELL);
-    const rad = Math.ceil(this.nearDist / CELL) + 1;
+    const radius = this.nearDist + LOD_BLEND + CELL;
+    const rad = Math.ceil(radius / CELL) + 1;
     const want = new Set<number>();
     for (let i = ci - rad; i <= ci + rad; i++) for (let j = cj - rad; j <= cj + rad; j++) {
       const cx = (i + 0.5) * CELL, cz = (j + 0.5) * CELL;
-      if (Math.hypot(cx - cam.x, cz - cam.z) < this.nearDist) want.add(cellKey(i, j));
+      if (Math.hypot(cx - cam.x, cz - cam.z) < radius) want.add(cellKey(i, j));
     }
     // update impostor visibility per tile for changed cells
     const changedTiles = new Set<TileData>();
-    const setCell = (k: number, hide: boolean) => {
+    const setCell = (k: number, near: boolean) => {
       const list = this.cells.get(k);
       if (!list) return;
       for (const e of list) {
         if (!e.tile.mesh) continue;
-        for (const i of e.idx) this.writeImpostor(e.tile.mesh, e.tile, i, hide);
-        if (hide) e.tile.hidden.add(k); else e.tile.hidden.delete(k);
+        const t = e.tile;
+        for (const i of e.idx) {
+          const margin = t.r[i] * this.halfWidth[modelOf(t.s[i], t.seed[i])] + 11;
+          const hide = near && Math.hypot(t.x[i] - cam.x, t.z[i] - cam.z) < this.nearDist - LOD_BLEND - margin;
+          this.writeImpostor(t.mesh!, t, i, hide);
+        }
         changedTiles.add(e.tile);
       }
     };
     for (const k of this.nearCells) if (!want.has(k)) setCell(k, false);
-    for (const k of want) if (!this.nearCells.has(k) || !this.isHidden(k)) setCell(k, true);
+    for (const k of want) setCell(k, true);
     this.nearCells = want;
     for (const t of changedTiles) t.mesh!.instanceMatrix.needsUpdate = true;
     // rebuild near meshes
@@ -336,6 +353,8 @@ export class TreeSystem {
           if (t.excluded[i]) continue;
           const s = t.s[i], model = modelOf(s, t.seed[i]);
           const dx = t.x[i] - cam.x, dz = t.z[i] - cam.z, d2 = dx * dx + dz * dz;
+          const margin = t.r[i] * this.halfWidth[model] + 11;
+          if (d2 > (this.nearDist + LOD_BLEND + margin) ** 2) continue;
           if (d2 < contact2 && shaded < strength.count && this.ground) {
             if (Number.isNaN(t.slope[i * 2])) {
               t.slope[i * 2] = (this.ground(t.x[i] + 1.5, t.z[i]) - this.ground(t.x[i] - 1.5, t.z[i])) / 3;
@@ -368,12 +387,6 @@ export class TreeSystem {
     this.contact.count = shaded;
     this.contact.instanceMatrix.needsUpdate = true;
     strength.needsUpdate = true;
-  }
-
-  private isHidden(k: number) {
-    const list = this.cells.get(k);
-    if (!list) return true;
-    return list.every((e) => e.tile.hidden.has(k));
   }
 
   /** Nearest trunk distance (for audio/AI); returns Infinity if none within maxD. */

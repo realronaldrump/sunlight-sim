@@ -175,7 +175,7 @@ export class AmbientSkiers {
       if (!a.model.root.visible) continue;
       a.model.root.position.set(a.st.pos.x, a.st.pos.y, a.st.pos.z);
       orientSkier(a.model.root, a.st.heading, a.st.normal);
-      a.model.update({ speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid, fallen: a.st.mode === 'fallen' ? 1 : 0, sitting: 0, time: a.time, pushing: inp.push && a.st.speed < 3 });
+      a.model.update({ terrain: this.probe, airborne: !a.st.grounded, speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid, fallen: a.st.mode === 'fallen' ? 1 : 0, sitting: 0, time: a.time, pushing: inp.push && a.st.speed < 3 });
     }
   }
 
@@ -202,7 +202,7 @@ export class AmbientSkiers {
       if (!a.model.root.visible) continue;
       a.model.root.position.set(a.st.pos.x, a.st.pos.y, a.st.pos.z);
       orientSkier(a.model.root, a.st.heading, a.st.normal);
-      a.model.update({ speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid,
+      a.model.update({ terrain: this.probe, airborne: !a.st.grounded, speed: a.st.speed, edge: a.st.edge, plow: a.st.plow, tuck: a.st.tuck, skid: a.st.skid,
         fallen: a.st.mode === 'fallen' ? 1 : a.st.mode === 'gettingUp' ? Math.max(0, 1 - a.st.modeTime / 1.6) : 0,
         sitting: 0, time: a.time, pushing: a.st.speed < 3 });
     }

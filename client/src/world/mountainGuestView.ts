@@ -54,8 +54,6 @@ export class MountainGuestView {
   private colliders: Collider[] = [];
   private normal = { x: 0, y: 1, z: 0 };
   private forward = new THREE.Vector3();
-  private contactPoint = new THREE.Vector3();
-  private contact = [{ offset: 0, pitch: 0 }, { offset: 0, pitch: 0 }];
   private left = new THREE.Vector3();
   private right = new THREE.Vector3();
   private readonly flush = () => {
@@ -205,22 +203,6 @@ export class MountainGuestView {
     model.root.position.set(x, y, z);
     orientSkier(model.root, heading, p.ride ? undefined : this.probe.normal(x, z, this.normal));
     if (p.ride) model.root.rotateX(rockZ).rotateZ(rockX);
-    let skiContact: typeof this.contact | undefined;
-    if (!p.ride && !p.airborne && p.fallen < .1) {
-      const foot = .14 + .2 * p.plow;
-      for (const [i, lateral] of [-foot, foot].entries()) {
-        const residual = (along: number) => {
-          const pt = this.contactPoint.set(lateral, 0, along - .03).applyQuaternion(model.root.quaternion).add(model.root.position);
-          return this.probe.height(pt.x, pt.z) - pt.y;
-        };
-        const tip = residual(-.59), boot = residual(0), tail = residual(.6);
-        const pitch = clamp(Math.atan2(tip - tail, 1.19), -.24, .24);
-        const height = Math.max(boot, tip - .59 * Math.tan(pitch), tail + .6 * Math.tan(pitch));
-        this.contact[i].offset = clamp(height + .026, -.10, .24);
-        this.contact[i].pitch = pitch;
-      }
-      skiContact = this.contact;
-    }
     const a = p.action;
     const reach = a?.anchor && this.actionAnchor.set(a.anchor.x, a.anchor.y, a.anchor.z)
       .sub(model.root.position).applyQuaternion(this.inverseBody.copy(model.root.quaternion).invert());
@@ -231,7 +213,7 @@ export class MountainGuestView {
       anchor: reach,
       released: a.progress >= SANTA_STAR_RELEASE,
     };
-    model.update({ ...p, time: now % 1000, sitting, liftPreparation: preparation, footGroundY: footY, skiContact, rockX, rockZ,
+    model.update({ ...p, time: now % 1000, sitting, liftPreparation: preparation, footGroundY: footY, terrain: this.probe, rockX, rockZ,
       touring: { amount: p.touring, stride: p.stride }, costumeAction });
     animateHat(dt, p.speed, p.edge, now % 1000, costumeAction?.kind === 'hat-tip' ? costumeAction.amount : 0);
 

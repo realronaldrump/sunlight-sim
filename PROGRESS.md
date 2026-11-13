@@ -1,5 +1,13 @@
 # Progress
 
+## Forest and skier animation follow-through (November 13, 2026, validation in progress)
+
+- Resumed from local tree commit `8cfd688`. Starting build, 198 unit tests and five pipeline checks passed. The checkout was clean on `main`, one commit ahead of `origin/main`.
+- Reviewed close aspens, mixed stands, near/far views and the distant mountain forest on High and Low with WebGPU and forced WebGL2. Fixed woody aspen shoots using the transparent twig material (a failing UV/material regression reproduced it), reduced fine sprig density and coverage, and added a 40 m complementary near/impostor blend instead of switching entire cells. Retained the needle-light and contact-shade strengths after the initial comparison. Review captures: `screenshots/forest-review/`.
+- Implemented independent snow sampling under both skis, outside-leg support, inside-leg compression and ski lead, delayed weight transfer, hip angulation and actual spine/shoulder counter-rotation. Player, remote friends, ambient skiers, lesson, patrol and Santa use it. Removed timed downhill bob. Lift, fall and gesture paths are preserved. Decisions are recorded in D37 and D38.
+- Build and all 203 unit tests pass. New pose checks cover mirrored turns, limb lengths, unequal snow height, slope contact at adult/child scale, continuous edge reversal and frame-rate consistency. All six final forest and animation browser checks pass, including the last twig tuning, no-missing-tree assertions and Chrome/Safari poses. Inspected the final bare aspen crowns, distant/transition views, and both turn directions, tuck and wedge captures in `screenshots/skier-animation/`.
+- Next: finish reviewing the final captures, run the full 108-case browser suite and isolated 1440p High performance test against the production build, fix any regressions, commit and push `main`, deploy the exact tested client plus the matching mini-PC server, and verify both live. Nothing from this follow-through is deployed yet. The older entries below are historical checkpoints.
+
 ## Snowball fights (November 11, 2026, released)
 
 - Q, right click and LB toss ballistic snowballs at players and ordinary NPC slope skiers. Room authority validates origins, aim, cooldowns and hits. Multiplayer slope NPCs now have shared identities, clothing and physics. Throws are predicted immediately and reconciled by ID. Welcome packets include in-flight balls.

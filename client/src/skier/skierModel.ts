@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { HumanBody } from './humanBody';
 import { helmetAndGoggles, skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
+import { SkiContacts, type SnowSurface } from './skiContact';
 
 export interface SkierPose {
   speed: number;     // m/s
@@ -18,6 +19,7 @@ export interface SkierPose {
   footGroundY?: number; // snow height relative to the root, used until skis leave the ramp
   footGroundPitch?: number;
   skiContact?: { offset: number; pitch: number }[];
+  terrain?: SnowSurface;
   airborne?: boolean;
   /** Weight and step phase when shuffling uphill or along a loading ramp. */
   touring?: { amount: number; stride: number };
@@ -71,6 +73,8 @@ export class SkierModel {
   private lastEdgeSign = 0;
   private plant = 0;      // 0..1 pole plant animation phase
   private lastTime = 0;
+  private balance = 0;
+  private snowContact = new SkiContacts();
   private accessories?: SkierCostume['accessories'];
   private plantSide = 1;  // which pole (+1 right, -1 left)
   private snowFall: { age: number; side: number; spin: number } | null = null;
@@ -132,31 +136,49 @@ export class SkierModel {
     const es = Math.abs(p.edge) > 0.12 ? Math.sign(p.edge) : 0;
     if (es !== 0 && es !== this.lastEdgeSign && p.speed > 3 && p.tuck < 0.3 && sit === 0) { this.plant = 1; this.plantSide = es; }
     if (es !== 0) this.lastEdgeSign = es;
-    const dt = Math.max(0, Math.min(0.1, t - this.lastTime)); this.lastTime = t;
+    const elapsed = t - this.lastTime;
+    const dt = Math.max(0, Math.min(0.1, elapsed)); this.lastTime = t;
     if (this.snowThrow) { this.snowThrow.age += dt; if (this.snowThrow.age > .65) this.snowThrow = null; }
     if (this.snowFall) { this.snowFall.age += dt; if (this.snowFall.age > 1 && p.fallen < .08) this.snowFall = null; }
     this.plant = Math.max(0, this.plant - dt * 2.1);
     // ---- stance parameters ----
     const prepare = (p.liftPreparation ?? 0) * (1 - sit);
-    const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow + .08 * prepare;
-    const incline = THREE.MathUtils.clamp(p.edge * 0.75, -0.75, 0.75) * Math.min(1, p.speed / 4) * (1 - sit);
+    const grounded = (1 - sit) * (1 - p.fallen) * (p.airborne ? 0 : 1) * (1 - tour);
+    const turn = THREE.MathUtils.clamp(p.edge, -1, 1) * Math.min(1, p.speed / 4) * grounded;
+    // The skis change edges first; body weight crosses smoothly to the new outside ski.
+    if (elapsed < 0 || elapsed > .5 || !grounded) this.balance = turn;
+    else this.balance += (turn - this.balance) * (1 - Math.exp(-9 * dt));
+    const load = Math.abs(this.balance) * (1 - .55 * p.plow);
+    const flex = 0.12 + 0.06 * Math.min(1, p.speed / 15) + 0.35 * p.tuck + 0.08 * p.plow + .08 * prepare + .055 * load;
+    const incline = this.balance * .66 * (1 - .35 * p.plow);
+    const hipYaw = -this.balance * .07 * (1 - p.plow);
+    const chestYaw = this.balance * (.26 + .1 * p.skid) * (1 - .8 * p.tuck) * (1 - .75 * p.plow);
     const wedge = p.plow * (1 - sit);
-    const stanceW = 0.14 + 0.2 * wedge;
-    const bounce = Math.sin(t * 9) * 0.008 * Math.min(1, p.speed / 8) * (1 - p.tuck)
-      + tour * .021 * Math.abs(Math.sin(stride));
+    const stanceW = 0.14 + 0.2 * wedge + .035 * load;
+    const bounce = tour * .021 * Math.abs(Math.sin(stride));
+    const toe = 0.32 * wedge - 0.20 * tour;
 
     // feet (ankles) on the skis
     const ankleL = V(-stanceW, 0.12, 0.02);
     const ankleR = V(stanceW, 0.12, 0.02);
+    // The flexed inside ski leads slightly while the outside leg supports the turn.
+    const lead = this.balance * .085 * (1 - wedge);
+    ankleL.z += lead; ankleR.z -= lead;
     ankleL.add(V(-.025 * tour, tour * .11 * Math.max(0, Math.cos(stride)), -.24 * tour * step));
     ankleR.add(V(.025 * tour, tour * .11 * Math.max(0, -Math.cos(stride)), .24 * tour * step));
     // inclination: shift the body toward the turn center
-    const lateral = Math.sin(incline) * 0.75;
+    const contact = p.skiContact ?? (p.terrain && sit === 0 && !p.airborne && p.fallen < .1
+      ? this.snowContact.sample(this.root, [ankleL, ankleR], [-toe, toe], p.terrain) : undefined);
+    const contactOnSnow = contact && sit === 0 && !p.airborne && p.fallen < .1;
+    if (contactOnSnow) { ankleL.y += contact[0].offset; ankleR.y += contact[1].offset; }
+    const lateral = Math.sin(incline) * 0.63;
     let pelvisH = 0.98 - flex * 0.9 + bounce;
+    if (contactOnSnow) pelvisH += (contact[0].offset + contact[1].offset) * .35;
     let pelvis = V(lateral, pelvisH, 0.06 + flex * 0.25);
     // chest leans forward with tuck
     const lean = 0.25 + 0.75 * p.tuck + 0.15 * flex;
-    let chest = pelvis.clone().add(V(Math.sin(incline) * 0.25, Math.cos(lean) * 0.5, -Math.sin(lean) * 0.5));
+    // Hip angulation keeps the upper body quieter and more upright than the legs.
+    let chest = pelvis.clone().add(V(-Math.sin(incline) * .12, Math.cos(lean) * 0.5, -Math.sin(lean) * 0.5).applyAxisAngle(UP, chestYaw));
 
     if (sit > 0) {
       // sitting on the chair: hips back on the seat, thighs horizontal, legs hanging
@@ -165,10 +187,6 @@ export class SkierModel {
       const footY = Math.max(-.05, (p.footGroundY ?? -Infinity) + .145);
       ankleL.lerp(V(-0.14, footY, -0.2), sit); ankleR.lerp(V(0.14, footY, -0.2), sit);
       pelvisH = pelvis.y;
-    }
-    if (p.skiContact && sit === 0 && !p.airborne && p.fallen < .1) {
-      ankleL.y += p.skiContact[0].offset;
-      ankleR.y += p.skiContact[1].offset;
     }
     if (p.airborne) {
       ankleL.add(V(-.1, .12, -.12)); ankleR.add(V(.13, .2, .1));
@@ -179,18 +197,27 @@ export class SkierModel {
     const head = neck.clone().add(V(0, 0.10, -0.01 - 0.04 * p.tuck));
 
     // hips and legs (2-bone IK with knees pointing forward)
-    const hipL = pelvis.clone().add(V(-0.1, -0.02, 0));
-    const hipR = pelvis.clone().add(V(0.1, -0.02, 0));
+    const hipL = pelvis.clone().add(V(-0.1, -0.02 + this.balance * .03, 0).applyAxisAngle(UP, hipYaw));
+    const hipR = pelvis.clone().add(V(0.1, -0.02 - this.balance * .03, 0).applyAxisAngle(UP, hipYaw));
+    // Absorb a dip with the knees instead of stretching the outside leg beyond its length.
+    if (grounded > .99) {
+      let lower = 0;
+      for (const [hip, ankle] of [[hipL, ankleL], [hipR, ankleR]]) {
+        const horizontal2 = (hip.x - ankle.x) ** 2 + (hip.z - ankle.z) ** 2;
+        lower = Math.max(lower, hip.y - ankle.y - Math.sqrt(Math.max(0, .905 ** 2 - horizontal2)));
+      }
+      for (const point of [pelvis, chest, neck, head, hipL, hipR]) point.y -= lower;
+    }
     const kneeL = new THREE.Vector3(), kneeR = new THREE.Vector3();
-    const poleFwd = (hip: THREE.Vector3, x: number) => hip.clone().add(V(x, 0, -1.2));
+    const poleFwd = (hip: THREE.Vector3, x: number) => hip.clone().add(V(x + this.balance * .2, 0, -1.2));
     solveIK(hipL, ankleL, 0.46, 0.46, poleFwd(hipL, wedge * 0.25), kneeL);
     solveIK(hipR, ankleR, 0.46, 0.46, poleFwd(hipR, -wedge * 0.25), kneeR);
 
     // arms: hands forward and wide; tuck brings them in front of the face; pushing swings them
     const push = p.pushing ? Math.sin(t * 5) : 0;
-    const shL = chest.clone().add(V(-0.19, 0.06, 0)), shR = chest.clone().add(V(0.19, 0.06, 0));
-    let handL = chest.clone().add(V(-0.32, -0.28, -0.32 + push * 0.2));
-    let handR = chest.clone().add(V(0.32, -0.28, -0.32 + push * 0.2));
+    const shL = chest.clone().add(V(-0.19, 0.06, 0).applyAxisAngle(UP, chestYaw)), shR = chest.clone().add(V(0.19, 0.06, 0).applyAxisAngle(UP, chestYaw));
+    let handL = chest.clone().add(V(-0.32, -0.28, -0.32 + push * 0.2).applyAxisAngle(UP, chestYaw));
+    let handR = chest.clone().add(V(0.32, -0.28, -0.32 + push * 0.2).applyAxisAngle(UP, chestYaw));
     handL.z += tour * .31 * step; handR.z -= tour * .31 * step;
     handL.y += tour * .07 * step; handR.y -= tour * .07 * step;
     if (p.tuck > 0) {
@@ -227,7 +254,7 @@ export class SkierModel {
     const action = p.costumeAction;
     const tip = action?.kind === 'hat-tip' ? action.amount : 0;
     const headTilt = new THREE.Euler(-.10 + .3 * p.tuck + .15 * tip,
-      action ? THREE.MathUtils.clamp(action.yaw, -.85, .85) * action.amount : 0,
+      action ? THREE.MathUtils.clamp(action.yaw, -.85, .85) * action.amount : chestYaw * .6,
       -incline * .2 + tip * .14);
     if (action) {
       const reach = action.kind === 'hat-tip'
@@ -241,18 +268,18 @@ export class SkierModel {
 
     this.human.pose({ pelvis, chest, neck, head, hipL, hipR, kneeL, kneeR, ankleL, ankleR,
       shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR },
-      headTilt);
+      headTilt, undefined, { pelvis: hipYaw, chest: chestYaw });
     this.headGear.position.copy(head);
     this.headGear.rotation.copy(headTilt);
     this.accessories?.pose(dt, p, chest, pelvis, handR);
     this.collar.group.position.copy(neck);
     this.collar.group.rotation.x = -lean * 0.35;
+    this.collar.group.rotation.y = chestYaw;
     this.boots[0].position.copy(ankleL);
     this.boots[1].position.copy(ankleR);
 
     // skis: edged with inclination, toes in for the wedge
-    const toe = 0.32 * wedge - 0.20 * tour;
-    const edgeTilt = -incline * 0.9;
+    const edgeTilt = -turn * .66 * (1 - .35 * p.plow);
     const sk = this.skis;
     sk[0].position.set(ankleL.x, ankleL.y - 0.13, ankleL.z - 0.05);
     sk[1].position.set(ankleR.x, ankleR.y - 0.13, ankleR.z - 0.05);
@@ -260,8 +287,8 @@ export class SkierModel {
     sk[1].rotation.set(0, toe, edgeTilt - wedge * 0.18, 'YXZ');
     sk[0].rotation.x -= tour * .17 * Math.max(0, Math.cos(stride));
     sk[1].rotation.x -= tour * .17 * Math.max(0, -Math.cos(stride));
-    if (p.skiContact && sit === 0 && !p.airborne && p.fallen < .1) {
-      sk.forEach((ski, i) => { ski.rotation.x += p.skiContact![i].pitch; });
+    if (contactOnSnow) {
+      sk.forEach((ski, i) => { ski.rotation.x += contact[i].pitch; });
     }
     if (sit > 0 || p.footGroundY !== undefined) {
       const clearance = Math.max(0, -.18 - (p.footGroundY ?? -Infinity));

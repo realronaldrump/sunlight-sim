@@ -127,6 +127,7 @@ export class Player {
   getUp() { return getUp(this.st); }
 
   terrainHeight(x: number, z: number) { return this.probe.height(x, z); }
+  get terrain() { return this.probe; }
 
   terrainNormal(x: number, z: number) { return this.probe.normal(x, z, { x: 0, y: 1, z: 0 }); }
 
@@ -356,7 +357,7 @@ export class Player {
     this.model.update({
       speed: st.speed, edge: st.edge, plow: st.plow, tuck: st.tuck, skid: st.skid, fallen: this.fallenBlend,
       sitting: this.sitBlend, liftPreparation: this.liftPreparation, footGroundY, footGroundPitch, time: this.time, pushing: input.push && st.speed < 4 && st.mode !== 'fallen' && !this.ride,
-      airborne: !!this.tumble, rockX: this.ride ? this.chairSwing.leanX : 0, rockZ: this.ride ? this.chairSwing.leanZ : 0,
+      terrain: this.probe, airborne: !!this.tumble || (!this.ride && !st.grounded), rockX: this.ride ? this.chairSwing.leanX : 0, rockZ: this.ride ? this.chairSwing.leanZ : 0,
       flail: this.missed ? Math.min(1, this.missed.tau / 0.5) : this.flung ? 1 : 0,
       gear: !this.yardSale,
       slipping: this.ride ? this.chairSwing.slip : 0,

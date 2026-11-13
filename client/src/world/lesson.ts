@@ -597,7 +597,7 @@ export class LessonGroup {
       m.model.root.visible = d < 450;
       if (!m.model.root.visible) continue;
       const moving = pose.speed > 0.3;
-      m.model.update({ speed: pose.speed, edge: pose.edge, plow: moving ? pose.plow : 0.05, tuck: 0, skid: moving ? 0.15 : 0, fallen: 0,
+      m.model.update({ terrain: this.probe, speed: pose.speed, edge: pose.edge, plow: moving ? pose.plow : 0.05, tuck: 0, skid: moving ? 0.15 : 0, fallen: 0,
         sitting: pose.ride ? Math.min(1, pose.sit) : pose.sit, time: m.time, pushing: pose.skate, liftPreparation: pose.ride ? 1 : 0 });
     }
   }

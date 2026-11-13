@@ -84,7 +84,7 @@ export class Patrol {
       m.model.root.position.set(m.x, this.probe.height(m.x, m.z), m.z);
       orientSkier(m.model.root, m.heading, this.probe.normal(m.x, m.z, this.normal));
       const curv = -2.6 * (2 * Math.PI / 26) ** 2 * Math.sin(dist * (2 * Math.PI / 26));
-      m.model.update({ speed: m.speed, edge: THREE.MathUtils.clamp(Math.atan(m.speed * m.speed * curv / 9.81), -0.7, 0.7), plow: 0, tuck: 0, skid: 0.1, fallen: 0, sitting: 0, time: m.time, pushing: false });
+      m.model.update({ terrain: this.probe, speed: m.speed, edge: THREE.MathUtils.clamp(Math.atan(m.speed * m.speed * curv / 9.81), -0.7, 0.7), plow: 0, tuck: 0, skid: 0.1, fallen: 0, sitting: 0, time: m.time, pushing: false });
     }
     if ((this.ropeTimer -= dt) <= 0) { this.ropeTimer = 1; this.updateRopes(runsClosed(hour), camera); }
   }

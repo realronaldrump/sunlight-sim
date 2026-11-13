@@ -434,7 +434,7 @@ export class NetClient {
       const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y : undefined;
       const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y);
       r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false,
-        airborne: !!tumble, rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip,
+        terrain: this.player.terrain, airborne: !!tumble || s.mode === 'air', rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip,
         gesture: s.act && !r.ride ? { kind: s.act, amount: r.act, yaw: s.actYaw } : undefined });
     }
   }

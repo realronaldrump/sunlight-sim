@@ -102,19 +102,32 @@ export class HumanBody {
     b.position.copy(start); b.quaternion.copy(this.delta).multiply(r.q); b.scale.set(1, ratio, 1);
   }
 
-  pose(j: Joints, headTilt: THREE.Euler, boardPalm?: THREE.Vector3) {
+  pose(j: Joints, headTilt: THREE.Euler, boardPalm?: THREE.Vector3, twist?: { pelvis: number; chest: number }) {
     const p = j.pelvis, neck = j.neck;
     const s1 = p.clone().lerp(neck, 0.15), s2 = p.clone().lerp(neck, 0.27), s3 = p.clone().lerp(neck, 0.38);
     this.segment('pelvis', 'spine_01', p, s1);
     this.segment('spine_01', 'spine_02', s1, s2);
     this.segment('spine_02', 'spine_03', s2, s3);
     this.segment('spine_03', 'neck_01', s3, neck);
+    // Rotate around each spine segment, preserving its bend and length. Shoulder movement alone
+    // does not twist the skinned jacket because this rig stores bones in a common local frame.
+    if (twist) {
+      for (const [name, a, b, k] of [
+        ['pelvis', p, s1, 0], ['spine_01', s1, s2, .25],
+        ['spine_02', s2, s3, .55], ['spine_03', s3, neck, 1],
+      ] as const) {
+        const angle = THREE.MathUtils.lerp(twist.pelvis, twist.chest, k);
+        this.direction.copy(b).sub(a).normalize();
+        this.bones.get(name)!.quaternion.premultiply(this.delta.setFromAxisAngle(this.direction, angle));
+      }
+    }
     this.segment('neck_01', 'head', neck, j.head);
     const head = this.bones.get('head')!;
     head.position.copy(j.head); head.quaternion.setFromEuler(headTilt).multiply(this.rest.get('head')!.q);
     for (const [side, label] of [['l', 'L'], ['r', 'R']]) {
       const shoulder = j['shoulder' + label], elbow = j['elbow' + label], wrist = j['hand' + label];
       const clavicle = j.chest.clone().add(new THREE.Vector3(label === 'L' ? -0.025 : 0.025, 0.055, 0));
+      if (twist) clavicle.sub(j.chest).applyAxisAngle(new THREE.Vector3(0, 1, 0), twist.chest).add(j.chest);
       this.segment('clavicle_' + side, 'upperarm_' + side, clavicle, shoulder);
       this.segment('upperarm_' + side, 'lowerarm_' + side, shoulder, elbow);
       this.segment('lowerarm_' + side, 'hand_' + side, elbow, wrist);
