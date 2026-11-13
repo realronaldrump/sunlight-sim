@@ -147,13 +147,13 @@ def main():
             omitted.append(name)
 
     # You are here is the physical kiosk, not a player's moving position.
-    bx, bz = 48.0, -1005.5
+    bx, bz = 76.6, -967.7
     by = float(dem[round(-bz - meta['n0']), round(bx - meta['x0'])])
     x, y = project((bx, by, bz))
     d.ellipse((x - 13, y - 13, x + 13, y + 13), fill='#c54135', outline='white', width=4)
     d.line((x, y, x - 80, y + 45, x - 255, y + 45), fill='#a32c29', width=4)
     label('YOU ARE HERE', (x - 170, y + 69), 29, '#a32c29', bold=True)
-    label('BASE LIFTS', (x - 170, y + 103), 24)
+    label('LIFT APPROACH', (x - 170, y + 103), 24)
     summit = max((l['top'] for l in resort['lifts']), key=lambda p: p[1])
     sx, sy = project(summit)
     label('COMPASS PEAK', (sx, sy - 50), 31, bold=True)

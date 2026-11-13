@@ -41,8 +41,11 @@ for (const [quality, webgl] of [['high', false], ['low', true]] as const) {
     expect(board.ground).toBeCloseTo(board.terrain, 2);
     expect(board.solid).toBe(true);
     expect(board.blocked).toBe(false);
-    expect(board.lifts.find((l: any) => l.name === 'Tercero').distance).toBeLessThan(24);
-    expect(board.lifts.find((l: any) => l.name === 'Segundo').distance).toBeLessThan(35);
+    // The owner's circle is beside the Tercero line near the lodge, well uphill of the terminals.
+    expect(board.x).toBeGreaterThan(70); expect(board.x).toBeLessThan(84);
+    expect(board.z).toBeGreaterThan(-978); expect(board.z).toBeLessThan(-958);
+    expect(board.lifts.find((l: any) => l.name === 'Tercero').distance).toBeGreaterThan(45);
+    expect(board.lifts.find((l: any) => l.name === 'Tercero').distance).toBeLessThan(70);
     expect(print.unplacedRunLabels).toEqual([]);
     expect(print.runLabels).toEqual(expect.arrayContaining(['Ute', 'Grizzly Road', 'Sun King', 'Midway', 'The Heathen']));
     expect(print.lifts.sort()).toEqual(['Primo', 'Segundo', 'Tercero']);

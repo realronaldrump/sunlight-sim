@@ -1,46 +1,46 @@
 [
  {
   "label": "spawn_base",
-  "avgMs": 29.24,
-  "p95Ms": 33.3,
-  "fps": 34.2,
-  "cpuMs": 25.1,
-  "drawCalls": 3793,
-  "triangles": 38065217,
+  "avgMs": 32.63,
+  "p95Ms": 36.5,
+  "fps": 30.6,
+  "cpuMs": 33.31,
+  "drawCalls": 4855,
+  "triangles": 31869322,
   "pixelRatio": 1,
-  "backend": "Zk"
+  "backend": "WebGPU"
  },
  {
   "label": "skiing_sun_king",
-  "avgMs": 28.89,
-  "p95Ms": 32.7,
-  "fps": 34.6,
-  "cpuMs": 22.32,
-  "drawCalls": 4034,
-  "triangles": 37439605,
+  "avgMs": 26.52,
+  "p95Ms": 29.5,
+  "fps": 37.7,
+  "cpuMs": 19.07,
+  "drawCalls": 2938,
+  "triangles": 30662051,
   "pixelRatio": 1,
-  "backend": "Zk"
+  "backend": "WebGPU"
  },
  {
   "label": "summit_view_sopris",
-  "avgMs": 31.53,
-  "p95Ms": 32.2,
-  "fps": 31.7,
-  "cpuMs": 22.02,
-  "drawCalls": 3880,
-  "triangles": 40914773,
+  "avgMs": 29.12,
+  "p95Ms": 31.2,
+  "fps": 34.3,
+  "cpuMs": 19.39,
+  "drawCalls": 3089,
+  "triangles": 34118367,
   "pixelRatio": 1,
-  "backend": "Zk"
+  "backend": "WebGPU"
  },
  {
   "label": "forest_east_ridge",
-  "avgMs": 29.96,
-  "p95Ms": 31.4,
-  "fps": 33.4,
-  "cpuMs": 21.13,
-  "drawCalls": 3469,
-  "triangles": 36040145,
+  "avgMs": 27.13,
+  "p95Ms": 29.2,
+  "fps": 36.9,
+  "cpuMs": 15.46,
+  "drawCalls": 2089,
+  "triangles": 29949201,
   "pixelRatio": 1,
-  "backend": "Zk"
+  "backend": "WebGPU"
  }
 ]

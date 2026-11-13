@@ -1,8 +1,8 @@
 import type { ColliderGrid } from './collision';
 
-/** Owner photograph IMG_2598: the blue board above the two base lifts.
- * World placement and dimensions are photo-based estimates. */
-export const BASE_TRAIL_MAP = { x: 48, z: -1005.5, yaw: .58, width: 3.5, height: 4.2 };
+/** The owner circled this site on the north-up lodge view. Its center was projected
+ * back onto the measured snow. Dimensions remain estimates from IMG_2598.JPG. */
+export const BASE_TRAIL_MAP = { x: 76.6, z: -967.7, yaw: .45, width: 3.5, height: 4.2 };
 
 /** Players and the solo/room NPC navigation use the same physical obstacle. */
 export function addBaseTrailMapCollider(grid: ColliderGrid, height: (x: number, z: number) => number) {

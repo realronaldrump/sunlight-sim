@@ -4,8 +4,8 @@ import { BASE_TRAIL_MAP, addBaseTrailMapCollider } from '../../../shared/baseTra
 import panelUrl from './assets/trail-board.webp';
 
 /** The owner's IMG_2598 shows this board on the descent to Segundo and Tercero.
- * It sits between the lift approaches, roughly 19 m uphill of Tercero's bottom station.
- * Coordinates and dimensions are photo-based estimates, not a survey. */
+ * Its placement follows the owner's circled overhead view beside the Tercero line.
+ * Dimensions are photo-based estimates, not a survey. */
 let panelTexture: THREE.Texture | undefined;
 
 export async function prepareTrailMapBoard() {
