@@ -119,6 +119,9 @@ test('phone map taps place a shared-ready pin while drag and pinch keep the dest
     await map.dispatchEvent('pointerup', { pointerId: 21, pointerType: 'touch' });
     expect(await page.evaluate(() => (window as any).game.navigation.destination)).toEqual(destination);
     expect(await page.locator('.route-panel').evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+    const clear = await page.locator('.route-panel .clear-route').boundingBox(), panel = await page.locator('.route-panel').boundingBox();
+    expect(clear!.y + clear!.height).toBeLessThan(panel!.y + panel!.height);
+    await expect(page.locator('#tmap .legend')).toBeHidden();
     await page.screenshot({ path: `screenshots/navigation/phone-${browserName}.png` });
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     expect(await page.evaluate(() => (window as any).game.drone.active)).toBe(true);

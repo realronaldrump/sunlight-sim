@@ -23,11 +23,12 @@ const css = `
 #tmap .route-panel li { padding:3px 0; }
 #tmap .route-panel .route-key { font-size:11px; }
 #tmap .route-panel .friend-pins { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+#tmap .route-panel .route-actions { display:flex; gap:8px; }
 @media(max-width:700px) {
  #route-guide { top:70px; width:260px; }
  #tmap .route-panel { top:auto; bottom:12px; left:12px; width:calc(100% - 24px); max-height:34vh; }
  #tmap .route-panel ol { max-height:12vh; }
- #tmap .legend { display:none; }
+ #tmap .legend, body.iphone #tmap .legend { display:none; }
  #tmap .title span { display:none; }
  #tmap .title { top:55px; left:54px; font-size:15px; }
 }
@@ -66,10 +67,10 @@ export class NavigationGuide {
   constructor(private game: Game) {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
     this.panel.className = 'route-panel'; this.panel.setAttribute('aria-label', 'Route planner');
-    this.panel.innerHTML = `<h3>Find your way</h3><button type="button" class="plan-pin">Drop a pin</button>
+    this.panel.innerHTML = `<h3>Find your way</h3><div class="route-actions"><button type="button" class="plan-pin">Drop a pin</button><button type="button" class="clear-route" hidden>Clear pin</button></div>
       <p class="route-summary" role="status">Click the map to plan a ski route. Lifts are included when needed.</p>
       <p class="route-key"><span style="color:#00d6ed">━━ Ski</span> &nbsp; <span style="color:#cc9cff">┄ Lift</span> &nbsp; <span style="color:#ffbc65">·· Walk</span></p>
-      <ol aria-label="Route steps"></ol><button type="button" class="clear-route" hidden>Clear pin</button>
+      <ol aria-label="Route steps"></ol>
       <p>In a room, everyone can see your pin and route.</p><div class="friend-pins"></div>`;
     document.querySelector('#tmap')!.appendChild(this.panel);
     this.summary = this.panel.querySelector('.route-summary')!;
