@@ -1,5 +1,13 @@
 # Progress
 
+## Final release and owner-marked relocation (November 13, 2026, complete)
+
+- Trees, independent skier animation and the blue map board are deployed. The final board is at the center of the owner's annotated circle: x=76.6, z=-967.7, yaw=0.45. An independent projection check placed it 0.30 pixels from the circle center. The printed marker and shared client/server collider moved together.
+- Relocation source `af838d1ffe51302bb267f1efb187ef2280118568` is on `origin/main` after `git push origin main` and an ancestry check. It was built from its exact Git archive to exclude unrelated navigation work in the shared checkout. All 204 unit tests and four Chrome/Safari High/Low board cases passed on that archive.
+- Vercel production deployment `dpl_3CNgzt3pYPhPET8XLnDLDh1hyPUv` is published at https://sunlight-sim.vercel.app. Its `index-0CDj7AJB.js`, `trail-board-d4k4s34-.webp` and `mountainGuestWorker-BkvZN1ws.js` match the tested prebuilt files byte for byte. The relocated overhead capture is `screenshots/base-trail-map/lodge-top-down-relocated.png`.
+- The server is healthy at the same `af838d1` SHA through the public Funnel endpoint, with its original checkpoint volume and 13 saved rooms retained. Six source hashes match the commit. Two public WSS clients received 12 identical snapshots with eight NPCs. Staging containers were removed.
+- Requested work is complete. The known High 1440p performance limitation remains: 30.6 to 37.7 fps on this M3 Pro, below the 60 fps target. The following checkpoints are historical. Concurrent map-pin/navigation commit `504ed24` was preserved and was not included in this relocation deployment.
+
 ## Shared pins and ski navigation (November 13, 2026, verification in progress)
 
 - Implemented map pin placement, terrain-aware downhill routing, connected lift transfers, explicit unavoidable walking, full-map/minimap overlays, snow-level guidance, section instructions, rerouting and arrival. Each room participant shares a separate pin and route, including late-join and reconnect handling. Friends can route to another person's pin. See D42 and README.
