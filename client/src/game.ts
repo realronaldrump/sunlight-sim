@@ -273,7 +273,7 @@ export class Game {
     this.gates = new MissedUnloadGates(this.lifts.paths, (x, z) => this.probe.height(x, z));
     this.scene.add(this.gates.group, this.yardSale.group);
     this.setLoading(0.35, 'Loading trees');
-    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, [...this.resort.buildings, ...lodgeSiteFootprints()], Q.antialias);
+    this.trees = new TreeSystem(WORLD_BASE, this.colliders, Q.treeNear, Q.treeFar, [...this.resort.buildings, ...lodgeSiteFootprints()], Q.antialias, (x, z) => this.hf.heightAt(x, z));
     this.scene.add(this.trees.group);
     await this.trees.init(spawn).catch((e) => console.warn('trees failed', e));
     this.player = new Player(new THREE.Vector3(spawn.x, this.probe.height(spawn.x, spawn.z), spawn.z), spawn.heading, this.probe, this.colliders, this.lifts);

@@ -573,3 +573,15 @@ After the first Living Resort Day milestone, add a personal ski log that players
 ## Lesson captions only within earshot (2026-11-09)
 - The Snowriders' Club instructor is now Ronald.
 - Instructor and ski patrol captions show only when you are physically near (about 30 m) and never from the drone, including the phone drone view where your skier waits by the lodge. Tagging along no longer shows captions from far away; the lesson panel still does.
+
+## Forest realism pass, part 1 (2026-11-13, in progress)
+Owner request: comprehensive graphics upgrade, trees and forests first, then skier animation.
+- Done: four growth forms per conifer species (full spire, narrow fir, old open crown with dead stubs, flagged crown with dead spike or twin leader) and eight aspen clump layouts, chosen per tree from the lidar seed (`shared/treeData.ts`). Colliders and Santa's ornament boughs use the same forms.
+- Done: conifer boughs are drooping needle fans plus hanging side curtains with light or heavy snow pads, bark strip, leader spray (`client/src/trees/conifer.ts`). Aspen trunks sweep and wander, crowns are lopsided, some carry a second leader; twig texture no longer has dotted buds; aspen normals are now skewed once, not twice.
+- Done: far impostors are baked on the CPU from the full-detail models in two views with albedo and normals (`client/src/trees/impostor.ts`), lit with the same foliage lighting (wrap plus back-light) as near trees. Near and far share yaw, lean and per-tree tint.
+- Done: wind sway in the vertex stage, multiply-blended contact shade on the snow under near trees (uses terrain slope), per-tree colour variation.
+- Verified: typecheck, unit tests, one WebGPU High close-up of a mixed stand (conifers read full, no pipeline errors).
+- NOT yet verified: far-forest impostor look and LOD transition, aspen close-up, WebGL2 fallback, Low preset, e2e suite, frame rate. Contact shade strength and needle brightness are untuned.
+- Santa fixture in `tests/unit/santaFestivities.test.ts` now searches other runs after Grizzly Road, since reachable boughs depend on tree form.
+- A deployed multiplayer server on older code will place Santa's star by the old bough layout until redeployed.
+- Next: review and tune the items above, update DECISIONS.md (D17 clump layouts, impostor bake), then the skier animation (independent leg compression, weight transfer, torso counter-rotation in `client/src/skier/skierModel.ts`). Not pushed or deployed.

@@ -19,10 +19,11 @@ beforeAll(async () => {
 
 function fixture() {
   const { navigation: nav, colliders } = world;
-  const run = nav.courses.find(c => c.run.name === 'Grizzly Road')!;
-  for (const p of run.marks) {
+  // Grizzly Road first, then any other run: which boughs hang within reach depends on the tree forms.
+  const grizzly = nav.courses.find(c => c.run.name === 'Grizzly Road')!;
+  for (const run of [grizzly, ...nav.courses.filter(c => c !== grizzly)]) for (const p of run.marks) {
     const y = nav.probe.height(p.x, p.z);
-    if (y < 2630 || nav.probe.normal(p.x, p.z, { x: 0, y: 1, z: 0 }).y <= .962 || nav.blocked(p.x, p.z, y, .68)) continue;
+    if ((run === grizzly && y < 2630) || nav.probe.normal(p.x, p.z, { x: 0, y: 1, z: 0 }).y <= .962 || nav.blocked(p.x, p.z, y, .68)) continue;
     const stop = nav.santaFirStop(p);
     if (!stop) continue;
     const d = Math.hypot(p.x - stop.at.x, p.z - stop.at.z);
@@ -32,7 +33,7 @@ function fixture() {
     cp.route = []; cp.cursor = 0; cp.rest = 120;
     return { cp, stop };
   }
-  throw new Error('No reachable bough on Grizzly Road');
+  throw new Error('No reachable bough on any run');
 }
 
 describe('Santa on the mountain', () => {
