@@ -8,6 +8,7 @@ import { SANTA_TRACK_LIFE } from '../../shared/santaFestivities';
 import type { ServerMsg } from '../../shared/protocol';
 import { Lobby } from '../../server/src/rooms';
 import { fsLoader } from '../harness/world';
+import { BASE_TRAIL_MAP, addBaseTrailMapCollider } from '../../shared/baseTrailMap';
 
 let world: Awaited<ReturnType<typeof loadGuestWorld>>;
 let resort: Parameters<typeof loadGuestWorld>[1];
@@ -22,6 +23,19 @@ beforeAll(async () => {
 });
 
 describe('the resident skier', () => {
+  it('shares the physical base map board with the player renderer', () => {
+    const { x, z, yaw } = BASE_TRAIL_MAP, height = world.navigation.probe.height(x, z);
+    const playerGrid = new ColliderGrid();
+    addBaseTrailMapCollider(playerGrid, (x, z) => world.navigation.probe.height(x, z));
+    const player = createSkier({ x: x + Math.sin(yaw) * .2, y: height, z: z + Math.cos(yaw) * .2 }, yaw);
+    player.vel = { x: -Math.sin(yaw) * 6, y: 0, z: -Math.cos(yaw) * 6 }; player.speed = 6;
+    const resident = structuredClone(player);
+    expect(playerGrid.collide(player)).toBeGreaterThan(0);
+    expect(world.colliders.collide(resident)).toBeGreaterThan(0);
+    expect(distance(player.pos, resident.pos)).toBeLessThan(.0001);
+    expect(Math.hypot(player.pos.x - x, player.pos.z - z)).toBeGreaterThan(.5);
+    expect(world.navigation.blocked(x, z, height, .5)).toBe(true);
+  });
   it('can reach and traverse every mapped skiable run, with different routes from different seeds', () => {
     const { navigation: nav, colliders } = world;
     const guest = new MountainGuest(nav, colliders, 187);

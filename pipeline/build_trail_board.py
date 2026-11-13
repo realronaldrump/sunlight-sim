@@ -15,8 +15,8 @@ from config import PROC, PUBLIC, ROOT
 
 OUT = ROOT / 'client/src/world/assets/trail-board.webp'
 W, H = 3072, 2304
-AREA = (510, 230, 3004, 2120)
-ELEVATION = math.radians(42)
+AREA = (90, 180, 2982, 1650)
+ELEVATION = math.radians(14)
 COLORS = {'green': '#21894c', 'blue': '#256fa7', 'black': '#202b30',
           'double': '#202b30', 'park': '#cf772b', 'hike': '#887c67'}
 
@@ -50,17 +50,14 @@ def main():
         u, v = project_raw(p)
         return origin[0] + u * scale, origin[1] + v * scale
 
-    cv = Image.new('RGB', (W, H), '#f4f2e9')
+    cv = Image.new('RGB', (W, H), '#0876bc')
     d = ImageDraw.Draw(cv)
-    # Printed white panel, restrained navy headings and a separate information column.
-    d.rectangle((24, 24, W - 25, H - 25), outline='#547084', width=4)
-    d.rectangle((45, 45, W - 46, 182), fill='#224f6b')
-    d.text((90, 66), 'SUNLIGHT', fill='white', font=font(78, True))
-    d.text((650, 90), 'MOUNTAIN RESORT', fill='#e3edf2', font=font(38))
-    d.text((W - 105, 98), 'TRAIL MAP', anchor='ra', fill='white', font=font(48, True))
-    d.line((473, 230, 473, 2100), fill='#bcc8ca', width=3)
-    d.text((78, 248), 'FIND YOUR WAY', fill='#234e65', font=font(33, True))
-    d.text((78, 297), 'All trails return to the base.', fill='#455862', font=font(24))
+    # The owner's downhill-base photograph shows a blue panel, a landscape mountain map,
+    # and white information boxes below, inside a black metal frame with separate ad bands.
+    d.rectangle((24, 24, W - 25, H - 25), outline='#d2e6ee', width=8)
+    d.text((90, 38), 'sunlight', fill='white', font=font(100, True))
+    d.text((550, 84), 'MOUNTAIN RESORT', fill='#e3f0f5', font=font(32))
+    d.text((W - 105, 75), 'TRAIL MAP', anchor='ra', fill='white', font=font(48, True))
 
     terrain = Image.new('RGB', (W, H), '#d7e6ed')
     td = ImageDraw.Draw(terrain)
@@ -150,59 +147,59 @@ def main():
             omitted.append(name)
 
     # You are here is the physical kiosk, not a player's moving position.
-    bx, bz = 133.52, -933.78
+    bx, bz = 48.0, -1005.5
     by = float(dem[round(-bz - meta['n0']), round(bx - meta['x0'])])
     x, y = project((bx, by, bz))
     d.ellipse((x - 13, y - 13, x + 13, y + 13), fill='#c54135', outline='white', width=4)
     d.line((x, y, x - 80, y + 45, x - 255, y + 45), fill='#a32c29', width=4)
     label('YOU ARE HERE', (x - 170, y + 69), 29, '#a32c29', bold=True)
-    label('BASE LODGE', (x - 170, y + 103), 24)
+    label('BASE LIFTS', (x - 170, y + 103), 24)
     summit = max((l['top'] for l in resort['lifts']), key=lambda p: p[1])
     sx, sy = project(summit)
     label('COMPASS PEAK', (sx, sy - 50), 31, bold=True)
 
-    # The pale side column matches the information/map arrangement visible on the real board.
-    y = 390
+    # Legible, original information in the two white lower panels visible in the photograph.
+    d.rectangle((90, 1740, 1100, 2190), fill='#f5f4e9', outline='#cee5ed', width=6)
+    d.text((145, 1770), 'MOUNTAIN KEY', fill='#184d70', font=font(38, True))
+    y = 1850
     for kind, text in [('green', 'Easiest'), ('blue', 'More difficult'), ('black', 'Most difficult'), ('double', 'Experts only'), ('park', 'Terrain park')]:
         col = COLORS[kind]
         if kind == 'green':
-            d.ellipse((84, y - 14, 112, y + 14), fill=col)
+            d.ellipse((145, y - 14, 173, y + 14), fill=col)
         elif kind in ('black', 'double'):
             for offset in ([0, 28] if kind == 'double' else [0]):
-                d.polygon([(98 + offset, y - 16), (114 + offset, y), (98 + offset, y + 16), (82 + offset, y)], fill=col)
+                d.polygon([(159 + offset, y - 16), (175 + offset, y), (159 + offset, y + 16), (143 + offset, y)], fill=col)
         else:
-            d.rectangle((84, y - 14, 112, y + 14), fill=col)
-        d.text((165, y), text, font=font(27), fill='#283f48', anchor='lm')
-        y += 62
-    d.line((83, y, 137, y), fill='#b33f43', width=7)
-    d.text((165, y), 'Chairlift', font=font(27), fill='#283f48', anchor='lm')
-    y += 62
-    d.line((83, y, 137, y), fill='#ad923b', width=5)
-    d.text((165, y), 'Ski area boundary', font=font(24), fill='#283f48', anchor='lm')
-    d.text((78, 956), 'LIFTS', fill='#234e65', font=font(33, True))
-    for i, lift in enumerate(resort['lifts']):
-        d.text((78, 1028 + i * 125), lift['name'].upper(), font=font(30, True), fill='#a4383c')
-        d.text((78, 1073 + i * 125), f"{lift['seats']}-person chair", font=font(25), fill='#455862')
-    d.text((78, 1468), 'AT THE LODGE', fill='#234e65', font=font(30, True))
-    for i, text in enumerate(['Tickets & guest services', 'Rentals & repair', 'Ski & Ride School', 'Dining & restrooms']):
-        d.text((78, 1535 + i * 53), text, font=font(24), fill='#455862')
-    d.text((78, 1845), 'KNOW YOUR ROUTE', font=font(28, True), fill='#234e65')
-    for i, text in enumerate(['Choose terrain within', 'your ability. Watch for', 'trail signs and closures.']):
-        d.text((78, 1900 + i * 39), text, font=font(24), fill='#455862')
-    d.rectangle((45, 2170, W - 46, H - 46), fill='#e2e8e5')
-    d.text((80, 2202), 'SUNLIGHT MOUNTAIN RESORT  •  GLENWOOD SPRINGS, COLORADO', font=font(26, True), fill='#234e65')
-    d.text((W - 80, 2248), 'Terrain and trails: USGS 3DEP / OpenStreetMap contributors', anchor='rs', font=font(19), fill='#52656b')
+            d.rectangle((145, y - 14, 173, y + 14), fill=col)
+        d.text((225, y), text, font=font(29), fill='#283f48', anchor='lm')
+        y += 57
+    d.line((650, 1875, 710, 1875), fill='#b33f43', width=7)
+    d.text((740, 1875), 'Chairlift', font=font(28), fill='#283f48', anchor='lm')
+    d.line((650, 1940, 710, 1940), fill='#ad923b', width=5)
+    d.text((740, 1940), 'Boundary', font=font(28), fill='#283f48', anchor='lm')
+    d.text((650, 2030), 'PRIMO  •  SEGUNDO', font=font(26, True), fill='#184d70')
+    d.text((650, 2080), 'TERCERO', font=font(26, True), fill='#184d70')
+    d.text((1545, 1695), 'sunlightmtn.com', fill='white', font=font(42, True), anchor='mm')
+    d.rounded_rectangle((1190, 1800, 2010, 2090), radius=50, fill='#2b4b93', outline='#dfb0cd', width=12)
+    d.text((1600, 1860), 'SKI & RIDE', fill='#fff4ce', font=font(58, True), anchor='mm', stroke_width=2, stroke_fill='#aa4569')
+    d.text((1600, 1950), 'SUNLIGHT', fill='white', font=font(65, True), anchor='mm', stroke_width=3, stroke_fill='#a44975')
+    d.text((1600, 2030), 'GLENWOOD SPRINGS, COLORADO', fill='#dbe9f4', font=font(23, True), anchor='mm')
+    d.rectangle((2100, 1870, 2982, 2190), fill='#f5f4e9', outline='#cee5ed', width=6)
+    d.text((2155, 1905), 'AT THE BASE', fill='#184d70', font=font(34, True))
+    for i, text in enumerate(['Tickets  •  Rentals & repair', 'Ski & Ride School', 'Dining  •  Restrooms']):
+        d.text((2155, 1970 + i * 54), text, font=font(29), fill='#455862')
+    d.text((W - 90, 2260), 'Original terrain map: USGS 3DEP / OpenStreetMap contributors', anchor='rs', font=font(21), fill='#d7eaf5')
     OUT.parent.mkdir(parents=True, exist_ok=True)
     cv.save(OUT, format='WEBP', quality=92, method=6)
     manifest = {'source': 'Original cartography from project DEM, lidar canopy and resort.json; reference photos and official artwork are not embedded.',
-                'projection': 'Orthographic view uphill from the base, 42 degree elevation; no height exaggeration.',
+                'projection': 'Orthographic view uphill from the base, 14 degree elevation; no height exaggeration.',
                 'width': W, 'height': H, 'runLabels': sorted(named), 'unplacedRunLabels': sorted(omitted),
                 'lifts': [l['name'] for l in resort['lifts']], 'youAreHere': [bx, by, bz],
                 'resortSHA256': hashlib.sha256((PUBLIC / 'resort.json').read_bytes()).hexdigest(),
                 'panelSHA256': hashlib.sha256(OUT.read_bytes()).hexdigest()}
     OUT.with_suffix('.json').write_text(json.dumps(manifest, indent=2) + '\n')
     assert len(named) > 55 and len(resort['lifts']) == 3
-    assert project(summit)[1] < y
+    assert project(summit)[1] < project((bx, by, bz))[1]
     print(f'Printed trail map: {len(named)} named runs, three lifts; {OUT.stat().st_size:,} bytes. Unplaced: {omitted}')
 
 

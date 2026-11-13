@@ -9,6 +9,7 @@ import { GuestNavigation, type GuestRun } from '../../../shared/mountainGuestNav
 import type { TerrainProbe } from '../../../shared/skiPhysics';
 import { SurfaceMap } from '../../../shared/surface';
 import { addTreeCollider, decodeTreeTile } from '../../../shared/treeData';
+import { addBaseTrailMapCollider } from '../../../shared/baseTrailMap';
 
 export interface GuestResort {
   boundary: number[][];
@@ -59,6 +60,7 @@ export async function loadGuestWorld(base: string, resort: GuestResort, loader: 
     surface: (x, z) => surface.at(x, z),
   };
   const probe = new LiftStations(lifts, ground);
+  addBaseTrailMapCollider(colliders, (x, z) => probe.height(x, z));
   for (const b of resort.buildings) {
     // The winter scene omits the summer tent and models the Tercero vault
     // as part of the lift, with no above-ground building in the loading lane.

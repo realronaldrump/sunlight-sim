@@ -19,7 +19,6 @@ import { headingFromDir } from '../../../shared/skiPhysics';
 import { toWorld } from '../../../shared/walk';
 import { walkable } from './walkable';
 import type { BuildingDef } from './sunlightBuildings';
-import { BASE_TRAIL_MAP, buildTrailMapBoard } from './trailMapBoard';
 
 // ---------------------------------------------------------------- textures
 function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat = true) {
@@ -126,6 +125,20 @@ function signTex(lines: { text: string; size: number; color?: string; y: number;
     for (const l of lines) { g.fillStyle = l.color ?? '#222'; g.font = l.font ?? `bold ${l.size}px Helvetica, Arial, sans-serif`; g.textAlign = logo ? 'left' : 'center'; g.textBaseline = 'middle'; g.fillText(l.text, logo ? 260 : w / 2, l.y, w - 60); }
   }, false);
 }
+
+/** A trail map board: a stylised drawing of the mountain with coloured runs (not the resort's map artwork). */
+const trailBoard = () => canvasTex(512, 384, (g) => {
+  const r = rng(83);
+  g.fillStyle = '#f1ede2'; g.fillRect(0, 0, 512, 384);
+  g.fillStyle = '#1f4f8f'; g.fillRect(0, 0, 512, 46);
+  g.fillStyle = '#ffffff'; g.font = 'bold 30px Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SUNLIGHT MOUNTAIN', 256, 24);
+  g.fillStyle = '#dfe7ee'; g.beginPath(); g.moveTo(10, 370); g.lineTo(140, 120); g.lineTo(230, 170); g.lineTo(330, 70); g.lineTo(500, 230); g.lineTo(500, 370); g.fill();
+  for (let i = 0; i < 260; i++) { const x = 20 + r() * 470, y = 100 + r() * 270; g.fillStyle = 'rgba(40,85,50,0.55)'; g.beginPath(); g.arc(x, y, 3 + r() * 3, 0, 6.3); g.fill(); }
+  const run = (pts: number[][], c: string) => { g.strokeStyle = c; g.lineWidth = 5; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) g.lineTo(p[0], p[1]); g.stroke(); };
+  run([[330, 75], [300, 170], [250, 260], [230, 360]], '#2f9e44'); run([[330, 75], [370, 180], [330, 280], [260, 360]], '#1f6fd1');
+  run([[140, 125], [170, 220], [200, 330]], '#1f6fd1'); run([[330, 75], [420, 160], [440, 260]], '#111111'); run([[230, 170], [215, 260], [205, 350]], '#111111');
+  g.strokeStyle = '#c0392b'; g.lineWidth = 3; g.setLineDash([8, 6]); g.beginPath(); g.moveTo(240, 362); g.lineTo(330, 80); g.stroke(); g.setLineDash([]);
+});
 
 // ---------------------------------------------------------------- materials
 interface Lamp { p: THREE.Vector3; i: number }
@@ -1060,10 +1073,13 @@ export function buildMainLodge(b: BuildingDef, height: (x: number, z: number) =>
     const beacon = new THREE.MeshStandardNodeMaterial({ color: 0x5a2a05, emissive: 0xff8a1a, emissiveIntensity: 1.2 });
     k.cyl(beacon, 0.14, 0.14, 20.0, L.h + 0.45, L.h + 0.8, -33.0, 10);
     addCol(L.x0, L.x1, L.z0, L.z1, gl - 0.3, L.h + 0.5);
-    // Photo-matched kiosk between the two east buildings, facing the snowy apron.
-    const { x: mx, z: mz } = BASE_TRAIL_MAP, mg = ground(mx, mz);
-    g.add(buildTrailMapBoard(mg));
-    addCol(mx - .18, mx + .18, mz - 1.28, mz + 1.28, mg - .3, mg + 3.1);
+    // trail map board on two posts under a little gable roof, facing the deck
+    const mx = 11.6, mz = L.z1 + 1.3, mg = ground(mx, mz);
+    for (const x of [mx - 1.05, mx + 1.05]) k.box(M.darkWood, x - 0.08, x + 0.08, mg - 0.2, mg + 2.75, mz - 0.08, mz + 0.08);
+    k.box(M.darkWood, mx - 1.15, mx + 1.15, mg + 0.85, mg + 2.45, mz - 0.06, mz + 0.02);
+    k.plane(new THREE.MeshStandardNodeMaterial({ map: trailBoard(), roughness: 0.8 }), 2.0, 1.45, mx, mg + 1.65, mz + 0.03, 0);
+    prism(k, M.darkWood, [[mx - 1.35, mg + 2.45], [mx + 1.35, mg + 2.45], [mx, mg + 3.05]], 'z', mz - 0.35, mz + 0.35);
+    addCol(mx - 1.2, mx + 1.2, mz - 0.1, mz + 0.1, mg - 0.2, mg + 2.8);
   }
 
   // ---------- west deck off the dining room, its stair now running west down the slope past the annex

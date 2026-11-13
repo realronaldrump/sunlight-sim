@@ -22,7 +22,7 @@ import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings } from './world/buildings';
-import { prepareTrailMapBoard } from './world/trailMapBoard';
+import { buildTrailMapBoard, prepareTrailMapBoard } from './world/trailMapBoard';
 import { LODGE_SKI_START, lodgeSiteFootprints } from './world/mainLodge';
 import { walkable } from './world/walkable';
 import { GAUGE, UNLOAD_SLOWDOWN } from '../../shared/lifts';
@@ -305,6 +305,7 @@ export class Game {
     await this.hf.ensureArea(0, 0, 1000, 450);
     const staticGroup = new THREE.Group(); staticGroup.name = 'static';
     staticGroup.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
+    staticGroup.add(buildTrailMapBoard((x, z) => this.hf.heightAt(x, z), this.colliders));
     mergeStatic(staticGroup);
     this.scene.add(staticGroup);
     this.terrainMat.setCutouts(walkable.cutouts);

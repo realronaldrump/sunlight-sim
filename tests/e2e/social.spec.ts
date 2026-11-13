@@ -36,8 +36,11 @@ test('friends rack skis, sit on the deck, wave and point', async ({ browser }) =
     const r = [...(window as any).game.net.remotes.values()][0];
     return { mode: r.last?.mode, walker: !!r.walker?.root.visible, carry: r.last?.foot?.carry };
   }), { timeout: 10_000 }).toEqual({ mode: 'sitting', walker: true, carry: false });
-  const where = await ben.evaluate(() => { const p = [...(window as any).game.net.remotes.values()][0].walker.root.position; return [p.x, p.z]; });
-  expect(Math.hypot(where[0] - seat.x, where[1] - seat.z)).toBeLessThan(0.5);
+  // Mode changes on the selected snapshot; its position finishes the 120 ms interpolation afterward.
+  await expect.poll(() => ben.evaluate(seat => {
+    const p = [...(window as any).game.net.remotes.values()][0].walker.root.position;
+    return Math.hypot(p.x - seat.x, p.z - seat.z);
+  }, seat), { timeout: 10_000 }).toBeLessThan(0.5);
 
   await ben.evaluate(() => (window as any).game.startGesture('wave'));
   await expect.poll(() => ann.evaluate(() => document.getElementById('toast')?.textContent), { timeout: 5_000 }).toBe('Ben waves');

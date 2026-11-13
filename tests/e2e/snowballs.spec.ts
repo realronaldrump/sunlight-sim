@@ -105,6 +105,7 @@ test('two friends share the throw, player knockdown, yard sale and recovery', as
 test('room NPCs have matching identities and the same knockdown for both visitors',async({browser,browserName},testInfo)=>{
   const room='SN'+Math.random().toString(36).slice(2,6).toUpperCase();
   const a=await(await browser.newContext()).newPage(), b=await(await browser.newContext()).newPage();
+  let completed = false;
   try {
     await boot(a,'Ann',room); await boot(b,'Ben',room);
     for (const page of [a,b]) await page.evaluate(()=>{
@@ -112,22 +113,52 @@ test('room NPCs have matching identities and the same knockdown for both visitor
       g.snowballTestEvents=[];g.net.onSnowballs=(events:any[])=>{g.snowballTestEvents.push(...events);receive(events);};
     });
     await expect.poll(()=>a.evaluate(()=>(window as any).game.ambient.skiers().length)).toBeGreaterThan(0);
-    const id=await a.evaluate(async()=>{
-      const g=(window as any).game, target=g.ambient.snowballActors().filter((a:any)=>a.active).sort((a:any,b:any)=>Math.hypot(a.pos.x-g.player.st.pos.x,a.pos.z-g.player.st.pos.z)-Math.hypot(b.pos.x-g.player.st.pos.x,b.pos.z-g.player.st.pos.z))[0];
-      if(!target)throw new Error('No upright room skier');
-      const x=target.pos.x,z=target.pos.z+8;
-      await g.hf.ensureArea(0,x,-z,60);g.player.teleport(x,z,0);g.net.markTeleport();g.camRig.reset();return target.id;
+    const shot=await a.evaluate(async()=>{
+      const g=(window as any).game;
+      const targets=g.ambient.snowballActors().filter((a:any)=>a.active&&Math.hypot(a.vel.x,a.vel.z)<5)
+        .sort((a:any,b:any)=>Math.hypot(a.pos.x-g.player.st.pos.x,a.pos.z-g.player.st.pos.z)-Math.hypot(b.pos.x-g.player.st.pos.x,b.pos.z-g.player.st.pos.z));
+      for(const target of targets) {
+        await g.hf.ensureArea(0,target.pos.x,-target.pos.z,60);
+        for(let i=0;i<16;i++) {
+          const angle=i*Math.PI/8,x=target.pos.x+Math.cos(angle)*6,z=target.pos.z+Math.sin(angle)*6;
+          const y=g.probe.height(x,z);
+          if(g.probe.normal(x,z,{x:0,y:1,z:0}).y<.96||Math.abs(y-target.pos.y)>1.4)continue;
+          let clear=true;
+          // Check the full moving-target corridor, including the lead beyond its current position.
+          for(let k=0;k<=20;k++) {
+            const t=k/20,px=x+(target.pos.x+target.vel.x*.5-x)*t,pz=z+(target.pos.z+target.vel.z*.5-z)*t;
+            if(g.colliders.query(px,pz).some((c:any)=>Math.hypot(c.x-px,c.z-pz)<(c.r??Math.hypot(c.hx,c.hz))+1.2)||Math.abs(g.probe.height(px,pz)-y)>1.6){clear=false;break;}
+          }
+          if(!clear)continue;
+          const heading=Math.atan2(-(target.pos.x-x),-(target.pos.z-z));
+          g.player.teleport(x,z,heading);g.net.markTeleport();g.camRig.reset();
+          return {id:target.id,x,z,player:g.net.id};
+        }
+      }
+      throw new Error('No moving NPC with a clear, gentle shooting lane');
     });
+    const id=shot.id;
+    await a.bringToFront();await a.keyboard.down('KeyS');
     await expect.poll(()=>b.evaluate(id=>(window as any).game.ambient.snowballActors().some((a:any)=>a.id===id),id)).toBe(true);
+    // Do not throw until the authority has accepted the teleport and the observer has rendered it.
+    await expect.poll(()=>b.evaluate(shot=>{
+      const p=(window as any).game.net.remotes.get(shot.player)?.model.root.position;
+      return p?Math.hypot(p.x-shot.x,p.z-shot.z):Infinity;
+    },shot),{timeout:10000}).toBeLessThan(1);
     await expect.poll(()=>a.evaluate(()=>(window as any).game.snowballs.target()?.id),{timeout:10000}).toBe(id);
+    await a.evaluate(id=>{const g=(window as any).game;g.snowballTestBefore=structuredClone({hidden:document.hidden,enabled:g.input.enabled,mode:g.player.st.mode,grounded:g.player.st.grounded,sequence:g.snowballs.sequence,actors:g.snowballs.actors().filter((a:any)=>a.id===id||a.id===g.net.id)});},id);
     await a.keyboard.press('KeyQ');
     for(const page of [a,b])await expect.poll(()=>page.evaluate(id=>(window as any).game.snowballTestEvents.some((e:any)=>e.type==='hit'&&e.target===id),id),{timeout:6000}).toBe(true);
     for(const page of [a,b])expect(await page.evaluate(id=>(window as any).game.ambient.snowballFalls().some((a:any)=>a.id===id),id)).toBe(true);
     await a.screenshot({path:`screenshots/snowballs/${browserName}-room-npc.png`});
+    completed = true;
   }finally{
-    if(testInfo.status!==testInfo.expectedStatus) await testInfo.attach('snowball-telemetry',{body:JSON.stringify(await a.evaluate(()=>{
-      const g=(window as any).game;return {events:g.snowballTestEvents,actors:g.snowballs.actors()};
-    })),contentType:'application/json'});
+    if(!completed) {
+      const diagnostic = await a.evaluate(()=>{
+        const g=(window as any).game;return {before:g.snowballTestBefore,events:g.snowballTestEvents,actors:g.snowballs.actors()};
+      });
+      await testInfo.attach('snowball-telemetry',{body:JSON.stringify(diagnostic),contentType:'application/json'});
+    }
     await a.context().close();await b.context().close();
   }
 });

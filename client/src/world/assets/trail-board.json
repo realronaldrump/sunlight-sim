@@ -1,6 +1,6 @@
 {
   "source": "Original cartography from project DEM, lidar canopy and resort.json; reference photos and official artwork are not embedded.",
-  "projection": "Orthographic view uphill from the base, 42 degree elevation; no height exaggeration.",
+  "projection": "Orthographic view uphill from the base, 14 degree elevation; no height exaggeration.",
   "width": 3072,
   "height": 2304,
   "runLabels": [
@@ -78,10 +78,10 @@
     "Tercero"
   ],
   "youAreHere": [
-    133.52,
-    2489.455810546875,
-    -933.78
+    48.0,
+    2481.115478515625,
+    -1005.5
   ],
   "resortSHA256": "dda50b12868584a8652f4b569ba86822bc870382a7c11bc98e2889d9f8f9163a",
-  "panelSHA256": "e0f4b93bf7a4ec7bc9467e26bf429b63ef9eaba80eca7ddd0a18047361cad639"
+  "panelSHA256": "331523285cd1c018027075ae3820d1ecefbed04f6051021fd84e5a371c36583c"
 }
