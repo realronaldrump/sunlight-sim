@@ -22,7 +22,7 @@ test('fps at 1440p on High', async ({ page }) => {
       const avg = frames.reduce((a, b) => a + b, 0) / frames.length;
       const info = g.renderer.info.render;
       return { avgMs: +avg.toFixed(2), p95Ms: +frames[Math.floor(frames.length * 0.95)].toFixed(2), fps: +(1000 / avg).toFixed(1),
-        cpuMs: +g.frameMs.toFixed(2), drawCalls: info.drawCalls, triangles: info.triangles, pixelRatio: g.renderer.getPixelRatio(), backend: g.renderer.backend.constructor.name };
+        cpuMs: +g.frameMs.toFixed(2), drawCalls: info.drawCalls, triangles: info.triangles, pixelRatio: g.renderer.getPixelRatio(), backend: g.renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2' };
     });
     console.log(label, JSON.stringify(r));
     return { label, ...r };

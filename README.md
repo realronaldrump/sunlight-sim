@@ -4,6 +4,7 @@ A browser-based, open-world, multiplayer ski simulator of one mountain: **Sunlig
 
 - Terrain from the USGS 1 m lidar DEM across the resort, real surrounding terrain out to 65 km (Mount Sopris, the Elk Range, the Roaring Fork and Colorado River valleys).
 - About 244,000 trees placed from the lidar canopy height model, species from aerial imagery (spruce/fir, Douglas-fir, bare aspen, Gambel oak).
+- A roofed trail-map kiosk in its photographed setting at the east end of the lodge deck. Walk up to read the mountain's actual trails, lifts and You are here marker.
 - All 75 runs on the official trail map with official names and difficulty, run boundaries from the lidar tree gaps, signs at every run entrance.
 - Primo, Segundo and Tercero chairlifts on their real lines with OSM tower positions, moving chairs, real-time rides.
 - Physically based ski model (edging and sidecut carving, skidding, snowplow, tuck, drag, falls).

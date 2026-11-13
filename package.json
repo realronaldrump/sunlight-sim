@@ -21,7 +21,8 @@
     "data:audio": ".venv/bin/python pipeline/build_audio.py",
     "data:sopris": ".venv/bin/python pipeline/build_sopris.py",
     "test:sopris": ".venv/bin/python pipeline/test_sopris.py",
-    "data:crowd": "tsx pipeline/build_crowd_human.ts"
+    "data:crowd": "tsx pipeline/build_crowd_human.ts",
+    "data:trail-board": ".venv/bin/python pipeline/build_trail_board.py"
   },
   "dependencies": {
     "three": "^0.187.0",

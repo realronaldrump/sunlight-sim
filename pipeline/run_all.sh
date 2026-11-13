@@ -22,6 +22,7 @@ $PY build_structures.py
 echo "== 9. Trees + species";                    $PY build_trees.py
 echo "== 10. Surface masks + run boundaries";    $PY build_surface.py
 echo "== 11. Trail map + boundary";              $PY build_map.py
+$PY build_trail_board.py
 echo "== 12. Base area roads/parking";           $PY build_base.py
 echo "== 13. Distant forest cover (WorldCover)"; $PY build_landcover.py
 echo "== 14. Accuracy report";                   $PY accuracy.py

@@ -22,6 +22,7 @@ import { initializeRenderer } from './rendererSetup';
 import { SkiAudio } from './audio/audio';
 import { AudioScene } from './audio/audioScene';
 import { buildBuildings } from './world/buildings';
+import { prepareTrailMapBoard } from './world/trailMapBoard';
 import { LODGE_SKI_START, lodgeSiteFootprints } from './world/mainLodge';
 import { walkable } from './world/walkable';
 import { GAUGE, UNLOAD_SLOWDOWN } from '../../shared/lifts';
@@ -300,7 +301,7 @@ export class Game {
       tex.needsUpdate = true;
       this.terrainMat.setSurface(tex, s.x0, s.n0, s.w * s.res, s.h * s.res);
     }
-    await Promise.all([this.loadBaseMask(), this.loadLandcover(), this.terrainMat.ready]);
+    await Promise.all([this.loadBaseMask(), this.loadLandcover(), this.terrainMat.ready, prepareTrailMapBoard()]);
     await this.hf.ensureArea(0, 0, 1000, 450);
     const staticGroup = new THREE.Group(); staticGroup.name = 'static';
     staticGroup.add(buildBuildings(this.resort.buildings, (x, z) => this.hf.heightAt(x, z), this.colliders));
