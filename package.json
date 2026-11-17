@@ -13,7 +13,7 @@
     "preview": "vite preview --config client/vite.config.ts",
     "data": "bash pipeline/run_all.sh",
     "data:snow": ".venv/bin/python pipeline/build_snow.py",
-    "data:skier": "tsx pipeline/build_skier.ts",
+    "data:skier": "tsx pipeline/build_skier.ts && .venv/bin/python pipeline/build_winter_clothing.py",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -50,6 +50,8 @@ const color = new Float32Array(p.count * 3), jacket = new Float32Array(p.count),
 const regions = new Uint8Array(p.count);
 const v = new THREE.Vector3(), n = new THREE.Vector3();
 const rgba = new THREE.Color();
+const lipColor = new THREE.Color(.43, .135, .115);
+const bell = (distance: number, width: number) => Math.exp(-((distance / width) ** 2));
 for (let i = 0; i < p.count; i++) {
   v.fromBufferAttribute(p, i); n.fromBufferAttribute(normal, i);
   let max = -1, bone = '';
@@ -66,14 +68,21 @@ for (let i = 0; i < p.count; i++) {
   if (neck) {
     v.addScaledVector(n, 0.008 * Math.max(0, Math.min(1, (1.53 - v.y) / 0.025))); rgba.setRGB(0.025, 0.031, 0.038); rough[i] = 0.96;
   } else if (face) {
-    // Natural skin shading over the anatomical face; cheeks/nose get a little cold-weather warmth.
-    rgba.setRGB(0.70, 0.48, 0.34);
-    const cheek = Math.exp(-((Math.abs(v.x) - 0.05) ** 2 / 0.001 + (v.y - 1.65) ** 2 / 0.001));
-    rgba.r += cheek * 0.045; rgba.g -= cheek * 0.025;
-    rgba.multiplyScalar(0.96 + grain * 0.07); skin[i] = 1; rough[i] = 0.76;
+    // Warm the cheeks, ear rims and nose. Shade the lips and sockets on the actual face.
+    const ax = Math.abs(v.x), front = THREE.MathUtils.smoothstep(-v.z, .06, .115);
+    const cheeks = bell(ax - .053, .028) * bell(v.y - 1.625, .024) * front;
+    const nose = bell(v.x, .019) * bell(v.y - 1.62, .022) * front;
+    const ears = bell(ax - .084, .013) * bell(v.y - 1.632, .033);
+    const lips = bell(v.x, .024) * bell(v.y - (1.577 + .002 * Math.cos(v.x * 130)), .007) * front;
+    const socket = bell(ax - .035, .024) * bell(v.y - 1.654, .012) * front;
+    const warmth = cheeks + nose * .75 + ears * .6;
+    rgba.setRGB(.66 + warmth * .064, .405 - warmth * .045, .284 - warmth * .018);
+    rgba.lerp(lipColor, lips * .87);
+    rgba.multiplyScalar((1 - .24 * socket) * (.98 + grain * .035));
+    skin[i] = 1; rough[i] = .7 - lips * .17 - nose * .10;
   } else if (hand) {
     // Insulated gloves follow the actual hands and fingers.
-    v.addScaledVector(n, 0.006); rgba.setRGB(0.025, 0.03, 0.038); rough[i] = 0.82;
+    v.addScaledVector(n, .0065); rgba.setRGB(.043, .050, .061); rough[i] = .72;
   } else if (coat) {
     // A loose technical shell: soften body contours under fabric, broaden the shoulders and cuffs.
     const collarFade = !arm ? Math.max(0.1, Math.min(1, (1.48 - v.y) / 0.08)) : 1;
@@ -85,19 +94,19 @@ for (let i = 0; i < p.count; i++) {
       const f = Math.sqrt((v.x / rx) ** 2 + ((v.z - 0.014) / rz) ** 2);
       if (f > 0.01 && f < 1) { v.x /= f; v.z = 0.014 + (v.z - 0.014) / f; }
     }
-    // Small fabric folds follow the sleeve and waist, never change the body underneath.
-    v.addScaledVector(n, Math.sin(v.y * 91 + v.x * 22) * Math.sin(v.z * 37) * 0.0028);
-    const hem = Math.abs(v.y - 1.005) < 0.018;
-    const sidePanel = !arm && Math.abs(v.x) > 0.17;
-    const zip = !arm && Math.abs(v.x) < 0.006 && v.z < -0.09;
-    const seam = !arm && Math.abs(Math.abs(v.x) - 0.115) < 0.003 && v.z < -0.07;
-    const c = zip ? 0.032 : hem ? 0.18 : sidePanel ? 0.42 : seam ? 0.65 : 0.84 + grain * 0.08;
-    rgba.setRGB(c, c, c); jacket[i] = zip ? 0 : 1; rough[i] = 0.91;
+    // Gather the shell at the waist and elbow. The atlas supplies the unbroken zipper and seams.
+    const compression = arm ? bell(v.y - 1.21, .088) : bell(v.y - 1.058, .062);
+    v.addScaledVector(n, Math.sin(v.y * 101 + Math.abs(v.x) * 28 + v.z * 32) * (.0016 + .0058 * compression));
+    const hem = !arm ? bell(v.y - 1.01, .017) : 0;
+    v.addScaledVector(n, .007 * hem);
+    const c = .91 - hem * .13 + grain * .015;
+    rgba.setRGB(c, c, c); jacket[i] = 1; rough[i] = .79 + .07 * compression;
   } else {
     // Insulated ski pants, loose at thigh/knee and tucked into the boot cuff.
-    const fold = Math.sin(v.y * 73 + v.x * 14) * Math.sin(v.z * 33) * 0.0035;
-    v.addScaledVector(n, 0.031 + fold);
-    rgba.setRGB(0.032, 0.044, 0.064).multiplyScalar(0.92 + grain * 0.16); rough[i] = 0.94;
+    const gathered = bell(v.y - .29, .065) + .65 * bell(v.y - .525, .079);
+    const fold = Math.sin(v.y * 93 + Math.abs(v.x) * 24 + v.z * 32) * (.0016 + .006 * gathered);
+    v.addScaledVector(n, .034 + fold);
+    rgba.setRGB(.057, .073, .089).multiplyScalar(.97 + grain * .05); rough[i] = .89;
   }
   p.setXYZ(i, v.x, v.y, v.z);
   color.set(rgba.toArray(), i * 3);
@@ -120,6 +129,7 @@ const bones = body.skeleton.bones.map(b => {
 });
 const result = {
   version: 1, license: 'CC0-1.0', source, height: 1.77, bones,
+  uv: round(g.getAttribute('uv').array),
   position: round(p.array), normal: round(g.getAttribute('normal').array), index: indices,
   skinIndex: Array.from(joints.array), skinWeight: round(weights.array),
   color: round(color, 4), jacket: Array.from(jacket), skin: Array.from(skin), roughness: round(rough, 3),

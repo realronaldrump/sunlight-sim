@@ -1,5 +1,11 @@
 # Progress
 
+## Resort character graphics (November 17, 2026, in progress)
+
+- Added a reproducible 2048 px clothing atlas to the full and crowd rigs. Jacket panels, working zipper artwork, cuffs, articulated knees and instep guards share the same texture coordinates through every pose. Rebuilt headwear, boots, ski topsheets, bindings, poles and folded collars. Base people retain their equipment silhouettes at distance, and guests keep their headwear on skis.
+- Reviewed front and rear views, exposed faces, lenses, boots, a pedestrian, child, instructor, sign walker and Santa in Chromium. The first review revealed protruding eyes, buried boot buckles and pale cloth edges. Revised the eye fit, lower boot shape and fabric tint interpolation. Updated the printed lesson and patrol uniforms.
+- Baseline production build, 212 unit tests and five pipeline checks passed. Baseline High performance at 2560 by 1440 was 31.4 to 35.8 fps in the four existing scenes on this Mac. Next: carry the same art through seated passenger batches, finish costume details, inspect complete characters in the mountain lighting, run browser and performance checks, then push and verify production.
+
 ## Final release and owner-marked relocation (November 13, 2026, complete)
 
 - Trees, independent skier animation and the blue map board are deployed. The final board is at the center of the owner's annotated circle: x=76.6, z=-967.7, yaw=0.45. An independent projection check placed it 0.30 pixels from the circle center. The printed marker and shared client/server collider moved together.

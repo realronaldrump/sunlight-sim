@@ -41,7 +41,7 @@ export class Patrol {
     plans.forEach((plan, i) => {
       const model = new SkierModel(new THREE.Color(0xc4161c), 'crowd', new THREE.Color(...([[0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [1, 1, 1]][i] as [number, number, number])));
       model.dress({ jacket: 0xc4161c, skin: [[0.96, 0.86, 0.77], [0.84, 0.68, 0.56], [1, 1, 1]][i], hatColor: 0x1a1a1c });
-      dressBib(model.human, new THREE.Color(0xc4161c), new THREE.Color(1, 1, 1), { color: '#c4161c', ink: '#ffffff', cut: 'uniform', frontTitle: 'PATROL', backName: 'SKI PATROL', cross: true });
+      dressBib(model.human, { color: '#c4161c', ink: '#ffffff', cut: 'uniform', frontTitle: 'PATROL', backName: 'SKI PATROL', cross: true });
       model.root.name = `ski-patroller-${i}`;
       model.root.visible = false;
       this.group.add(model.root);

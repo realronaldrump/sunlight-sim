@@ -30,6 +30,7 @@ The blue trail-map board above Segundo and Tercero is an original model matched 
 ## Art and audio
 
 - Skier anatomy: [Human base mesh with editable 53-bone rig](https://www.innerscene.com/tools/library/3d-parts/human-base-mesh-with-editable-53-bone-rig-8e7c8ab1), built by Innerscene from MakeHuman/MPFB assets, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). The derived winter-clothed body is in `client/public/models/skier-human.json.gz`, with its license beside it. Source SHA-256 is pinned in `pipeline/build_skier.ts`; rebuild with `npm run data:skier`.
+- The winter clothing atlas, coordinated shell panels, beanie knit, goggle lens artwork, boot hardware, ski topsheets and printed uniforms are original procedural art. The atlas is baked onto the credited CC0 body by `pipeline/build_winter_clothing.py`.
 - Ski clothing modifications, helmets, goggles, boots, skis, bindings, poles, chairlifts, towers, buildings, signs, conifer/aspen/oak models, branch and impostor textures: original procedural work in this repository.
 - Sky: three.js SkyMesh (Preetham analytic daylight model), MIT.
 - Audio: CC0 field-recorded textures and original procedural airflow/contact Foley, detailed below.

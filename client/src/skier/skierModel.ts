@@ -2,7 +2,9 @@
 // Ski-specific two-bone IK drives the shared poses for the player, friends and ambient skiers.
 import * as THREE from 'three/webgpu';
 import { HumanBody } from './humanBody';
-import { helmetAndGoggles, skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
+import { skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
+import { headwear, tintHeadwear, type Hat } from './headwear';
+import { guestBuild } from './winterClothing';
 import { SkiContacts, type SnowSurface } from './skiContact';
 
 export interface SkierPose {
@@ -64,7 +66,8 @@ export class SkierModel {
   private body = new THREE.Group(); // tilted for falls
   readonly human: HumanBody;
   private headGear: THREE.Group;
-  private boots = [skiBoot(), skiBoot()];
+  private boots = [skiBoot(-1), skiBoot(1)];
+  private hats = new Map<Hat, THREE.Group>();
   private skis: THREE.Group[];
   private poles: THREE.Group[];
   private collar;
@@ -86,7 +89,8 @@ export class SkierModel {
 
   constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
     this.human = new HumanBody(jacket, skin, lod);
-    this.headGear = costume?.headGear ?? helmetAndGoggles();
+    this.headGear = costume?.headGear ?? headwear('helmet');
+    if (!costume) this.hats.set('helmet', this.headGear);
     const ski = costume?.ski ?? skiWithBindings, pole = costume?.pole ?? skiPole;
     this.skis = [ski(), ski()];
     this.poles = [pole(), pole()];
@@ -101,23 +105,19 @@ export class SkierModel {
   }
 
   setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
-  private helmetShell: THREE.MeshStandardNodeMaterial | null = null;
-  /** Give this skier a helmet colour of their own (the shell material is otherwise shared). */
-  setHelmet(c: THREE.ColorRepresentation) {
-    if (!this.helmetShell) {
-      const shell = this.headGear.children[0] as THREE.Mesh;
-      this.helmetShell = (shell.material as THREE.MeshStandardNodeMaterial).clone();
-      shell.material = this.helmetShell;
-    }
-    this.helmetShell.color.set(c);
-  }
-  /** Dress as a particular resort guest: jacket, skin tone, helmet (or beanie colour) and body size. */
-  dress(look: { jacket: number; skin: number[]; hatColor: number; scale?: number }) {
+  dress(look: { jacket: number; skin: number[]; hatColor: number; hat?: Hat; scale?: number }) {
     this.resetSnowballs();
     this.setJacket(look.jacket);
     this.human.setSkin(new THREE.Color(look.skin[0], look.skin[1], look.skin[2]));
-    this.setHelmet(look.hatColor);
-    this.root.scale.setScalar(look.scale ?? 1);
+    const kind = look.hat ?? 'helmet';
+    let hat = this.hats.get(kind);
+    if (!hat) { hat = headwear(kind); this.hats.set(kind, hat); }
+    if (this.headGear !== hat) {
+      hat.position.copy(this.headGear.position); hat.quaternion.copy(this.headGear.quaternion);
+      this.body.remove(this.headGear); this.headGear = hat; this.body.add(hat);
+    }
+    tintHeadwear(hat, look.hatColor);
+    guestBuild(this.root.scale, look.jacket, look.hatColor, look.scale);
   }
 
   /** Update joint positions. Local frame: feet at origin, skier faces -z, +x right. */
@@ -179,10 +179,13 @@ export class SkierModel {
     const lean = 0.25 + 0.75 * p.tuck + 0.15 * flex;
     // Hip angulation keeps the upper body quieter and more upright than the legs.
     let chest = pelvis.clone().add(V(-Math.sin(incline) * .12, Math.cos(lean) * 0.5, -Math.sin(lean) * 0.5).applyAxisAngle(UP, chestYaw));
+    const atRest = (1 - Math.min(1, p.speed / 3)) * (1 - p.fallen) * (1 - tour);
+    const breath = Math.sin(t * 1.55) * atRest;
+    chest.y += breath * .005;
 
     if (sit > 0) {
       // sitting on the chair: hips back on the seat, thighs horizontal, legs hanging
-      const sp = V(0, 0.54, 0.25), sc = V((p.rockX ?? 0) * .19, 1.07 - (p.slipping ?? 0) * .24, .33 - (p.rockZ ?? 0) * .2);
+      const sp = V(0, 0.54, 0.25), sc = V((p.rockX ?? 0) * .19, 1.07 + breath * .005 - (p.slipping ?? 0) * .24, .33 - (p.rockZ ?? 0) * .2);
       pelvis = pelvis.lerp(sp, sit); chest = chest.lerp(sc, sit);
       const footY = Math.max(-.05, (p.footGroundY ?? -Infinity) + .145);
       ankleL.lerp(V(-0.14, footY, -0.2), sit); ankleR.lerp(V(0.14, footY, -0.2), sit);
@@ -253,8 +256,9 @@ export class SkierModel {
     }
     const action = p.costumeAction;
     const tip = action?.kind === 'hat-tip' ? action.amount : 0;
-    const headTilt = new THREE.Euler(-.10 + .3 * p.tuck + .15 * tip,
-      action ? THREE.MathUtils.clamp(action.yaw, -.85, .85) * action.amount : chestYaw * .6,
+    const glance = atRest * (.07 * Math.sin(t * .53) + .045 * Math.sin(t * .91)) * (1 + sit);
+    const headTilt = new THREE.Euler(-.10 + .3 * p.tuck + .15 * tip + breath * .008,
+      action ? THREE.MathUtils.clamp(action.yaw, -.85, .85) * action.amount : chestYaw * .6 + glance,
       -incline * .2 + tip * .14);
     if (action) {
       const reach = action.kind === 'hat-tip'

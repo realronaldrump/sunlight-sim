@@ -136,7 +136,7 @@ export interface LunchPlan { routes: { x: number; y: number; z: number }[][]; se
 const LUNCH = { gather: 15, walk: 42, eat: 330 };
 const LUNCH_TIME = LUNCH.gather + LUNCH.walk * 2 + LUNCH.eat;
 
-interface Member { guest: Guest; model: SkierModel; walker: PedestrianModel | null; print: Parameters<typeof dressBib>[3]; role: 'instructor' | 'kid'; scale: number; seat: number; chair: 0 | 1; plow: number; time: number; stride: number }
+interface Member { guest: Guest; model: SkierModel; walker: PedestrianModel | null; print: Parameters<typeof dressBib>[1]; role: 'instructor' | 'kid'; scale: number; seat: number; chair: 0 | 1; plow: number; time: number; stride: number }
 
 type Phase = 'lineup' | 'toLift' | 'lift' | 'descent' | 'lunch';
 export interface LessonStatus {
@@ -236,7 +236,7 @@ export class LessonGroup {
 
   private buildMembers() {
     const instructor: Guest = registerGuest({ id: 900001, persona: 'intermediate', group: 'lesson',
-      look: { jacket: 0xb5121b, skin: [0.96, 0.86, 0.77], hat: 'helmet', hatColor: 0x16181c } });
+      look: { jacket: 0xb5121b, scale: 1, skin: [0.96, 0.86, 0.77], hat: 'helmet', hatColor: 0x16181c } });
     this.addMember(instructor, 'instructor', 1, 0, 0, 0.05, { color: '#b5121b', ink: '#ffffff', cut: 'uniform', frontTitle: 'SUNLIGHT', backName: 'SUNLIGHT', backTitle: 'SKI & RIDE SCHOOL  ·  INSTRUCTOR' });
     KIDS.forEach((k, i) => {
       const g = registerGuest({ id: 900002 + i, persona: 'beginner', group: 'lesson', look: { jacket: k.jacket, skin: k.skin, hat: 'helmet', hatColor: k.hat, scale: k.scale, bib: { color: 0xff7a1a, number: String(i + 1) } } });
@@ -245,11 +245,11 @@ export class LessonGroup {
     });
   }
 
-  private addMember(guest: Guest, role: Member['role'], scale: number, chair: 0 | 1, seat: number, plow: number, print: Parameters<typeof dressBib>[3]) {
+  private addMember(guest: Guest, role: Member['role'], scale: number, chair: 0 | 1, seat: number, plow: number, print: Parameters<typeof dressBib>[1]) {
     const look = guest.look;
     const model = new SkierModel(new THREE.Color(look.jacket), 'crowd', new THREE.Color(...look.skin as [number, number, number]));
     model.dress(look);
-    dressBib(model.human, new THREE.Color(look.jacket), new THREE.Color(...look.skin as [number, number, number]), print);
+    dressBib(model.human, print);
     model.root.name = role === 'instructor' ? 'lesson-instructor' : `lesson-kid-${this.members.length}`;
     this.group.add(model.root);
     this.members.push({ guest, model, walker: null, print, role, scale, chair, seat, plow, time: this.members.length * 3.1, stride: 0 });
@@ -558,8 +558,8 @@ export class LessonGroup {
       // on foot for lunch: the same person in ski boots, bib and all
       if (pose.foot && !m.walker) {
         const look = m.guest.look;
-        m.walker = new PedestrianModel({ jacket: new THREE.Color(look.jacket), skin: new THREE.Color(...look.skin as [number, number, number]), hat: 'helmet', lod: 'crowd' });
-        dressBib(m.walker.human, new THREE.Color(look.jacket), new THREE.Color(...look.skin as [number, number, number]), m.print);
+        m.walker = new PedestrianModel({ jacket: new THREE.Color(look.jacket), skin: new THREE.Color(...look.skin as [number, number, number]), hat: look.hat, hatColor: new THREE.Color(look.hatColor), scale: m.scale, lod: 'crowd' });
+        dressBib(m.walker.human, m.print);
         m.walker.root.scale.setScalar(m.scale);
         this.group.add(m.walker.root);
       }

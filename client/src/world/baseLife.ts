@@ -574,7 +574,7 @@ export class BaseLife {
           gesture: p.signal ? { kind: 'signal', amount: p.signal } : undefined });
       }
       p.model.human.mesh.castShadow = dist < 45;
-      if (dist < 110 && p.model.look.instancedGear) p.model.pushGear(this.gear, dist < 50);
+      if (p.model.look.instancedGear) p.model.pushGear(this.gear, dist < 33);
     }
     this.gear.end();
   }

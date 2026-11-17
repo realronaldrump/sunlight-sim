@@ -50,6 +50,6 @@ export function guestAppearance(g: Guest): Appearance {
   const s = g.look.skin;
   return {
     jacket: new THREE.Color(g.look.jacket), skin: new THREE.Color(s[0], s[1], s[2]),
-    hat: g.look.hat, hatColor: new THREE.Color(g.look.hatColor), instancedGear: true, lod: 'crowd',
+    hat: g.look.hat, scale: g.look.scale, hatColor: new THREE.Color(g.look.hatColor), instancedGear: true, lod: 'crowd',
   };
 }

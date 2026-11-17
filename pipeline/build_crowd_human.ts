@@ -13,14 +13,13 @@ const positions = new Float32Array(src.position);
 const vertexCount = positions.length / 3;
 const indices = new Uint32Array(src.index);
 // Colour and clothing region weigh in so seams between jacket, skin and trousers survive.
-const attrStride = 5;
+const attrStride = 7;
 const attrs = new Float32Array(vertexCount * attrStride);
 for (let i = 0; i < vertexCount; i++) {
-  attrs[i * 5] = src.color[i * 3]; attrs[i * 5 + 1] = src.color[i * 3 + 1]; attrs[i * 5 + 2] = src.color[i * 3 + 2];
-  attrs[i * 5 + 3] = src.jacket[i]; attrs[i * 5 + 4] = src.skin[i];
+  attrs.set([...src.color.slice(i * 3, i * 3 + 3), src.jacket[i], src.skin[i], src.uv[i * 2], src.uv[i * 2 + 1]], i * attrStride);
 }
 const [simplified, error] = MeshoptSimplifier.simplifyWithAttributes(indices, positions, 3, attrs, attrStride,
-  [0.5, 0.5, 0.5, 1, 1], null, TARGET_TRIANGLES * 3, 0.01, []);
+  [0.5, 0.5, 0.5, 1, 1, .6, .6], null, TARGET_TRIANGLES * 3, 0.01, []);
 // keep only the vertices that are still referenced
 const remap = new Int32Array(vertexCount).fill(-1);
 const order: number[] = [];
@@ -29,7 +28,7 @@ const pick = (a: number[], n: number) => order.flatMap((v) => a.slice(v * n, v *
 const out = {
   ...src,
   lod: 'crowd', sourceTriangles: indices.length / 3, simplificationError: +error.toFixed(5),
-  position: pick(src.position, 3), normal: pick(src.normal, 3), index,
+  position: pick(src.position, 3), normal: pick(src.normal, 3), uv: pick(src.uv, 2), index,
   skinIndex: pick(src.skinIndex, 4), skinWeight: pick(src.skinWeight, 4),
   color: pick(src.color, 3), jacket: pick(src.jacket, 1), skin: pick(src.skin, 1), roughness: pick(src.roughness, 1),
 };
