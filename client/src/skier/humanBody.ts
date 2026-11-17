@@ -123,7 +123,8 @@ export class HumanBody {
     b.position.copy(start); b.quaternion.copy(this.delta).multiply(r.q); b.scale.set(1, ratio, 1);
   }
 
-  pose(j: Joints, headTilt: THREE.Euler, boardPalm?: THREE.Vector3, twist?: { pelvis: number; chest: number }) {
+  pose(j: Joints, headTilt: THREE.Euler, boardPalm?: THREE.Vector3, twist?: { pelvis: number; chest: number },
+      relaxedHands = false) {
     const p = j.pelvis, neck = j.neck;
     const s1 = p.clone().lerp(neck, 0.15), s2 = p.clone().lerp(neck, 0.27), s3 = p.clone().lerp(neck, 0.38);
     this.segment('pelvis', 'spine_01', p, s1);
@@ -167,7 +168,22 @@ export class HumanBody {
         bone.position.copy(rest.p).sub(restHand.p).applyQuaternion(handDelta).add(wrist);
         bone.quaternion.copy(handDelta).multiply(rest.q);
       }
-      const curls = holdingBoard ? [0, 1.75, 2.28, 2.55] : [0, -0.65, -1.45, -2.05];
+      // Oppose the thumb across the grip. Leaving it in the source's spread-hand pose sent
+      // the thumb straight out of the glove on both sides.
+      if (!holdingBoard) {
+        const inwards = side === 'l' ? 1 : -1;
+        const first = 'thumb_01_' + side, middle = 'thumb_02_' + side, last = 'thumb_03_' + side;
+        const base = this.bones.get(first)!.position;
+        const knuckle = base.clone().add(new THREE.Vector3(inwards * .020, -.022, -.012));
+        const tip = knuckle.clone().add(new THREE.Vector3(inwards * (relaxedHands ? .014 : -.004), -.031, -.009));
+        this.segment(first, middle, base, knuckle);
+        this.segment(middle, last, knuckle, tip);
+        const end = this.bones.get(last)!;
+        end.position.copy(tip);
+        end.quaternion.copy(this.delta).multiply(this.rest.get(last)!.q);
+      }
+      const curls = holdingBoard ? [0, 1.75, 2.28, 2.55]
+        : relaxedHands ? [0, -.23, -.56, -.85] : [0, -0.65, -1.45, -2.05];
       for (const finger of ['index', 'middle', 'ring', 'pinky']) {
         let start: THREE.Vector3 | null = null;
         for (let part = 1; part <= 3; part++) {

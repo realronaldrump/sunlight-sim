@@ -168,7 +168,9 @@ export class PedestrianModel {
     this.lastTime = p.time;
     const look = new THREE.Euler(-.06 + (p.mode === 'sit' ? .10 : 0) + .014 * Math.sin(t * .83), this.gaze, stepTurn * .14, 'YXZ');
     this.human.pose({ pelvis, chest, neck, head, hipL, hipR, kneeL, kneeR, ankleL, ankleR,
-      shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR }, look, this.outfit ? BOARD_PALM : undefined, { pelvis: -stepTurn * .35, chest: stepTurn });
+      shoulderL: shL, shoulderR: shR, elbowL: elL, elbowR: elR, handL, handR }, look,
+      this.outfit ? BOARD_PALM : undefined, { pelvis: -stepTurn * .35, chest: stepTurn },
+      p.mode === 'sit' || skiMode === 'none' || skiMode === 'planted');
     this.head.position.copy(head); this.head.rotation.copy(look);
     this.collarAnchor.position.copy(neck); this.collarAnchor.rotation.set(-.05, stepTurn, 0);
     this.boots[0].position.copy(ankleL); this.boots[1].position.copy(ankleR);
