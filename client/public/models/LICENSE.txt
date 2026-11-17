@@ -10,3 +10,7 @@ Source GLB SHA-256: f3cd655e44af0a79786b1b4349c4acf1ae342fe6bd0d5fc714e68470dea1
 Clothing modifications and ski equipment are original work in this repository.
 The derived anatomical body file is also dedicated to CC0.
 Rebuild with npm run data:skier. Raw source is cached in data/raw/characters/.
+
+Guest facial albedo adapts four core MakeHuman system skin textures, released under CC0 1.0 Universal.
+The texture names, source URL and SHA-256 checksums are in pipeline/build_winter_clothing.py.
+The reduced chair passengers derive from the same CC0 skier and original equipment.

@@ -102,6 +102,20 @@ describe('skier rendering', () => {
     expect(meshes.some(m => m.geometry.type === 'CapsuleGeometry')).toBe(false);
   });
 
+  it('keeps the pole grips in the gloves through tucking, planting, seated travel and a wave', () => {
+    const model = new SkierModel();
+    const poles = model.root.getObjectsByProperty('name', 'ski-pole');
+    expect(poles).toHaveLength(2);
+    for (const change of [{ edge: .75 }, { tuck: 1 }, { sitting: 1 }, { gesture: { kind: 'wave' as const, amount: 1 } }]) {
+      model.update({ ...pose, ...change }); model.root.updateMatrixWorld(true);
+      for (const [i, pole] of poles.entries()) {
+        const grip = pole.localToWorld(new THREE.Vector3(0, -.51, 0));
+        const palm = joint(model, i === 0 ? 'hand_l' : 'hand_r').add(new THREE.Vector3(0, -.056, -.022));
+        expect(grip.distanceTo(palm)).toBeLessThan(.001);
+      }
+    }
+  });
+
   it('releases skis during a snowball tumble and restores the finite rig after getting up', () => {
     const model = new SkierModel(); model.hitBySnowball(17);
     for (let i = 0; i < 120; i++) {

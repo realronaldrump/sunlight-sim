@@ -2,7 +2,7 @@
 // Bones are driven by ski-specific IK, so hands, knees and feet follow the actual skiing pose.
 import * as THREE from 'three/webgpu';
 import { attribute, uniform, float } from 'three/tsl';
-import { clothingSurface, jacketAccent, loadWinterClothing } from './winterClothing';
+import { clothingSurface, faceStyle, jacketAccent, loadWinterClothing } from './winterClothing';
 
 interface RestBone { name: string; parent: string; position: number[]; quaternion: number[]; inverse: number[] }
 export interface HumanAsset {
@@ -17,7 +17,15 @@ function buildGeometry(data: HumanAsset) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.position, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(data.normal, 3));
   geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(data.skinIndex, 4));
-  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(data.skinWeight, 4));
+  const weights = new THREE.Float32BufferAttribute(data.skinWeight, 4);
+  const weight = new THREE.Vector4();
+  for (let i = 0; i < weights.count; i++) {
+    weight.fromBufferAttribute(weights, i);
+    const sum = weight.manhattanLength();
+    if (sum) weight.multiplyScalar(1 / sum); else weight.set(1, 0, 0, 0);
+    weights.setXYZW(i, weight.x, weight.y, weight.z, weight.w);
+  }
+  geometry.setAttribute('skinWeight', weights);
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(data.color, 3));
   // One vertex buffer for the material attributes, including the UV islands used by uniform prints.
   const surface = new Float32Array(data.jacket.length * 5);
@@ -37,25 +45,25 @@ export function prepareHumanAsset(data: HumanAsset) {
   asset = data;
   geometry = buildGeometry(data);
 }
-async function fetchAsset(url: string) {
+export async function fetchCharacterAsset<T>(url: string | URL) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Human character asset: ${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   const text = bytes[0] === 0x1f
     ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
     : new TextDecoder().decode(bytes);
-  return JSON.parse(text) as HumanAsset;
+  return JSON.parse(text) as T;
 }
 /** Simplified crowd mesh with the identical rig (pipeline/build_crowd_human.ts). Falls back to the full mesh. */
 export async function loadCrowdHumanAsset(base: string) {
   if (crowdGeometry) return;
-  const data = await fetchAsset(`${base}/models/skier-human-crowd.json.gz?kit=2`);
+  const data = await fetchCharacterAsset<HumanAsset>(`${base}/models/skier-human-crowd.json.gz?kit=2`);
   if (asset && data.bones.length !== asset.bones.length) throw new Error('Crowd human rig mismatch');
   crowdGeometry = buildGeometry(data);
 }
 export async function loadHumanAsset(base: string) {
   if (asset) return;
-  const [data] = await Promise.all([fetchAsset(`${base}/models/skier-human.json.gz?kit=2`), loadWinterClothing()]);
+  const [data] = await Promise.all([fetchCharacterAsset<HumanAsset>(`${base}/models/skier-human.json.gz?kit=2`), loadWinterClothing()]);
   prepareHumanAsset(data);
 }
 
@@ -67,18 +75,20 @@ export class HumanBody {
   private rest = new Map<string, { p: THREE.Vector3; q: THREE.Quaternion; parent: string }>();
   private jacket;
   private accent;
+  private face;
   private skinTint;
   readonly fabric;
   private delta = new THREE.Quaternion();
   private direction = new THREE.Vector3();
   private restDirection = new THREE.Vector3();
 
-  constructor(jacket: THREE.Color, skinTint = new THREE.Color(1, 1, 1), lod: 'full' | 'crowd' = 'full') {
+  constructor(jacket: THREE.Color, skinTint = new THREE.Color(1, 1, 1), lod: 'full' | 'crowd' = 'full', size = 1) {
     if (!asset) throw new Error('Load human character assets before constructing skiers');
     this.jacket = uniform(jacket.clone()); this.skinTint = uniform(skinTint.clone());
     this.accent = uniform(jacketAccent(jacket, new THREE.Color()));
+    this.face = uniform(faceStyle(jacket.getHex(), size));
     const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.85 });
-    this.fabric = clothingSurface(this.jacket.rgb, this.accent.rgb, this.skinTint.rgb,
+    this.fabric = clothingSurface(this.jacket.rgb, this.accent.rgb, this.skinTint.rgb, this.face,
       attribute('jacket', 'float'), attribute('skinTone', 'float'), float(1));
     mat.colorNode = this.fabric.colorNode;
     mat.roughnessNode = attribute('roughness', 'float').add(this.fabric.roughnessDelta);
@@ -91,16 +101,16 @@ export class HumanBody {
     }
     const skeleton = new THREE.Skeleton(bones, asset.bones.map(b => new THREE.Matrix4().fromArray(b.inverse)));
     this.mesh = new THREE.SkinnedMesh(lod === 'crowd' && crowdGeometry ? crowdGeometry : geometry, mat);
-    this.mesh.normalizeSkinWeights();
     this.mesh.name = 'anatomical-skier';
     this.mesh.bind(skeleton, new THREE.Matrix4());
     this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
     this.root.add(this.mesh);
   }
 
-  setJacket(color: THREE.ColorRepresentation) {
+  setJacket(color: THREE.ColorRepresentation, size = 1) {
     this.jacket.value.set(color);
     jacketAccent(this.jacket.value, this.accent.value);
+    this.face.value = faceStyle(this.jacket.value.getHex(), size);
   }
   setSkin(color: THREE.ColorRepresentation) { this.skinTint.value.set(color); }
 

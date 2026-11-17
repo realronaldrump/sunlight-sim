@@ -42,8 +42,11 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   const middle = await page.evaluate(() => {
     const g = (window as any).game, r = g.player.ride, path = g.lifts.paths[r.lift], riders = g.lifts.riders[r.lift];
     const occupied = riders.slots.map((s: any, i: number) => s.chair === r.chair ? i : -1).filter((i: number) => i >= 0);
-    const seat = path.seatPoint(r.chair, r.seat, g.lifts.now()).p, matrix = riders.mesh.instanceMatrix.array;
-    const overlapping = Array.from({ length: riders.mesh.count }, (_, i) => Math.hypot(matrix[i * 16 + 12] - seat.x, matrix[i * 16 + 13] - seat.y, matrix[i * 16 + 14] - seat.z)).some(d => d < 3);
+    const seat = path.seatPoint(r.chair, r.seat, g.lifts.now()).p;
+    const overlapping = riders.batches.meshes.some((mesh: any) => {
+      const matrix = mesh.instanceMatrix.array;
+      return Array.from({ length: mesh.count }, (_, i) => Math.hypot(matrix[i*16+12]-seat.x, matrix[i*16+13]-seat.y, matrix[i*16+14]-seat.z)).some(d => d < 3);
+    });
     return { remaining: path.remainingRideTime(r.chair, g.lifts.now()), total: path.rideTime(), hidden: !overlapping, count: occupied.length };
   });
   expect(middle.count).toBeGreaterThan(0);

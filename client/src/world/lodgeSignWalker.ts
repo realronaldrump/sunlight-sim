@@ -159,6 +159,16 @@ function vestTexture() {
   ctx.fillRect(254, 215, 4, 283);
   ctx.fillStyle = '#c4b9ab';
   ctx.fillRect(251, 215, 9, 13);
+  // Topstitched hand-warmer pockets on the front and a bound hem around the vest.
+  for (const side of [-1,1]) {
+    const x = 256 + side*108;
+    ctx.strokeStyle = '#69272a'; ctx.lineWidth = 7; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x,407); ctx.lineTo(x+side*27,320); ctx.stroke();
+    ctx.strokeStyle = '#c18171'; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x+side*6,407); ctx.lineTo(x+side*33,320); ctx.stroke();
+  }
+  ctx.setLineDash([4,3]); ctx.strokeStyle = '#c18a77'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0,495); ctx.lineTo(1024,495); ctx.stroke(); ctx.setLineDash([]);
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
   return map;
@@ -213,5 +223,7 @@ export function dressSignWalker(human: HumanBody) {
   const frontUv = fit.xy.mul(vec2(0.5, 1));
   const print = mix(texture(map, frontUv.add(vec2(0.5, 0))).rgb, texture(map, frontUv).rgb, fit.w);
   const material = human.mesh.material as THREE.MeshStandardNodeMaterial;
-  material.colorNode = mix(attribute('color', 'vec3'), print, fit.z);
+  const twill = human.fabric.relief.mul(.17).add(.83);
+  const likeness = mix(attribute('color', 'vec3'), human.fabric.faceColor, human.fabric.faceCoverage.mul(.77));
+  material.colorNode = mix(likeness, print, fit.z).mul(twill);
 }

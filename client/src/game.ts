@@ -6,6 +6,7 @@ import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrain
 import { Environment } from './sky/environment';
 import { LiftSystem } from './lifts/liftSystem';
 import { Player } from './skier/player';
+import { loadSeatedRiders } from './skier/seatedGeometry';
 import { loadHumanAsset, loadCrowdHumanAsset } from './skier/humanBody';
 import { BaseLife } from './world/baseLife';
 import { InputManager } from './skier/input';
@@ -221,6 +222,7 @@ export class Game {
       fetch(`${WORLD_BASE}/resort.json`, { cache: 'no-cache' }).then((r) => r.json()),
       SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
       loadHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')),
+      loadSeatedRiders(),
       loadSantaLikeness().catch(e => console.warn('Santa portrait textures unavailable', e)),
     ]);
     void _;

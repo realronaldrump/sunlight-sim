@@ -2,7 +2,7 @@
 // Ski-specific two-bone IK drives the shared poses for the player, friends and ambient skiers.
 import * as THREE from 'three/webgpu';
 import { HumanBody } from './humanBody';
-import { skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
+import { holdPole, skiBoot, skiWithBindings, skiPole, jacketCollar } from './skiEquipment';
 import { headwear, tintHeadwear, type Hat } from './headwear';
 import { guestBuild } from './winterClothing';
 import { SkiContacts, type SnowSurface } from './skiContact';
@@ -104,10 +104,10 @@ export class SkierModel {
     this.update({ speed: 0, edge: 0, plow: 0, tuck: 0, skid: 0, fallen: 0, sitting: 0, time: 0, pushing: false });
   }
 
-  setJacket(c: THREE.ColorRepresentation) { this.human.setJacket(c); this.collar.material.color.set(c); }
+  setJacket(c: THREE.ColorRepresentation, size = 1) { this.human.setJacket(c, size); this.collar.material.color.set(c); }
   dress(look: { jacket: number; skin: number[]; hatColor: number; hat?: Hat; scale?: number }) {
     this.resetSnowballs();
-    this.setJacket(look.jacket);
+    this.setJacket(look.jacket, look.scale);
     this.human.setSkin(new THREE.Color(look.skin[0], look.skin[1], look.skin[2]));
     const kind = look.hat ?? 'helmet';
     let hat = this.hats.get(kind);
@@ -317,9 +317,7 @@ export class SkierModel {
       const carry = Math.min(1, Math.max(sit * 2, prepare));
       tipPos.lerp(hand.clone().add(V(side * .08, .2, -1.15)), carry);
       if (side > 0 && action) tipPos.lerp(hand.clone().add(V(.14, -1.13, .17)), action.amount);
-      const d = tipPos.clone().sub(hand);
-      pole.position.copy(hand).addScaledVector(d, 0.5);
-      pole.quaternion.setFromUnitVectors(UP, d.normalize());
+      holdPole(pole, hand, tipPos);
     };
     placePole(this.poles[0], handL, -1);
     placePole(this.poles[1], handR, 1);

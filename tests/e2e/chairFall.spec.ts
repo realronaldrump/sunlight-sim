@@ -62,8 +62,11 @@ for (const [name, keys] of [['Primo', ['KeyD', 'KeyA']], ['Segundo', ['ArrowUp',
     expect(release, JSON.stringify({ errors, debug })).not.toBeNull(); expect(release.grounded).toBe(false);
     const replacement = await page.evaluate(liftName => {
       const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === liftName), path = g.lifts.paths[li];
-      const seat = path.seatPoint(0, 0, g.lifts.now(li)).p, mesh = g.lifts.riders[li].mesh, a = mesh.instanceMatrix.array;
-      return Array.from({ length: mesh.count }, (_, i) => Math.hypot(a[i * 16 + 12] - seat.x, a[i * 16 + 13] - seat.y, a[i * 16 + 14] - seat.z)).some(d => d < 3);
+      const seat = path.seatPoint(0, 0, g.lifts.now(li)).p;
+      return g.lifts.riders[li].batches.meshes.some((mesh: any) => {
+        const a = mesh.instanceMatrix.array;
+        return Array.from({ length: mesh.count }, (_, i) => Math.hypot(a[i*16+12]-seat.x, a[i*16+13]-seat.y, a[i*16+14]-seat.z)).some(d => d < 3);
+      });
     }, name);
     expect(replacement).toBe(false);
     expect(Math.hypot(release.vel.x, release.vel.z)).toBeGreaterThan(.5);

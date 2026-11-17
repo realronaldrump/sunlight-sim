@@ -1,43 +1,122 @@
+// Offline-baked poses of the dressed skier. The two headwear shapes and two distances share
+// geometry across all lifts; a changing seat only uploads its transform and its guest's colours.
 import * as THREE from 'three/webgpu';
-import { SkierModel } from './skierModel';
-import { RIDER_ROOT_BELOW_SEAT, RIDER_ROOT_FORWARD } from '../../../shared/lifts';
+import { attribute, mix, vec3 } from 'three/tsl';
+import { clothingSurface, faceStyle, guestBuild, jacketAccent } from './winterClothing';
+import { fetchCharacterAsset } from './humanBody';
+import type { GuestLook } from '../world/guests';
 
-let cached: THREE.BufferGeometry | null = null;
-/** Bake the same human and equipment into a seated instancing mesh for non-player chair riders.
- * A 15 mm vertex weld preserves their silhouette and gear without hundreds of full skeletons.
- */
-export function seatedSkierGeometry() {
-  if (cached) return cached.clone();
-  const model=new SkierModel(new THREE.Color(1,1,1));
-  model.update({speed:0,edge:0,plow:0,tuck:0,skid:0,fallen:0,sitting:1,time:0,pushing:false});
-  model.root.position.set(0, -RIDER_ROOT_BELOW_SEAT, -RIDER_ROOT_FORWARD);model.root.updateMatrixWorld(true);
-  const positions:number[]=[],colors:number[]=[],jackets:number[]=[],hats:number[]=[],skins:number[]=[],indices:number[]=[];
-  const welded=new Map<string,number>(),p=new THREE.Vector3(),c=new THREE.Color();
-  model.root.traverse(o=>{
-    const m=o as THREE.Mesh;if(!m.isMesh)return;
-    const geo=m.geometry,skin=m as THREE.SkinnedMesh,mat=m.material as THREE.MeshStandardNodeMaterial;
-    const remap:number[]=[];
-    // Helmet shells take the rider's own helmet colour; boots share the material but stay dark.
-    let helmet=false;for(let q=m.parent;q;q=q.parent)if(q.name==='helmet-and-goggles'){helmet=true;break;}
-    const hat=helmet&&mat.color?.getHex()===0x333c48?1:0;
-    for(let i=0;i<geo.attributes.position.count;i++){
-      p.fromBufferAttribute(geo.attributes.position,i);
-      if(skin.isSkinnedMesh)skin.applyBoneTransform(i,p);
-      p.applyMatrix4(m.matrixWorld);
-      const ca=geo.getAttribute('color');
-      if(ca)c.fromBufferAttribute(ca,i);else c.copy(mat.color);
-      const jacket=geo.getAttribute('jacket')?.getX(i)??(mat.color?.getHex()===0xffffff?1:0);
-      const skinTone=geo.getAttribute('skinTone')?.getX(i)??0;
-      const key=`${Math.round(p.x/.015)},${Math.round(p.y/.015)},${Math.round(p.z/.015)},${jacket},${hat},${skinTone>.5?1:0},${Math.round(c.r*5)},${Math.round(c.g*5)},${Math.round(c.b*5)}`;
-      let idx=welded.get(key);
-      if(idx===undefined){idx=positions.length/3;welded.set(key,idx);positions.push(p.x,p.y,p.z);colors.push(c.r,c.g,c.b);jackets.push(jacket);hats.push(hat);skins.push(skinTone);}
-      remap.push(idx);
+const geometry: THREE.BufferGeometry[] = [];
+let material: THREE.MeshStandardNodeMaterial;
+
+export async function loadSeatedRiders() {
+  if (geometry.length) return;
+  const data = await fetchCharacterAsset<{ version: number; meshes: { vertices: number[]; index: number[] }[] }>(
+    new URL('./assets/chair-riders.json.gz', import.meta.url),
+  );
+  if (data.version !== 1 || data.meshes.length !== 4) throw new Error('Invalid chair passenger geometry');
+  for (const mesh of data.meshes) {
+    const g = new THREE.BufferGeometry();
+    const buffer = new THREE.InterleavedBuffer(new Float32Array(mesh.vertices), 17);
+    const attr = (name: string, size: number, offset: number) =>
+      g.setAttribute(name, new THREE.InterleavedBufferAttribute(buffer, size, offset));
+    attr('position', 3, 0);
+    attr('normal', 3, 3);
+    attr('color', 3, 6);
+    attr('uv', 2, 9);
+    attr('mask', 3, 11); // jacket, skin, headwear
+    attr('finish', 3, 14); // roughness, metalness, clothing atlas coverage
+    g.setIndex(mesh.index);
+    geometry.push(g);
+  }
+}
+
+function riderMaterial() {
+  if (material) return material;
+  material = new THREE.MeshStandardNodeMaterial();
+  const mask = attribute('mask', 'vec3'),
+    finish = attribute('finish', 'vec3');
+  const cloth = clothingSurface(
+    attribute('riderColor', 'vec3'),
+    attribute('riderAccent', 'vec3'),
+    attribute('riderSkin', 'vec3'),
+    attribute('riderFace', 'float'),
+    mask.x,
+    mask.y,
+    finish.z,
+  );
+  material.colorNode = cloth.colorNode.mul(mix(vec3(1), attribute('riderHat', 'vec3'), mask.z));
+  material.roughnessNode = finish.x.add(cloth.roughnessDelta);
+  material.metalnessNode = finish.y;
+  return material;
+}
+
+const appearances = new WeakMap<GuestLook, { paint: Float32Array; size: THREE.Vector3 }>();
+function appearance(look: GuestLook) {
+  let saved = appearances.get(look);
+  if (!saved) {
+    const jacket = new THREE.Color(look.jacket);
+    const paint = new Float32Array(13);
+    jacket.toArray(paint, 0);
+    jacketAccent(jacket, new THREE.Color()).toArray(paint, 3);
+    paint.set(look.skin, 6);
+    new THREE.Color(look.hatColor).toArray(paint, 9);
+    paint[12] = faceStyle(look.jacket, look.scale);
+    saved = { paint, size: guestBuild(new THREE.Vector3(), look.jacket, look.hatColor, look.scale) };
+    appearances.set(look, saved);
+  }
+  return saved;
+}
+
+export class SeatedRiders {
+  readonly meshes: THREE.InstancedMesh[];
+  private paints: THREE.InstancedInterleavedBuffer[] = [];
+  private matrix = new THREE.Matrix4();
+
+  constructor(capacity: number, parent: THREE.Group) {
+    if (geometry.length !== 4) throw new Error('Load the chair passengers before building lifts');
+    this.meshes = geometry.map((template, index) => {
+      // A lift owns its instance attributes, but all lifts point to the same baked vertex buffers.
+      const g = new THREE.BufferGeometry();
+      g.setIndex(template.index);
+      for (const [name, attr] of Object.entries(template.attributes)) g.setAttribute(name, attr);
+      const paint = new THREE.InstancedInterleavedBuffer(new Float32Array(capacity * 13), 13).setUsage(
+        THREE.DynamicDrawUsage,
+      );
+      for (const [i, name] of ['riderColor', 'riderAccent', 'riderSkin', 'riderHat'].entries())
+        g.setAttribute(name, new THREE.InterleavedBufferAttribute(paint, 3, i * 3));
+      g.setAttribute('riderFace', new THREE.InterleavedBufferAttribute(paint, 1, 12));
+      this.paints.push(paint);
+      const m = new THREE.InstancedMesh(g, riderMaterial(), capacity);
+      m.name = `chair-riders-${index < 2 ? 'helmet' : 'beanie'}-${index % 2 ? 'far' : 'near'}`;
+      m.count = 0;
+      m.frustumCulled = false;
+      m.castShadow = index % 2 === 0;
+      m.receiveShadow = true;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      parent.add(m);
+      return m;
+    });
+  }
+
+  begin() {
+    for (const m of this.meshes) m.count = 0;
+  }
+  seat(look: GuestLook, position: THREE.Vector3, rotation: THREE.Quaternion, near: boolean) {
+    const index = (look.hat === 'beanie' ? 2 : 0) + (near ? 0 : 1),
+      mesh = this.meshes[index];
+    const { paint, size } = appearance(look);
+    mesh.setMatrixAt(mesh.count, this.matrix.compose(position, rotation, size));
+    (this.paints[index].array as Float32Array).set(paint, mesh.count * 13);
+    mesh.count++;
+  }
+  end() {
+    for (const [i, m] of this.meshes.entries()) {
+      m.visible = m.count > 0;
+      if (m.visible) {
+        m.instanceMatrix.needsUpdate = true;
+        this.paints[i].needsUpdate = true;
+      }
     }
-    const count=geo.index?.count??geo.attributes.position.count;
-    for(let i=0;i<count;i+=3){const a=remap[geo.index?.getX(i)??i],b=remap[geo.index?.getX(i+1)??i+1],c=remap[geo.index?.getX(i+2)??i+2];if(a!==b&&b!==c&&a!==c)indices.push(a,b,c);}
-  });
-  cached=new THREE.BufferGeometry();cached.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));cached.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));const masks=new Float32Array(jackets.length*3);for(let i=0;i<jackets.length;i++){masks[i*3]=jackets[i];masks[i*3+1]=hats[i];masks[i*3+2]=skins[i];}
-  // jacket, helmet shell and skin masks share one vertex buffer (WebGPU allows only eight per draw)
-  cached.setAttribute('masks',new THREE.BufferAttribute(masks,3));cached.setIndex(indices);cached.computeVertexNormals();
-  return cached.clone();
+  }
 }

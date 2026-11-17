@@ -7,8 +7,7 @@ import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
 import { LiftClock } from '../../../shared/liftClock';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
-import { attribute, mix, vec3 } from 'three/tsl';
-import { seatedSkierGeometry } from '../skier/seatedGeometry';
+import { SeatedRiders } from '../skier/seatedGeometry';
 import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion } from './chairModel';
 import { buildHut, buildTerminal, buildTower, liftStyle, type LiftCollider } from './liftStructures';
 import { cableLoopGeometry } from './cableGeometry';
@@ -18,13 +17,6 @@ import { makeGuest, guestLook, rng, type Guest, type GuestLook } from '../world/
 
 const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
 
-const riderMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.8 });
-{
-  // Each seated rider wears their own jacket and helmet over their own skin tone (masks: jacket, shell, skin).
-  const masks = attribute('masks', 'vec3');
-  const base = attribute('color', 'vec3').mul(mix(vec3(1), attribute('riderColor', 'vec3'), masks.x)).mul(mix(vec3(1), attribute('riderSkin', 'vec3'), masks.z));
-  riderMat.colorNode = mix(base, attribute('riderHat', 'vec3'), masks.y);
-}
 const RIDER_PALETTE = [0xd33a2c, 0x1f6fd1, 0xf2b705, 0x2e9e44, 0x7b3fbf, 0xff6f91, 0x222222, 0x1aa3a3, 0xe86a1a, 0x5b6b7a];
 interface Trip { guests: (Guest | undefined)[]; until: number }
 
@@ -34,7 +26,7 @@ export class LiftSystem {
   readonly colliders: Collider[] = [];
   private chairMeshes: { near: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; far: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; labels: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
-  private riders: { mesh: THREE.InstancedMesh; slots: { chair: number; seat: number }[]; colors: Float32Array; looks: Float32Array }[] = [];
+  private riders: { batches: SeatedRiders; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
   /** Who is actually sitting on each chair trip: boarded from a lift line, or a regular seen from the start. */
   private trips = new Map<string, Trip>();
   readonly clocks: LiftClock[] = [];
@@ -87,19 +79,12 @@ export class LiftSystem {
         const start = Math.floor(rnd() * (def.seats - n + 1));
         for (let k = 0; k < n; k++) slots.push({ chair: c, seat: start + k });
       }
-      const rm = new THREE.InstancedMesh(seatedSkierGeometry(), riderMat, slots.length);
+      const batches = new SeatedRiders(slots.length, this.group);
       const col = new THREE.Color();
       // default look of each seat's regular rider, used until someone from a lift line boards that chair
       const riderColors = new Float32Array(slots.length * 3);
       for (let i = 0; i < slots.length; i++) col.setHex(RIDER_PALETTE[Math.floor(rnd() * RIDER_PALETTE.length)]).toArray(riderColors, i * 3);
-      // jacket, helmet and skin share one instanced buffer (WebGPU vertex buffer limit)
-      const looks = new THREE.InstancedInterleavedBuffer(new Float32Array(slots.length * 9), 9).setUsage(THREE.DynamicDrawUsage);
-      rm.geometry.setAttribute('riderColor', new THREE.InterleavedBufferAttribute(looks, 3, 0));
-      rm.geometry.setAttribute('riderHat', new THREE.InterleavedBufferAttribute(looks, 3, 3));
-      rm.geometry.setAttribute('riderSkin', new THREE.InterleavedBufferAttribute(looks, 3, 6));
-      rm.castShadow = true; rm.frustumCulled = false;
-      this.group.add(rm);
-      this.riders.push({ mesh: rm, slots, colors: riderColors, looks: looks.array as Float32Array });
+      this.riders.push({ batches, slots, colors: riderColors });
     }
   }
 
@@ -328,36 +313,21 @@ export class LiftSystem {
       models.labels.instanceMatrix.needsUpdate = true;
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];
-      if (R && this.closed) R.mesh.count = 0;
-      else if (R) {
-        const p = new THREE.Vector3();
-        const looks = (R.mesh.geometry.getAttribute('riderColor') as THREE.InterleavedBufferAttribute).data;
-        const c = new THREE.Color(), scale = new THREE.Vector3();
-        let visible = 0;
-        R.slots.forEach((sl, k) => {
-          const info = this.seatTransform(li, sl.chair, sl.seat, t, p);
-          // riders board at the load line (base queues board these chairs) and stand up at the unload line
-          if (!info.uphill || info.h < LOAD_OFFSET + 0.2 || info.h > path.horiz - UNLOAD_OFFSET + 0.3 || this.reservedTrips.has(`${li}/${sl.chair}`)) return;
-          const guest = this.trips.get(`${li}/${sl.chair}`)?.guests[sl.seat];
+      R.batches.begin();
+      if (!this.closed) {
+        const p = new THREE.Vector3(), color = new THREE.Color();
+        R.slots.forEach((slot, k) => {
+          const info = this.seatTransform(li, slot.chair, slot.seat, t, p);
+          const trip = `${li}/${slot.chair}`;
+          if (!info.uphill || info.h < LOAD_OFFSET + .2 || info.h > path.horiz - UNLOAD_OFFSET + .3 || this.reservedTrips.has(trip)) return;
+          const look = this.trips.get(trip)?.guests[slot.seat]?.look
+            ?? regularLook(li, slot.chair, slot.seat, color.fromArray(R.colors, k * 3).getHex());
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
-          this.m4.compose(p, this.q, scale.setScalar(guest?.look.scale ?? 1));
-          R.mesh.setMatrixAt(visible, this.m4);
-          const o = visible * 9;
-          if (guest) {
-            c.setHex(guest.look.jacket).toArray(R.looks, o);
-            c.setHex(guest.look.hatColor).toArray(R.looks, o + 3);
-            R.looks.set(guest.look.skin, o + 6);
-          } else {
-            R.looks.set(R.colors.subarray(k * 3, k * 3 + 3), o);
-            const look = regularLook(li, sl.chair, sl.seat, c.fromArray(R.colors, k * 3).getHex());
-            c.setHex(look.hatColor).toArray(R.looks, o + 3);
-            R.looks.set(look.skin, o + 6);
-          }
-          visible++;
+          const near = !viewer || p.distanceToSquared(viewer) < 62 * 62;
+          R.batches.seat(look, p, this.q, near);
         });
-        R.mesh.count = visible; looks.needsUpdate = true;
-        R.mesh.instanceMatrix.needsUpdate = true;
       }
+      R.batches.end();
     }
   }
 }

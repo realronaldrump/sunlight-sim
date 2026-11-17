@@ -193,12 +193,20 @@ function tailor(human: HumanBody) {
   const buckle = belt.mul(front, smoothstep(.050, .053, x).oneMinus(), band(1.085, .031, .002));
   const frame = max(smoothstep(.035, .039, x), smoothstep(.020, .023, y.sub(1.085).abs()));
   const prong = smoothstep(.003, .006, y.sub(1.085).abs()).oneMinus();
-  const gold = buckle.mul(max(frame, prong));
+  const stitchLine = smoothstep(.0012, .0028, y.sub(1.085).abs().sub(.029).abs()).oneMinus();
+  const saddleStitch = belt.mul(stitchLine, smoothstep(-.35,.2,cut.x.mul(650).cos()));
+  const studDistance = cut.x.sub(.042).pow2().add(y.sub(1.294).pow2().min(y.sub(1.390).pow2())).sqrt();
+  const studs = torso.mul(front, smoothstep(.005, .007, studDistance).oneMinus());
+  const gold = max(buckle.mul(max(frame, prong)), studs);
   const coords = vec2(atan(cut.x, cut.z.negate()).mul(2.45), y.mul(12.2));
   const nap = texture(fabricMap(), coords).r;
   const wool = mix(tint(0xe4d9c7), tint(0xfff8ec), nap.mul(1.4));
   const base = attribute('color', 'vec3').mul(mix(float(1), nap.sub(.4).mul(.23).add(1), fabric.x));
-  material.colorNode = mix(mix(mix(base, wool, trim), tint(0x211e21), belt), tint(0xe2b067), gold);
+  const welt = torso.mul(front, smoothstep(.003,.005,y.sub(1.026).sub(x.mul(.25)).abs()).oneMinus(),
+    smoothstep(.087,.093,x),smoothstep(.16,.17,x).oneMinus());
+  const velvet = mix(base,tint(0x702939),welt.mul(.8));
+  const beltLeather = mix(tint(0x302629),tint(0xaf8761),saddleStitch.mul(.65));
+  material.colorNode = mix(mix(mix(velvet, wool, trim), beltLeather, belt), tint(0xe2b067), gold);
   material.metalnessNode = gold.mul(.68);
   material.roughnessNode = mix(float(.84), .5, belt).sub(gold.mul(.16));
   material.sheenNode = tint(0x9c424b).mul(belt.oneMinus()).mul(trim.oneMinus());

@@ -3,7 +3,7 @@
 // two-bone IK like the skier: a short, stiff-ankled ski-boot gait, idle weight shifts and sitting.
 import * as THREE from 'three/webgpu';
 import { HumanBody } from '../skier/humanBody';
-import { skiBoot, skiWithBindings, skiPole, jacketCollar } from '../skier/skiEquipment';
+import { holdPole, skiBoot, skiWithBindings, skiPole, jacketCollar } from '../skier/skiEquipment';
 import type { CrowdGear } from './crowdGear';
 import { headwear, type Hat } from '../skier/headwear';
 import { guestBuild } from '../skier/winterClothing';
@@ -55,7 +55,7 @@ export class PedestrianModel {
   carrying = true;
 
   constructor(readonly look: Appearance, private readonly outfit?: SignWalkerOutfit) {
-    this.human = new HumanBody(look.jacket, look.skin ?? new THREE.Color(1, 1, 1), look.lod ?? 'full');
+    this.human = new HumanBody(look.jacket, look.skin ?? new THREE.Color(1, 1, 1), look.lod ?? 'full', look.scale);
     this.collar = outfit || look.instancedGear ? null : jacketCollar(look.jacket);
     this.collarAnchor = this.collar?.group ?? new THREE.Group();
     if (look.hatColor && !outfit) guestBuild(this.root.scale, look.jacket.getHex(), look.hatColor.getHex(), look.scale);
@@ -184,9 +184,7 @@ export class PedestrianModel {
       for (let i = 0; i < 2; i++) {
         const hand = i === 0 ? handL : handR, side = i === 0 ? -1 : 1;
         const tip = V(side * 0.42, 0.02, hand.z + 0.1);
-        const d = tip.clone().sub(hand);
-        this.poles[i].position.copy(hand).addScaledVector(d, 0.5);
-        this.poles[i].quaternion.setFromUnitVectors(UP, d.normalize());
+        holdPole(this.poles[i], hand, tip);
       }
     } else if (skiMode === 'planted' && p.mode !== 'sit') {
       // skis standing tail-down in the snow at the person's right side, poles leaning against them
@@ -209,9 +207,7 @@ export class PedestrianModel {
       // poles in the left hand, tips trailing slightly behind
       for (let i = 0; i < 2; i++) {
         const tip = handL.clone().add(V(-0.05 - i * 0.04, -0.98, 0.32 + i * 0.05));
-        const d = tip.clone().sub(handL);
-        this.poles[i].position.copy(handL).addScaledVector(d, 0.5);
-        this.poles[i].quaternion.setFromUnitVectors(UP, d.normalize());
+        holdPole(this.poles[i], handL, tip, (i - .5) * .021);
       }
     }
   }

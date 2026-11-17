@@ -11,6 +11,7 @@ import type { LiftPath } from '../../../shared/lifts';
 import { walkable, type Poi } from './walkable';
 import { PedestrianModel, type Appearance, type SignWalkerOutfit } from './pedestrian';
 import { CrowdGear } from './crowdGear';
+import { dressBib } from './bib';
 import { LODGE_SKI_START } from './mainLodge';
 import { dressSignWalker, LODGE_SIGN_WALKER, makeSignWalkerOutfit } from './lodgeSignWalker';
 import { makeGuest, guestAppearance, rng, pick, type Guest } from './guests';
@@ -357,6 +358,8 @@ export class BaseLife {
       if (!Number.isFinite(y)) continue;
       const look = appearance(r); look.jacket = new THREE.Color(0x1b1d22); look.hat = 'beanie'; look.hatColor = new THREE.Color(0xb3262e);
       const op = this.person('staff', look, x, y, z, Math.atan2(q.path.rx, q.path.rz) + Math.PI, 'none');
+      dressBib(op.model.human, { cut: 'uniform', color: '#262b31', ink: '#eee5ce',
+        frontTitle: 'SUNLIGHT', backName: 'LIFT CREW', backTitle: q.path.def.name.toUpperCase() });
       op.operates = q; op.signal = 0;
     }
     // lift lines: rows of skiers standing on their skis, facing uphill
