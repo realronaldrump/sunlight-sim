@@ -1205,17 +1205,23 @@ export class Game {
       this.hud.toast(`Flying near ${r.name}`); return;
     }
     if (this.drone.active) this.toggleDrone();
-    let x: number, z: number, heading: number;
-    if (r.ride && !r.flight) {
-      const up = this.lifts.paths[r.ride.lift].unloadPoint();
-      x = up.x; z = up.z; heading = up.heading;
-    } else {
+    const destination = () => {
+      if (r.ride && !r.flight) return this.lifts.paths[r.ride.lift].unloadPoint();
       const p = r.flight ? r.flightPos : r.model.root.position;
-      heading = r.flight ? r.flightYaw : r.heading;
-      x = p.x + Math.cos(heading) * 2.5; z = p.z - Math.sin(heading) * 2.5; // 2.5 m to their right
+      const heading = r.flight ? r.flightYaw : r.heading;
+      return { x: p.x + Math.cos(heading) * 2.5, z: p.z - Math.sin(heading) * 2.5, heading };
+    };
+    let target = destination();
+    for (;;) {
+      const loaded = target;
+      await this.hf.ensureArea(0, loaded.x, -loaded.z, 200);
+      if (this.net?.remotes.get(r.id) !== r) return;
+      // A friend can ski on, board a chair or teleport while their terrain is downloading.
+      target = destination();
+      if (Math.max(Math.abs(target.x - loaded.x), Math.abs(target.z - loaded.z)) < 190
+          || this.hf.bestLevel(target.x, -target.z) === 0) break;
     }
-    await this.hf.ensureArea(0, x, -z, 200);
-    this.player.teleport(x, z, heading);
+    this.player.teleport(target.x, target.z, target.heading);
     this.net?.markTeleport();
     this.hud.toast(r.ride && !r.flight ? `Waiting for ${r.name} at the top of the lift` : `Joined ${r.name}`);
   }

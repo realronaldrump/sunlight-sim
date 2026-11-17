@@ -89,9 +89,33 @@ test('two players in one room', async ({ browser }) => {
     expect(result.mode).not.toBe('fallen');
     expect(result.distance).toBeLessThan(30);
   }
-  await a.evaluate(() => (window as any).game.teleportToRun('Sun King'));
-  await b.waitForTimeout(1500);
-  await b.evaluate(() => (window as any).game.joinFriend('Alice'));
+  const start = await a.evaluate(async () => {
+    const g = (window as any).game; await g.teleportToRun('Sun King');
+    const {x, z} = g.player.st.pos; return {x, z};
+  });
+  const seeAlice = (at: {x: number; z: number}) => expect.poll(() => b.evaluate(at => {
+    const r = [...(window as any).game.net.remotes.values()][0] as any;
+    return Math.hypot(at.x - r.model.root.position.x, at.z - r.model.root.position.z);
+  }, at), {timeout: 15_000}).toBeLessThan(12);
+  await seeAlice(start);
+  // Hold this terrain request open while Alice moves. Previously Bob landed at the position
+  // sampled before the download, which was easy to miss on a warm localhost tile cache.
+  await b.evaluate(() => {
+    const w = window as any, g = w.game, load = g.hf.ensureArea.bind(g.hf);
+    const gate = new Promise<void>(resolve => { w.finishFriendLoad = resolve; });
+    g.hf.ensureArea = (...args: any[]) => {
+      g.hf.ensureArea = load;
+      return Promise.all([load(...args), gate]);
+    };
+    w.joiningFriend = g.joinFriend('Alice');
+  });
+  const moved = await a.evaluate(() => {
+    const g = (window as any).game, {x,z} = g.player.st.pos;
+    g.player.teleport(x + 38, z, g.player.st.heading); g.net.markTeleport();
+    return {x: x + 38, z};
+  });
+  await seeAlice(moved);
+  await b.evaluate(async () => { const w = window as any; w.finishFriendLoad(); await w.joiningFriend; });
   const d = await b.evaluate(() => { const g = (window as any).game; const r = [...g.net.remotes.values()][0]; return Math.hypot(g.player.st.pos.x - r.model.root.position.x, g.player.st.pos.z - r.model.root.position.z); });
   expect(d).toBeLessThan(8);
 
