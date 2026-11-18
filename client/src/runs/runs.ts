@@ -1,5 +1,6 @@
 // Run lookup (which run am I on), trail signs at run entrances, and ski area boundary markers.
 import * as THREE from 'three/webgpu';
+import { browserLoader } from '../terrain/heightfield';
 import type { RunInfo, ResortData } from '../game';
 import type { ColliderGrid } from '../../../shared/collision';
 
@@ -32,7 +33,7 @@ export class RunSystem {
   constructor(private resort: ResortData) { this.group.name = 'runs'; }
 
   async load(base: string) {
-    const raw = await gunzip(await (await fetch(`${base}/runs.bin.gz`)).arrayBuffer());
+    const raw = await gunzip(await browserLoader(`${base}/runs.bin.gz`));
     const dv = new DataView(raw);
     this.x0 = dv.getFloat32(4, true); this.n0 = dv.getFloat32(8, true); this.res = dv.getFloat32(12, true);
     this.w = dv.getUint16(16, true); this.h = dv.getUint16(18, true);
@@ -73,10 +74,29 @@ export class RunSystem {
   buildSigns(height: (x: number, z: number) => number, colliders: ColliderGrid) {
     const postMat = new THREE.MeshStandardNodeMaterial({ color: 0x6b4a2b, roughness: 0.9 });
     const postGeo = new THREE.BoxGeometry(0.12, 2.4, 0.12);
-    for (const [name, t] of this.runTops()) {
-      if (t.run.difficulty === 'hike') continue;
-      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 192;
-      const g = cv.getContext('2d')!;
+    // Keep the original 512 by 192 lettering on both sides. Shared atlas pages let the
+    // static merger draw many signs together, including in the three shadow passes.
+    const width = 512, heightPx = 192, pad = 8, columns = 4, rows = 4;
+    const w = width + 2 * pad, h = heightPx + 2 * pad;
+    const side = new THREE.BoxGeometry(1.4, 0.52, 0.05);
+    const faces = side.clone();
+    side.setIndex(Array.from(side.index!.array).slice(0, 24));
+    faces.setIndex(Array.from(faces.index!.array).slice(24));
+    side.clearGroups(); faces.clearGroups();
+    let atlas: HTMLCanvasElement, printed: THREE.MeshStandardNodeMaterial;
+    const signs = [...this.runTops()].filter(([, t]) => t.run.difficulty !== 'hike');
+    for (const [i, [name, t]] of signs.entries()) {
+      const slot = i % (columns * rows);
+      if (slot === 0) {
+        atlas = document.createElement('canvas'); atlas.width = columns * w; atlas.height = rows * h;
+        const map = new THREE.CanvasTexture(atlas);
+        map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+        printed = new THREE.MeshStandardNodeMaterial({ map, roughness: 0.7 });
+      }
+      const left = (slot % columns) * w + pad, top = Math.floor(slot / columns) * h + pad;
+      const g = atlas!.getContext('2d')!;
+      g.save(); g.translate(left, top);
+      g.fillStyle = '#2a2a2a'; g.fillRect(-pad, -pad, w, h);
       g.fillStyle = '#f4f1e8'; g.fillRect(0, 0, 512, 192);
       g.strokeStyle = '#2a2a2a'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 182);
       drawDiffSymbol(g, t.run.difficulty, 80, 96, 70);
@@ -86,14 +106,15 @@ export class RunSystem {
       while (g.measureText(name).width > 330 && fs > 28) { fs -= 4; g.font = `bold ${fs}px Helvetica, Arial, sans-serif`; }
       g.textBaseline = 'middle';
       g.fillText(name, 150, 96);
-      const tex = new THREE.CanvasTexture(cv);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 4;
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.52, 0.05), [
-        postMat, postMat, postMat, postMat,
-        new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.7 }),
-        new THREE.MeshStandardNodeMaterial({ map: tex, roughness: 0.7 }),
-      ]);
+      g.restore();
+      const face = faces.clone(), uv = face.getAttribute('uv');
+      for (let k = 0; k < uv.count; k++) {
+        uv.setXY(k, (left + uv.getX(k) * width) / atlas!.width,
+          1 - (top + (1 - uv.getY(k)) * heightPx) / atlas!.height);
+      }
+      const panel = new THREE.Mesh(face, printed!);
+      const rim = new THREE.Mesh(side, postMat);
+      rim.position.y = 1.95;
       // place 5 m to the side of the run entrance, facing uphill skiers
       const sx = t.x + -t.dz * 5, sz = t.z + t.dx * 5;
       const gy = height(sx, sz);
@@ -104,7 +125,7 @@ export class RunSystem {
         sign.add(post);
       }
       panel.position.y = 1.95; panel.castShadow = true;
-      sign.add(panel);
+      sign.add(rim, panel);
       sign.position.set(sx, gy, sz);
       sign.rotation.y = Math.atan2(t.dx, t.dz); // panel normal (+z) points back uphill toward arriving skiers
       sign.userData.run = name;

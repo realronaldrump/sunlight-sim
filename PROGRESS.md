@@ -1,5 +1,12 @@
 # Progress
 
+## Frame rate at native resolution (November 17, 2026, in progress)
+
+- A production build of the starting revision on the 14-core M3 Pro measured 33.7, 41.5, 38.5 and 36.1 fps in the four standard 2560 by 1440 High views. The base shadow passes alone submitted about five million lift triangles in a sampled frame.
+- Chair geometry retains its indices. The renderer batches chairs along each cable, shares transforms by moving part, batches printed signs and lift mazes, and culls animated character equipment against the camera and individual sun cascades. Per-view forest and crowd instance buffers keep off-screen shadow casters whose shadows enter the view.
+- Terrain uses curvature-aware chunk bounds, lets ordinary snow reject hidden fragments before shading, and submits only potential back faces and skirts to the directional shadow maps. The original DEM vertices, triangles, resolution and material settings remain the reference.
+- Two image regressions froze the simulations and compared the optimized passes to full reference rendering at the base, in Vortex, and toward Mount Sopris at low sun. Both renderer backends passed all three views. No pixel exceeded an eight-level RGB difference. Further terrain optimization and final integrated measurements are in progress.
+
 ## Upper station unloading (November 17, 2026)
 
 - Reproduced all three gates crossing the ski-away lane. At the far edge of the old stand prompt, seat clearance ranged from 0.27 m on Primo to 1.46 m on Tercero. Rebuilt the upper cable, winter table and runout, moved the trip wand onto the turnaround, corrected Primo's loaded side, and placed the unload and bar signs using the shared station geometry.

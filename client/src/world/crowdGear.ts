@@ -1,6 +1,7 @@
 // The lift line, lodge and ski racks share equipment draws. Beyond 33 m the small buckles and
 // seams disappear first; boots, skis, poles and headwear still have complete silhouettes.
 import * as THREE from 'three/webgpu';
+import { CulledInstances } from '../rendering/culledInstances';
 import { headwear } from '../skier/headwear';
 import { jacketCollar, skiBoot, skiWithBindings, skiPole } from '../skier/skiEquipment';
 import { mergeStatic } from './mergeStatic';
@@ -79,7 +80,7 @@ export class CrowdGear {
         const count = capacity * (kind === 'ski' || kind === 'pole' ? 2 : 1);
         const parts = source.children.map((child) => {
           const m = child as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardNodeMaterial>;
-          const mesh = new THREE.InstancedMesh(m.geometry, m.material, count);
+          const mesh = new CulledInstances(m.geometry, m.material, count);
           mesh.count = 0;
           mesh.frustumCulled = false;
           mesh.castShadow = detail;

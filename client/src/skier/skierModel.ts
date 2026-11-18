@@ -100,7 +100,6 @@ export class SkierModel {
     this.body.add(this.human.root, this.headGear, this.collar.group, ...this.boots, ...this.skis, ...this.poles);
     this.accessories = costume?.accessories;
     if (this.accessories) this.body.add(this.accessories.root);
-    this.root.traverse(o => { o.frustumCulled = false; });
     this.update({ speed: 0, edge: 0, plow: 0, tuck: 0, skid: 0, fallen: 0, sitting: 0, time: 0, pushing: false });
   }
 

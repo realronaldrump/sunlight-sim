@@ -12,6 +12,7 @@ import { createSnowSurface, useSnowLighting } from './snowSurface';
 
 export interface TerrainMaterialHandles {
   material: THREE.MeshStandardNodeMaterial;
+  forChunk(x: number, z: number, size: number): THREE.Material;
   viewer: { value: THREE.Vector3 };
   slopeOverlay: { value: number };
   sunDir: { value: THREE.Vector3 };
@@ -142,8 +143,19 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   // The beginner aid alone is self-lit so its colors remain legible in shadow.
   mat.emissiveNode = overlay.mul(slopeOverlay).mul(0.5);
 
+  // Only terrain intersecting a floor needs a fragment discard. The open-snow variant
+  // shares the same lighting, maps and uniforms and allows early depth rejection.
+  const openSnow = mat.clone();
+  openSnow.maskNode = null;
+  openSnow.setupLightingModel = mat.setupLightingModel;
+  let footprints: { x: number; z: number; rx: number; rz: number }[] = [];
   return {
     material: mat,
+    forChunk(x, z, size) {
+      const intersects = footprints.some(f => x <= f.x + f.rx && x + size >= f.x - f.rx &&
+        z <= f.z + f.rz && z + size >= f.z - f.rz);
+      return intersects ? mat : openSnow;
+    },
     viewer: viewerUniform,
     slopeOverlay,
     sunDir,
@@ -167,6 +179,10 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
       midBounds.value.set(x0, n0, sx, sn);
     },
     setCutouts(list) {
+      footprints = list.slice(0, MAX_CUTS).map(c => {
+        const co = Math.abs(Math.cos(c.yaw)), si = Math.abs(Math.sin(c.yaw));
+        return { x: c.cx, z: c.cz, rx: c.hx * co + c.hz * si, rz: c.hx * si + c.hz * co };
+      });
       for (let i = 0; i < MAX_CUTS; i++) {
         const c = list[i];
         if (!c) { cutB[i].value.set(0, 0, -1e9, 0); continue; }

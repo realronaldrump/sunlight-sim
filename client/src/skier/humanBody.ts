@@ -103,7 +103,10 @@ export class HumanBody {
     this.mesh = new THREE.SkinnedMesh(lod === 'crowd' && crowdGeometry ? crowdGeometry : geometry, mat);
     this.mesh.name = 'anatomical-skier';
     this.mesh.bind(skeleton, new THREE.Matrix4());
-    this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
+    // Covers the animated body in rig space, including leans, falls and the seated pose.
+    // A bind-pose sphere can clip a hand, and rebuilding it would skin every vertex on the CPU.
+    this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 2.4);
+    this.mesh.castShadow = true; this.mesh.receiveShadow = true;
     this.root.add(this.mesh);
   }
 

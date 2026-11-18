@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 import { Heightfield, HeightTile } from './heightfield';
 import { GroomingField, type GroomingRun } from './grooming';
 import { needsLandmarkDetail } from './landmarkDetail';
+import { TerrainChunkMesh } from './terrainShadows';
+import { EARTH_R_EFF } from '../../../shared/world';
 
 const CELLS = 64;
 const VERTS = CELLS + 1;
@@ -47,7 +49,7 @@ function getIndex(): THREE.BufferAttribute {
       idx.push(a, as, b, b, as, bs);
     }
   }
-  sharedIndex = new THREE.BufferAttribute(new Uint32Array(idx), 1);
+  sharedIndex = new THREE.BufferAttribute(new Uint16Array(idx), 1);
   return sharedIndex;
 }
 
@@ -63,18 +65,20 @@ export class TerrainRenderer {
   private roots: [number, number][] = [];
   private buildQueue: Chunk[] = [];
   private waitingForTiles = false;
+  private settled = false;
+  private viewer = new THREE.Vector3();
+  private lastSplit = NaN;
+  private lastSelection = 0;
   private grooming: GroomingField;
 
-  constructor(private hf: Heightfield, private material: THREE.Material, runs: GroomingRun[] = []) {
+  constructor(private hf: Heightfield, private materialForChunk: (x: number, z: number, size: number) => THREE.Material, runs: GroomingRun[] = []) {
     this.grooming = new GroomingField(runs);
     this.group.name = 'terrain';
     const L = hf.maxLevel;
-    const C = CELLS * 2 ** L;
     // roots: all chunks of the top level covered by its tiles
     for (const [tx, tn] of hf.tileRange(L)) {
       for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) this.roots.push([tx * 4 + a, tn * 4 + b]);
     }
-    void C;
   }
 
   private key(L: number, cx: number, cn: number) { return `${L}/${cx}/${cn}`; }
@@ -160,9 +164,16 @@ export class TerrainRenderer {
     g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minH - skirt, -C), new THREE.Vector3(C, maxH, 0));
     g.boundingSphere = new THREE.Sphere();
     g.boundingBox.getBoundingSphere(g.boundingSphere);
-    // curvature drop at the horizon can push far chunks below their box; enlarge sphere to be safe
-    g.boundingSphere.radius += 2 ** c.L * 40;
-    const m = new THREE.Mesh(g, this.material);
+    const z = -on - C;
+    const m = new TerrainChunkMesh(g, this.materialForChunk(ox, z, C), CELLS);
+    const bounds = new THREE.Box3(new THREE.Vector3(ox, minH - skirt, z), new THREE.Vector3(ox + C, maxH, -on));
+    m.intersectsFrustum = frustum => {
+      // Match the shader's viewer-relative curvature, including when the shadow camera tests this tile.
+      const dx = Math.max(Math.abs(ox - this.viewer.x), Math.abs(ox + C - this.viewer.x));
+      const dz = Math.max(Math.abs(z - this.viewer.z), Math.abs(-on - this.viewer.z));
+      bounds.min.y = minH - skirt - (dx * dx + dz * dz) / (2 * EARTH_R_EFF) - 0.1;
+      return frustum.intersectsBox(bounds);
+    };
     m.position.set(ox, 0, -on);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
@@ -189,6 +200,18 @@ export class TerrainRenderer {
   /** Select and attach the visible set of chunks for a viewer at game position p. */
   update(p: THREE.Vector3) {
     this.frame++;
+    if (this.frame % 120 === 0) {
+      for (const [k, c] of this.chunks) {
+        if (this.frame - c.lastUsed > 600 && c.lastUsed !== this.lastSelection && c.mesh && !c.mesh.parent) {
+          c.mesh.geometry.dispose();
+          this.chunks.delete(k);
+        }
+      }
+    }
+    if (this.settled && this.lastSplit === this.splitFactor && this.viewer.equals(p)) return;
+    this.viewer.copy(p);
+    this.lastSplit = this.splitFactor;
+    this.lastSelection = this.frame;
     this.waitingForTiles = false;
     const px = p.x, pn = -p.z, py = p.y;
     const visible: Chunk[] = [];
@@ -234,17 +257,10 @@ export class TerrainRenderer {
     for (const m of want) if (m.parent !== this.group) this.group.add(m);
     this.visibleCount = visible.length;
     this.triangles = visible.length * CELLS * CELLS * 2;
-    // garbage collect stale chunks
-    if (this.frame % 120 === 0) {
-      for (const [k, c] of this.chunks) {
-        if (this.frame - c.lastUsed > 600 && c.mesh) {
-          c.mesh.geometry.dispose();
-          this.chunks.delete(k);
-        }
-      }
-    }
+    // Newly built parents may expose another level on the next visit.
+    this.settled = !this.waitingForTiles && this.buildQueue.length === 0 && built === 0;
   }
 
   /** True when every chunk needed for the current view is built (used by tests/screenshots). */
-  get idle() { return !this.waitingForTiles && this.buildQueue.length === 0; }
+  get idle() { return this.settled; }
 }

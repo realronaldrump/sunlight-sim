@@ -68,7 +68,7 @@ export class PedestrianModel {
     this.root.add(this.human.root, this.head, ...this.boots, ...this.skis, ...this.poles);
     if (!outfit) this.root.add(this.collarAnchor);
     if (outfit) this.root.add(outfit.board);
-    this.root.traverse((o) => { o.frustumCulled = false; if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
+    this.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     this.update({ mode: 'stand', stride: 0, speed: 0, time: 0, carry: true });
   }
 
@@ -76,7 +76,9 @@ export class PedestrianModel {
 
   /** Draw this person's gear through the shared crowd instancer (call after update()). */
   pushGear(gear: CrowdGear, detail: boolean) {
-    this.root.updateMatrixWorld(true);
+    // The anchors are direct children. Updating the skeleton here repeats the renderer's skinning setup.
+    this.root.updateWorldMatrix(true, false);
+    for (const o of [this.head, ...this.boots, this.collarAnchor, ...this.skis, ...this.poles]) o.updateMatrixWorld();
     gear.push(this.look.hat ?? 'helmet', this.head.matrixWorld, detail, this.look.hatColor);
     gear.push('leftBoot', this.boots[0].matrixWorld, detail);
     gear.push('rightBoot', this.boots[1].matrixWorld, detail);

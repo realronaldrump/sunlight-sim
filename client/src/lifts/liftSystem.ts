@@ -1,17 +1,16 @@
 // Chairlift rendering (towers, terminals, bull wheels, sagging haul rope, moving chairs) and chair
 // transforms for riders. Chair motion comes from shared/lifts.ts on the shared lift clock.
 import * as THREE from 'three/webgpu';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
 import { LiftClock } from '../../../shared/liftClock';
 import type { TerrainProbe } from '../../../shared/skiPhysics';
 import { SeatedRiders } from '../skier/seatedGeometry';
-import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion } from './chairModel';
+import { buildChairModel, chairMaterials, numberedChairPlates, BAR_PIVOT, type ChairMotion, type ChairPart } from './chairModel';
 import { buildHut, buildTerminal, buildTower, liftStyle, type LiftCollider } from './liftStructures';
 import { cableLoopGeometry } from './cableGeometry';
-import { createChairSwing, stepChairSwing, swingEnergy, type ChairSwing } from '../../../shared/chairSwing';
+import { stepChairSwing, swingEnergy, type ChairSwing } from '../../../shared/chairSwing';
 import { makeGuest, guestLook, rng, type Guest, type GuestLook } from '../world/guests';
 
 
@@ -20,11 +19,69 @@ const rope = new THREE.MeshStandardNodeMaterial({ color: 0x2b2b2b, roughness: 0.
 const RIDER_PALETTE = [0xd33a2c, 0x1f6fd1, 0xf2b705, 0x2e9e44, 0x7b3fbf, 0xff6f91, 0x222222, 0x1aa3a3, 0xe86a1a, 0x5b6b7a];
 interface Trip { guests: (Guest | undefined)[]; until: number }
 
+// Each cable section can be culled independently by the player camera and by each sun cascade.
+const CHAIR_SECTION = 160;
+const unitScale = new THREE.Vector3(1, 1, 1);
+class ChairBatch {
+  readonly parts: { mesh: THREE.InstancedMesh; motion: ChairMotion }[] = [];
+  readonly matrices = new Map<ChairMotion, THREE.InstancedBufferAttribute>();
+  readonly sphere = new THREE.Sphere();
+  private grips = new THREE.Box3();
+  private reach = 0;
+  count = 0;
+
+  constructor(parts: ChairPart[], materials: ReturnType<typeof chairMaterials>, capacity: number, parent: THREE.Group, detail: string) {
+    for (const part of parts) {
+      const mesh = new THREE.InstancedMesh(part.geometry, materials[part.finish], capacity);
+      mesh.name = `${part.name}-${detail}`;
+      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.boundingSphere = this.sphere;
+      mesh.count = 0;
+      mesh.visible = false;
+      const shared = this.matrices.get(part.motion);
+      if (shared) mesh.instanceMatrix = shared;
+      else this.matrices.set(part.motion, mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage));
+      const bounds = part.geometry.boundingSphere!;
+      const pivot = part.motion === 'restraint' ? Math.hypot(BAR_PIVOT.x, BAR_PIVOT.y, BAR_PIVOT.z) : 0;
+      this.reach = Math.max(this.reach, pivot + bounds.center.length() + bounds.radius);
+      this.parts.push({ mesh, motion: part.motion });
+      parent.add(mesh);
+    }
+  }
+
+  begin() { this.count = 0; this.grips.makeEmpty(); }
+
+  add(position: THREE.Vector3, body: THREE.Matrix4, grip: THREE.Matrix4, bar: THREE.Matrix4) {
+    this.grips.expandByPoint(position);
+    const i = this.count++;
+    for (const [motion, attribute] of this.matrices) {
+      (motion === 'grip' ? grip : motion === 'restraint' ? bar : body).toArray(attribute.array, i * 16);
+    }
+    return i;
+  }
+
+  end() {
+    if (this.count) {
+      this.grips.getBoundingSphere(this.sphere);
+      this.sphere.radius += this.reach;
+      for (const attr of this.matrices.values()) {
+        attr.clearUpdateRanges();
+        attr.addUpdateRange(0, this.count * 16);
+        attr.needsUpdate = true;
+      }
+    }
+    for (const { mesh } of this.parts) {
+      mesh.count = this.count;
+      mesh.visible = this.count > 0;
+    }
+  }
+}
+
 export class LiftSystem {
   readonly group = new THREE.Group();
   readonly paths: LiftPath[] = [];
   readonly colliders: Collider[] = [];
-  private chairMeshes: { near: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; far: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; labels: THREE.InstancedMesh }[] = [];
+  private chairMeshes: { near: ChairBatch; far: ChairBatch[]; labels: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
   private riders: { batches: SeatedRiders; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
   private passengerChairs: Set<number>[] = [];
@@ -37,6 +94,7 @@ export class LiftSystem {
   closed = false;
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
+  private gripPosition = new THREE.Vector3();
   private e = new THREE.Euler();
   private spinners: { lift: number; object: THREE.Object3D; speed: number; radius: number; direction: number }[] = [];
   private swings = new Map<string, { state: ChairSwing; at: number; updated: number }>();
@@ -61,15 +119,16 @@ export class LiftSystem {
       this.clocks.push(new LiftClock());
       this.buildStatic(path);
       const materials = chairMaterials(def.name);
-      const makeInstances = (detailed: boolean) => buildChairModel(def.name, def.seats, detailed).map(part => {
-        const mesh = new THREE.InstancedMesh(part.geometry, materials[part.finish], path.chairCount);
-        mesh.name = `${part.name}-${detailed ? 'near' : 'far'}`;
-        mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
-        this.group.add(mesh);
-        return { mesh, motion: part.motion };
-      });
-      const labels = numberedChairPlates(def.name, path.chairCount); this.group.add(labels);
-      this.chairMeshes.push({ near: makeInstances(true), far: makeInstances(false), labels });
+      const near = new ChairBatch(buildChairModel(def.name, def.seats, true), materials, path.chairCount, this.group, 'near');
+      const farParts = buildChairModel(def.name, def.seats, false);
+      const far = Array.from({ length: Math.ceil(path.horiz / CHAIR_SECTION) }, () =>
+        new ChairBatch(farParts, materials, path.chairCount, this.group, 'far'));
+      const labels = numberedChairPlates(def.name, path.chairCount);
+      labels.instanceMatrix = near.matrices.get('body')!;
+      labels.frustumCulled = true;
+      labels.boundingSphere = near.sphere;
+      this.group.add(labels);
+      this.chairMeshes.push({ near, far, labels });
       // about a third of the chairs carry 1-3 riders (deterministic per lift)
       let seed = def.name.length * 7919;
       const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -289,15 +348,17 @@ export class LiftSystem {
       const path = this.paths[li];
       const models = this.chairMeshes[li];
       const bar = new THREE.Matrix4(), grip = new THREE.Matrix4(), local = new THREE.Matrix4();
-      let nearCount = 0, farCount = 0;
+      models.near.begin();
+      for (const batch of models.far) batch.begin();
       const labelUV = models.labels.geometry.getAttribute('labelUV') as THREE.InstancedBufferAttribute;
       const cols = models.labels.userData.atlasColumns, rows = models.labels.userData.atlasRows;
       for (let i = 0; i < path.chairCount; i++) {
         const u = path.chairU(i, t), lp = path.loopPoint(u);
         const bank = path.chairBank(u);
-        const swing = this.chairSwing(li, i) ?? createChairSwing();
-        this.e.set(swing.pitch, lp.heading, bank + swing.roll, 'YXZ'); this.q.setFromEuler(this.e);
-        this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
+        const swing = this.chairSwing(li, i);
+        this.e.set(swing?.pitch ?? 0, lp.heading, bank + (swing?.roll ?? 0), 'YXZ'); this.q.setFromEuler(this.e);
+        this.gripPosition.set(lp.p.x, lp.p.y, lp.p.z);
+        this.m4.compose(this.gripPosition, this.q, unitScale);
         bar.copy(this.m4).multiply(local.makeTranslation(BAR_PIVOT.x, BAR_PIVOT.y, BAR_PIVOT.z));
         const hasRiders = this.reservedTrips.has(`${li}/${i}`) || (!this.closed && this.passengerChairs[li].has(i));
         bar.multiply(local.makeRotationX(path.restraintAngle(lp.h, lp.uphill, hasRiders)));
@@ -305,21 +366,19 @@ export class LiftSystem {
         const pitch = Math.atan2(next.y - lp.p.y, Math.hypot(next.x - lp.p.x, next.z - lp.p.z));
         // The carrier swings below the grip. The grip stays aligned to the cable.
         this.e.set(pitch, lp.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);
-        grip.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
+        grip.compose(this.gripPosition, this.q, unitScale);
         const near = !viewer || Math.hypot(viewer.x - lp.p.x, viewer.y - lp.p.y, viewer.z - lp.p.z) < 90 || occupied.some(o => o.lift === li && o.chair === i);
-        const instance = near ? nearCount++ : farCount++;
-        for (const part of near ? models.near : models.far) {
-          part.mesh.setMatrixAt(instance, part.motion === 'restraint' ? bar : part.motion === 'grip' ? grip : this.m4);
-        }
+        const batch = near ? models.near : models.far[Math.min(models.far.length - 1, Math.floor(lp.h / CHAIR_SECTION))];
+        const instance = batch.add(this.gripPosition, this.m4, grip, bar);
         if (near) {
-          models.labels.setMatrixAt(instance, this.m4);
           labelUV.setXY(instance, (i % cols) / cols, (rows - 1 - Math.floor(i / cols)) / rows);
         }
       }
-      for (const part of models.near) { part.mesh.count = nearCount; part.mesh.instanceMatrix.needsUpdate = true; }
-      for (const part of models.far) { part.mesh.count = farCount; part.mesh.instanceMatrix.needsUpdate = true; }
-      models.labels.count = nearCount; labelUV.needsUpdate = true;
-      models.labels.instanceMatrix.needsUpdate = true;
+      models.near.end();
+      for (const batch of models.far) batch.end();
+      models.labels.count = models.near.count;
+      models.labels.visible = models.near.count > 0;
+      labelUV.needsUpdate = true;
       // ambient riders sit on their chairs on the way up; hidden on the way down
       const R = this.riders[li];
       R.batches.begin();

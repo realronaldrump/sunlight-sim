@@ -11,6 +11,7 @@ import type { LiftPath } from '../../../shared/lifts';
 import { walkable, type Poi } from './walkable';
 import { PedestrianModel, type Appearance, type SignWalkerOutfit } from './pedestrian';
 import { CrowdGear } from './crowdGear';
+import { mergeStatic } from './mergeStatic';
 import { dressBib } from './bib';
 import { LODGE_SKI_START } from './mainLodge';
 import { dressSignWalker, LODGE_SIGN_WALKER, makeSignWalkerOutfit } from './lodgeSignWalker';
@@ -211,7 +212,7 @@ export class BaseLife {
       const wood = new THREE.MeshStandardNodeMaterial({ color: 0x5a3f2a, roughness: 0.9 });
       for (const s of [-0.8, 0.8]) { const postM = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.1, 0.1), wood); postM.position.set(bx + path.rx * s, by + 1.0, bz + path.rz * s); g.add(postM); }
     }
-    g.traverse((o) => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeStatic(g);
     return g;
   }
 

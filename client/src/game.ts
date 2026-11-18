@@ -241,7 +241,7 @@ export class Game {
     };
 
     this.terrainMat = createTerrainMaterial();
-    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.material, this.resort.runs);
+    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.forChunk, this.resort.runs);
     this.terrain.splitFactor = Q.terrainSplit;
     this.scene.add(this.terrain.group);
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });

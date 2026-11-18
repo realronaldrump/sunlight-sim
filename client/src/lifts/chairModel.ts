@@ -3,7 +3,7 @@
 // See DECISIONS.md for reference dates and estimated dimensions. No photo textures ship.
 import * as THREE from 'three/webgpu';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { attribute, texture, uv, vec2 } from 'three/tsl';
 import { HANGER, SEAT_SPACING } from '../../../shared/lifts';
 
@@ -47,7 +47,7 @@ export function buildChairModel(name: string, seats: number, detailed = true): C
   const add = (finish: ChairFinish, motion: ChairMotion, g: THREE.BufferGeometry) => {
     const key = `${motion}-${finish}`;
     if (!buckets.has(key)) buckets.set(key, { finish, motion, geos: [] });
-    buckets.get(key)!.geos.push(g.index ? g.toNonIndexed() : g);
+    buckets.get(key)!.geos.push(g.index ? g : mergeVertices(g, 1e-7));
   };
   const box = (finish: ChairFinish, motion: ChairMotion, size: number[], p: number[], rounding = 0.01, tilt = 0) => {
     const g = new RoundedBoxGeometry(size[0], size[1], size[2], detailed ? 2 : 1, rounding);

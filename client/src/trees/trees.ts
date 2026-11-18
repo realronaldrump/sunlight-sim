@@ -3,6 +3,7 @@
 // shadows and have collision; farther trees are crossed-quad impostors grouped per 512 m tile, baked
 // from those same meshes. Each species has several growth forms, chosen per tree from its seed.
 import * as THREE from 'three/webgpu';
+import { CulledInstances } from '../rendering/culledInstances';
 import {
   Fn, texture, uv, vec2, vec3, float, attribute, transformNormalToView, positionWorld, positionLocal, positionGeometry,
   cameraPosition, length, smoothstep, normalViewGeometry, normalView, positionViewDirection, faceDirection,
@@ -159,7 +160,8 @@ export class TreeSystem {
         const s = model.species, geo = geometryOf(model, detail);
         if (tier === 0) full.push(geo);
         const mat = s <= 1 ? coniferMat : s === 2 ? [barkMat, twigMat] : nearMat;
-        const m = new THREE.InstancedMesh(geo, mat, Math.ceil(caps[tier][s] / share[s] * 1.6));
+        const m = new CulledInstances(geo, mat, Math.ceil(caps[tier][s] / share[s] * 1.6));
+        m.padding = 0.25;
         m.setColorAt(0, this.tint.setRGB(1, 1, 1));
         m.count = 0;
         m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;

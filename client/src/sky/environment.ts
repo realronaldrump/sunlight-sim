@@ -10,6 +10,7 @@ import {
 import { sunPosition, januaryMST } from './sun';
 import { LAT, LON } from '../../../shared/world';
 import { Clouds } from './clouds';
+import { MountainDrawingPipeline } from './cascadeCulling';
 import { MountainShadow } from './mountainShadow';
 import { sunTransmission, type SkyMode } from './cloudWeather';
 import { eveningLights } from './eveningLights';
@@ -116,6 +117,7 @@ export class Environment {
       this.csm.fade = true;
       this.sun.shadow.shadowNode = this.csm;
     }
+    this.renderer.drawingPipeline = new MountainDrawingPipeline(this.camera, this.csm, this.lightDir);
 
     // Aerial perspective: exponential atmosphere integrated along the view ray.
     const H = 7000.0;
