@@ -18,6 +18,10 @@
 - Terrain uses curvature-aware chunk bounds, lets ordinary snow reject hidden fragments before shading, and submits only potential back faces and skirts to the directional shadow maps. The original DEM vertices, triangles, resolution and material settings remain the reference.
 - Two image regressions froze the simulations and compared the optimized passes to full reference rendering at the base, in Vortex, and toward Mount Sopris at low sun. Both renderer backends passed all three views. No pixel exceeded an eight-level RGB difference. Further terrain optimization and final integrated measurements are in progress.
 
+- Four neighboring terrain chunks can now share a vertex buffer and a draw. Each chunk still uses its original DEM triangles, normals, UVs and skirts. The camera can skip chunks proven to be behind the loaded terrain. Shadow maps retain their own visibility decisions. Distant snow skips lighting terms after their original fade reaches zero.
+- A driver trace found a base frame re-uploading about 14 MB of static terrain-shadow indices. The renderer now uploads changed buffers by version. Rigid ski equipment combines its original paint, roughness and metalness in one draw per articulated piece. The chair passenger asset rebuilt byte-for-byte. Base navigation, guests and their first visible poses now warm during loading.
+- The final release candidate also preserves the groomer coordinates on the lift platforms through static mesh merging. Native-resolution performance, public asset hashes and production smoke verification follow the integrated build.
+
 ## Upper station unloading (November 17, 2026)
 
 - Reproduced all three gates crossing the ski-away lane. At the far edge of the old stand prompt, seat clearance ranged from 0.27 m on Primo to 1.46 m on Tercero. Rebuilt the upper cable, winter table and runout, moved the trip wand onto the turnaround, corrected Primo's loaded side, and placed the unload and bar signs using the shared station geometry.

@@ -1,6 +1,8 @@
 // Alpine hardgoods in metres. Each moving piece shares a fixed geometry template across skiers.
 import * as THREE from 'three/webgpu';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { attribute } from 'three/tsl';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mergeStatic } from '../world/mergeStatic';
 
 const material = (color: number, roughness: number, metalness = 0) =>
@@ -63,6 +65,32 @@ function strap(
   band.rotation.x = -0.105;
   return band;
 }
+// Boots, skis and poles are rigid within each articulated piece. Store the original
+// linear paint and PBR finish per vertex, so all its buckles, edges and decals draw together.
+const gearSurface = new THREE.MeshStandardNodeMaterial({ vertexColors: true });
+gearSurface.roughnessNode = attribute('gearFinish', 'vec2').x;
+gearSurface.metalnessNode = attribute('gearFinish', 'vec2').y;
+function packGear(group: THREE.Group) {
+  const parts = group.children as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardNodeMaterial>[];
+  const geometries = parts.map(({ geometry, material }) => {
+    const count = geometry.getAttribute('position').count, pigment = geometry.getAttribute('color');
+    const colors = new Float32Array(count * 3), finish = new Float32Array(count * 2);
+    const color = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      if (material.vertexColors && pigment) color.fromBufferAttribute(pigment, i).multiply(material.color);
+      else color.copy(material.color);
+      color.toArray(colors, i * 3);
+      finish[i * 2] = material.roughness; finish[i * 2 + 1] = material.metalness;
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('gearFinish', new THREE.BufferAttribute(finish, 2));
+    return geometry;
+  });
+  const combined = mergeGeometries(geometries)!;
+  const mesh = new THREE.Mesh(mergeVertices(combined, 1e-7), gearSurface);
+  mesh.castShadow = mesh.receiveShadow = true;
+  group.clear(); group.add(mesh);
+}
 const prototypes = new Map<string, THREE.Group>();
 function piece(name: string, build: (g: THREE.Group) => void) {
   let template = prototypes.get(name);
@@ -71,6 +99,7 @@ function piece(name: string, build: (g: THREE.Group) => void) {
     template.name = name;
     build(template);
     mergeStatic(template);
+    packGear(template);
     prototypes.set(name, template);
   }
   return template.clone();

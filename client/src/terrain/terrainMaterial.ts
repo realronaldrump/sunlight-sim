@@ -3,7 +3,7 @@
 // faces, forest darkening at distance, snow sparkle, and the beginner slope-angle overlay.
 import * as THREE from 'three/webgpu';
 import {
-  Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorldGeometry, modelWorldMatrix,
+  Fn, uniform, vec2, vec3, vec4, float, positionLocal, positionWorld, normalWorldGeometry, normalViewGeometry, modelWorldMatrix,
   dot, mix, smoothstep, clamp, acos, texture, cameraPosition, normalize, abs, sin,
   length, select, step, mx_noise_float,
 } from 'three/tsl';
@@ -12,7 +12,8 @@ import { createSnowSurface, useSnowLighting } from './snowSurface';
 
 export interface TerrainMaterialHandles {
   material: THREE.MeshStandardNodeMaterial;
-  forChunk(x: number, z: number, size: number): THREE.Material;
+  intersectsCutout: import('./terrainOcclusion').CutoutTest;
+  forChunk(x: number, z: number, size: number): [THREE.Material, THREE.Material];
   viewer: { value: THREE.Vector3 };
   slopeOverlay: { value: number };
   sunDir: { value: THREE.Vector3 };
@@ -93,19 +94,20 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const snowDetail = createSnowSurface(surf, dist, plowed, { sample: stateTex.mul(inState), hours: skiedHours, fresh: freshCover });
   // Keep exposed faces and distant canopy out of the snow reflection model.
   const rockT = mix(float(48.0), float(33.0), smoothstep(1500.0, 15000.0, dist));
-  const rock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(float(1.0).sub(surf.g)).mul(0.85);
+  const bareRock = smoothstep(rockT, rockT.add(10.0), slopeDeg).mul(0.85);
+  const rock = bareRock.mul(float(1.0).sub(surf.g));
 
-  const colorFn = Fn(() => {
+  const colorFn = (surfaceColor, regional = false) => Fn(() => {
     const canopy = surf.b;
-    const landCanopy = land.r.mul(float(1.0).sub(inSurf)); // forest where no tree instances are drawn
-    const snow = snowDetail.color.toVar();
+    const landCanopy = regional ? land.r : land.r.mul(float(1.0).sub(inSurf)); // forest where no tree instances are drawn
+    const snow = surfaceColor.toVar();
     const n1 = mx_noise_float(vec3(xn.x.mul(0.3), 3.0, xn.y.mul(0.3))).mul(0.5).add(0.5);
     // forest from afar: trees darken the snow surface (only beyond near tree rendering range)
     // forest floor under the canopy is in shade; from afar the trees themselves dominate
     const midForest = smoothstep(120.0, 700.0, dist).mul(canopy).mul(0.38);
     const farForest = smoothstep(1500.0, 4000.0, dist).mul(canopy).mul(0.45);
     const forestCol = vec3(0.13, 0.17, 0.15);
-    snow.assign(mix(snow, forestCol, midForest.add(farForest)));
+    if (!regional) snow.assign(mix(snow, forestCol, midForest.add(farForest)));
     // distant forests (ESA WorldCover): dark conifer/aspen stands with some snow showing through
     const speck = mx_noise_float(vec3(xn.x.mul(0.08), 5.0, xn.y.mul(0.08))).mul(0.5).add(0.5);
     const farCol = vec3(0.11, 0.145, 0.13).add(vec3(0.08).mul(speck));
@@ -114,13 +116,13 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
     // plowed roads and parking lots: packed snow over gravel with tyre tracks
     const tracks = abs(sin(dot(vec2(positionWorld.x, positionWorld.z), vec2(0.7, 0.7)).mul(3.1))).mul(0.06);
     const plowCol = vec3(0.58, 0.56, 0.53).mul(float(0.92).add(n1.mul(0.12)).sub(tracks));
-    snow.assign(mix(snow, plowCol, plowed.mul(0.8)));
+    if (!regional) snow.assign(mix(snow, plowCol, plowed.mul(0.8)));
     const rockCol = vec3(0.32, 0.30, 0.29).mul(float(0.85).add(n1.mul(0.3)));
-    snow.assign(mix(snow, rockCol, rock));
+    snow.assign(mix(snow, rockCol, regional ? bareRock : rock));
     // beginner slope-angle overlay
     return mix(snow, overlay, slopeOverlay.mul(0.9));
-  });
-  mat.colorNode = colorFn();
+  })();
+  mat.colorNode = colorFn(snowDetail.color);
 
   mat.normalNode = snowDetail.normal;
   mat.roughnessNode = mix(snowDetail.roughness, float(0.92), rock);
@@ -148,13 +150,28 @@ export function createTerrainMaterial(): TerrainMaterialHandles {
   const openSnow = mat.clone();
   openSnow.maskNode = null;
   openSnow.setupLightingModel = mat.setupLightingModel;
+  const farMaterial = (regional: boolean) => {
+    const m = openSnow.clone(), snow = regional ? snowDetail.regional : snowDetail.far;
+    const stone = regional ? bareRock : rock;
+    m.colorNode = colorFn(snow.color, regional);
+    m.normalNode = normalViewGeometry;
+    m.roughnessNode = mix(snow.roughness, .92, stone);
+    m.aoNode = regional ? float(1) : snow.ao;
+    useSnowLighting(m, stone.oneMinus().mul(regional ? 1 : plowed.oneMinus()).mul(slopeOverlay.oneMinus()), dist, false);
+    return m;
+  };
+  const farSnow = farMaterial(false), regionalSnow = farMaterial(true);
   let footprints: { x: number; z: number; rx: number; rz: number }[] = [];
+  const intersectsCutout = (x0: number, z0: number, x1: number, z1: number) => footprints.some(f =>
+    x0 <= f.x + f.rx && x1 >= f.x - f.rx && z0 <= f.z + f.rz && z1 >= f.z - f.rz);
   return {
     material: mat,
+    intersectsCutout,
     forChunk(x, z, size) {
-      const intersects = footprints.some(f => x <= f.x + f.rx && x + size >= f.x - f.rx &&
-        z <= f.z + f.rz && z + size >= f.z - f.rz);
-      return intersects ? mat : openSnow;
+      if (intersectsCutout(x, z, x + size, z + size)) return [mat, mat];
+      const resort = [surfBounds, baseBounds, stateBounds].some(({ value: b }) =>
+        x <= b.x + b.z && x + size >= b.x && -z >= b.y && -z - size <= b.y + b.w);
+      return [openSnow, resort ? farSnow : regionalSnow];
     },
     viewer: viewerUniform,
     slopeOverlay,

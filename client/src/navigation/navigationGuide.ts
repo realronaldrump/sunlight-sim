@@ -89,8 +89,8 @@ export class NavigationGuide {
     for (const el of [this.hud, this.panel]) el.addEventListener('click', e => {
       if (e.detail > 0 && e.target instanceof HTMLElement) e.target.closest('button')?.blur();
     });
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.StreamDrawUsage));
+    this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3).setUsage(THREE.StreamDrawUsage));
     this.geometry.setDrawRange(0, 0); this.ribbon.frustumCulled = false;
     this.group.name = 'route-guidance'; this.group.add(this.ribbon);
     this.game.scene.add(this.group);

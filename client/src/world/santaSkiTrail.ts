@@ -17,8 +17,8 @@ function tangent(a: SantaTrack, b: SantaTrack) {
 export class SantaSkiTrail {
   readonly mesh;
   private geo = new THREE.BufferGeometry();
-  private position = new THREE.BufferAttribute(new Float32Array(QUADS * 12), 3).setUsage(THREE.DynamicDrawUsage);
-  private profile = new THREE.BufferAttribute(new Float32Array(QUADS * 12), 3).setUsage(THREE.DynamicDrawUsage);
+  private position = new THREE.BufferAttribute(new Float32Array(QUADS * 12), 3).setUsage(THREE.StreamDrawUsage);
+  private profile = new THREE.BufferAttribute(new Float32Array(QUADS * 12), 3).setUsage(THREE.StreamDrawUsage);
   private time = uniform(0);
   private nextUpdate = -Infinity;
   private visible: number[] = [];

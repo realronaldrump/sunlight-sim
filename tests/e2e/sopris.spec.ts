@@ -20,8 +20,8 @@ for (const backend of ['webgpu', 'webgl2']) {
       const x = 14731, z = 14803;
       return g.terrain.group.children.filter((m: any) => {
         const size = 64 * 2 ** m.userData.level;
-        return m.position.x <= x && m.position.x + size > x &&
-          m.position.z >= z && m.position.z - size < z;
+        return m.x <= x && m.x + size > x &&
+          m.z >= z && m.z - size < z;
       }).map((m: any) => m.userData.level);
     }), { timeout: 60_000 }).toEqual([2]);
     expect(await page.evaluate(() => (window as any).game.waitIdle(60_000))).toBe(true);

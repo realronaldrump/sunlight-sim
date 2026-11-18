@@ -18,8 +18,8 @@ export class SnowSpray {
 
   constructor(private gold = false) {
     const geo = new THREE.PlaneGeometry(1, 1);
-    geo.setAttribute('snowPosition', new THREE.InstancedBufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
-    geo.setAttribute('snowAppearance', new THREE.InstancedBufferAttribute(this.appearance, 2).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('snowPosition', new THREE.InstancedBufferAttribute(this.positions, 3).setUsage(THREE.StreamDrawUsage));
+    geo.setAttribute('snowAppearance', new THREE.InstancedBufferAttribute(this.appearance, 2).setUsage(THREE.StreamDrawUsage));
     const mat = new THREE.MeshStandardNodeMaterial({
       color: gold ? 0xffca63 : 0xf4f8ff, emissive: gold ? 0xf4a62b : 0, emissiveIntensity: gold ? .72 : 0,
       roughness: gold ? .53 : 1, transparent: true, depthWrite: false, side: THREE.DoubleSide,

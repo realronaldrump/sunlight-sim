@@ -36,9 +36,9 @@ export class SkiTracks {
     this.col = new Float32Array(this.max * VERTS * 4);
     this.normal = new Float32Array(this.max * VERTS * 3);
     this.rec = new Float32Array(this.max * REC);
-    this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    this.geo.setAttribute('color', new THREE.BufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage));
-    this.geo.setAttribute('normal', new THREE.BufferAttribute(this.normal, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.StreamDrawUsage));
+    this.geo.setAttribute('color', new THREE.BufferAttribute(this.col, 4).setUsage(THREE.StreamDrawUsage));
+    this.geo.setAttribute('normal', new THREE.BufferAttribute(this.normal, 3).setUsage(THREE.StreamDrawUsage));
     const indices = new Uint32Array(this.max * INDICES);
     let index = 0;
     for (let seg = 0; seg < this.max; seg++) for (let ski = 0; ski < 2; ski++) {
@@ -131,7 +131,10 @@ export class SkiTracks {
       for (let v = i * VERTS * 4 + 3, end = (i + 1) * VERTS * 4; v < end; v += 4) col[v] *= f;
       touched = true;
     }
-    if (touched) { const c = this.geo.getAttribute('color') as THREE.BufferAttribute; c.clearUpdateRanges(); c.needsUpdate = true; }
+    if (touched) {
+      const c = this.geo.getAttribute('color') as THREE.BufferAttribute;
+      c.clearUpdateRanges(); c.addUpdateRange(0, this.count * VERTS * 4); c.needsUpdate = true;
+    }
   }
 
   /** Slowly fade old segments without erasing the snow underneath. */

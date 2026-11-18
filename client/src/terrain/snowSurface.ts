@@ -87,8 +87,8 @@ export function createSnowSurface(surf, dist, plowed, state) {
 
   const cavity = scanned.a.oneMinus().mul(powder.mul(0.22).add(0.045)).mul(near);
   const microShade = cord.oneMinus().mul(cordFade).mul(fresh).mul(0.035);
-  const color = vec3(0.91, 0.945, 0.98)
-    .mul(float(0.99).add(driftNoise.mul(0.018)))
+  const baseColor = vec3(0.91, 0.945, 0.98).mul(float(0.99).add(driftNoise.mul(0.018)));
+  const colorAt = (cavity, near) => baseColor
     .mul(microShade.oneMinus())
     .mul(mix(vec3(1), vec3(0.73, 0.84, 0.97), cavity))
     .mul(float(1).sub(seam.mul(groomed).mul(near).mul(0.018)))
@@ -96,42 +96,51 @@ export function createSnowSurface(surf, dist, plowed, state) {
     .mul(mix(vec3(1), vec3(0.85, 0.895, 0.945), hardpack.mul(streaks.mul(0.55).add(0.45))))
     .mul(mix(vec3(1), vec3(0.95, 0.965, 0.98), chop.mul(0.6)))
     .mul(float(1).add(state.fresh.mul(0.02)));
-  const roughness = mix(0.84, 0.65, groomed)
+  const roughnessAt = (near) => mix(0.84, 0.65, groomed)
     .add(scanned.b.sub(0.5).mul(0.13).mul(near))
     .sub(windExposure.mul(0.08))
     // polished hardpack throws a sheen in the sun; new snow is matte
     .sub(hardpack.mul(0.17)).add(state.fresh.mul(0.12)).clamp(0.45, 0.95);
   // Ambient shelter darkens hollows without baking a light direction into the albedo.
   const ao = float(1).sub(cavity.mul(0.42)).sub(surf.b.mul(0.16)).clamp(0.68, 1);
-  return { color, normal, roughness, ao, ready };
+  return {
+    color: colorAt(cavity, near), normal, roughness: roughnessAt(near), ao, ready,
+    // Relief, cavity colour and scanned roughness have exactly zero weight beyond 55 m.
+    far: { color: colorAt(float(0), float(0)), roughness: roughnessAt(float(0)), ao: float(1).sub(surf.b.mul(.16)) },
+    // Beyond the resort rasters the surface is ungroomed, unplowed snow without recorded traffic.
+    regional: { color: baseColor.mul(float(1).add(state.fresh.mul(.02))),
+      roughness: float(.84).sub(smoothstep(.08, .48, dot(normalWorldGeometry, vec3(-.8, 0, .6))).mul(.08)).add(state.fresh.mul(.12)).clamp(.45, .95) },
+  };
 }
 
 /** Extend Three's standard PBR light evaluation so crystals receive the same light attenuation
  * and cascade shadows as the snow. No emissive glitter, screen-space noise, or quantized view bins.
  */
 class SnowLightingModel extends THREE.PhysicalLightingModel {
-  constructor(private snowCoverage, private dist) { super(); }
+  constructor(private snowCoverage, private dist, private crystals) { super(); }
 
   direct(input, builder) {
     super.direct(input, builder);
     const { lightDirection, lightColor, reflectedLight } = input;
-    const p = positionWorld.xz.mul(110);
-    const seed = dot(floor(p), vec2(17, 131));
-    const n = normalWorldGeometry;
-    const tangent = normalize(cross(n, vec3(0, 0, 1)).add(vec3(1e-5, 0, 0)));
-    const bitangent = cross(n, tangent);
-    const facet = normalize(n.add(tangent.mul(hash(seed).sub(0.5).mul(1.8)))
-      .add(bitangent.mul(hash(seed.add(73)).sub(0.5).mul(1.8))));
-    const half = normalize(lightDirection.add(positionViewDirection));
-    const lobe = pow(max(dot(transformNormalToView(facet), half), 0), 850);
-    const center = vec2(hash(seed.add(11)), hash(seed.add(37))).mul(0.5).add(0.25);
-    const spot = float(1).sub(smoothstep(0.08, 0.34, length(fract(p).sub(center))));
-    const pixelSize = max(length(dFdx(p)), length(dFdy(p)));
-    const resolved = float(1).sub(smoothstep(0.65, 1.7, pixelSize));
-    const fade = float(1).sub(smoothstep(8, 24, this.dist));
     const facing = max(dot(normalView, lightDirection), 0);
-    const glint = lobe.mul(spot).mul(resolved).mul(fade).mul(facing).mul(this.snowCoverage);
-    reflectedLight.directSpecular.addAssign(lightColor.mul(glint).mul(3.0));
+    if (this.crystals) {
+      const p = positionWorld.xz.mul(110);
+      const seed = dot(floor(p), vec2(17, 131));
+      const n = normalWorldGeometry;
+      const tangent = normalize(cross(n, vec3(0, 0, 1)).add(vec3(1e-5, 0, 0)));
+      const bitangent = cross(n, tangent);
+      const facet = normalize(n.add(tangent.mul(hash(seed).sub(0.5).mul(1.8)))
+        .add(bitangent.mul(hash(seed.add(73)).sub(0.5).mul(1.8))));
+      const half = normalize(lightDirection.add(positionViewDirection));
+      const lobe = pow(max(dot(transformNormalToView(facet), half), 0), 850);
+      const center = vec2(hash(seed.add(11)), hash(seed.add(37))).mul(0.5).add(0.25);
+      const spot = float(1).sub(smoothstep(0.08, 0.34, length(fract(p).sub(center))));
+      const pixelSize = max(length(dFdx(p)), length(dFdy(p)));
+      const resolved = float(1).sub(smoothstep(0.65, 1.7, pixelSize));
+      const fade = float(1).sub(smoothstep(8, 24, this.dist));
+      const glint = lobe.mul(spot).mul(resolved).mul(fade).mul(facing).mul(this.snowCoverage);
+      reflectedLight.directSpecular.addAssign(lightColor.mul(glint).mul(3.0));
+    }
 
     // Bounded shallow-scattering approximation at grazing angles. This also receives shadows;
     // the existing blue skylight supplies the much larger diffuse fill in sheltered snow.
@@ -141,6 +150,6 @@ class SnowLightingModel extends THREE.PhysicalLightingModel {
   }
 }
 
-export function useSnowLighting(material, snowCoverage, dist) {
-  material.setupLightingModel = () => new SnowLightingModel(snowCoverage, dist);
+export function useSnowLighting(material, snowCoverage, dist, crystals = true) {
+  material.setupLightingModel = () => new SnowLightingModel(snowCoverage, dist, crystals);
 }

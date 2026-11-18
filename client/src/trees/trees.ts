@@ -79,7 +79,7 @@ interface TileData {
   tx: number; tn: number; n: number;
   x: Float32Array; z: Float32Array; y: Float32Array; h: Float32Array; r: Float32Array; s: Uint8Array; seed: Uint8Array;
   mesh: THREE.InstancedMesh | null;
-  cellOf: Int32Array; // cell key per tree index
+  hidden: Uint8Array; // impostors currently replaced by detailed trees
   excluded: Uint8Array;
   slope: Float32Array; // ground gradient (dy/dx, dy/dz) per tree, NaN until first needed
 }
@@ -232,7 +232,11 @@ export class TreeSystem {
     const S = idx.tileSize as number;
     // nearest tiles first
     tiles.sort((a, b) => Math.hypot((a[0] + 0.5) * S - center.x, (a[1] + 0.5) * S + center.z) - Math.hypot((b[0] + 0.5) * S - center.x, (b[1] + 0.5) * S + center.z));
-    const first = tiles.slice(0, 6), rest = tiles.slice(6);
+    // The base crowd builds its walkable graph before the warm render. Include every
+    // tile that could contain a trunk on its lodge, lift-line and parking approaches.
+    const nearBase = (t: number[]) => Math.max(t[0] * S - center.x, center.x - (t[0] + 1) * S,
+      t[1] * S + center.z, -center.z - (t[1] + 1) * S) <= 400;
+    const first = tiles.filter(nearBase), rest = tiles.filter(t => !nearBase(t));
     await Promise.all(first.map((t) => this.loadTile(t[0], t[1])));
     // remaining tiles in the background, a few at a time
     (async () => {
@@ -257,10 +261,9 @@ export class TreeSystem {
         if(inside)excluded[i]=1;
       }
     }
-    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, cellOf: new Int32Array(n), excluded, slope: new Float32Array(n * 2).fill(NaN) };
+    const t: TileData = { tx, tn, n, x, z, y, h, r, s, seed, mesh: null, hidden: new Uint8Array(n), excluded, slope: new Float32Array(n * 2).fill(NaN) };
     for (let i = 0; i < n; i++) {
       const k = cellKey(Math.floor(x[i] / CELL), Math.floor(z[i] / CELL));
-      t.cellOf[i] = k;
       let list = this.cells.get(k);
       if (!list) { list = []; this.cells.set(k, list); }
       let entry = list.find((e) => e.tile === t);
@@ -321,8 +324,13 @@ export class TreeSystem {
       const cx = (i + 0.5) * CELL, cz = (j + 0.5) * CELL;
       if (Math.hypot(cx - cam.x, cz - cam.z) < radius) want.add(cellKey(i, j));
     }
-    // update impostor visibility per tile for changed cells
-    const changedTiles = new Set<TileData>();
+    // The shader already fades impostors completely at farDist. Test the whole tile,
+    // including crown extents, with room for movement until the next refresh.
+    for (const t of this.tiles.values()) {
+      const sphere = t.mesh!.boundingSphere;
+      t.mesh!.visible = sphere.center.distanceToSquared(cam) <= (sphere.radius + this.farDist + 11) ** 2;
+    }
+    const changedTiles = new Map<TileData, { first: number; last: number }>();
     const setCell = (k: number, near: boolean) => {
       const list = this.cells.get(k);
       if (!list) return;
@@ -332,15 +340,23 @@ export class TreeSystem {
         for (const i of e.idx) {
           const margin = t.r[i] * this.halfWidth[modelOf(t.s[i], t.seed[i])] + 11;
           const hide = near && Math.hypot(t.x[i] - cam.x, t.z[i] - cam.z) < this.nearDist - LOD_BLEND - margin;
+          if (t.excluded[i] || t.hidden[i] === Number(hide)) continue;
+          t.hidden[i] = Number(hide);
           this.writeImpostor(t.mesh!, t, i, hide);
+          const range = changedTiles.get(t);
+          if (range) { range.first = Math.min(range.first, i); range.last = Math.max(range.last, i); }
+          else changedTiles.set(t, { first: i, last: i });
         }
-        changedTiles.add(e.tile);
       }
     };
     for (const k of this.nearCells) if (!want.has(k)) setCell(k, false);
     for (const k of want) setCell(k, true);
     this.nearCells = want;
-    for (const t of changedTiles) t.mesh!.instanceMatrix.needsUpdate = true;
+    for (const [t, range] of changedTiles) {
+      const attr = t.mesh!.instanceMatrix;
+      attr.addUpdateRange(range.first * 16, (range.last - range.first + 1) * 16);
+      attr.needsUpdate = true;
+    }
     // rebuild near meshes
     const counts = [MODELS.map(() => 0), MODELS.map(() => 0)];
     const high2 = HIGH_DETAIL_DIST * HIGH_DETAIL_DIST, contact2 = CONTACT_DIST * CONTACT_DIST;
@@ -375,7 +391,7 @@ export class TreeSystem {
           if (counts[tier][model] >= mesh.instanceMatrix.count) continue;
           this.sc.set(t.r[i], t.h[i], t.r[i]);
           this.m4.compose(this.v.set(t.x[i], t.y[i] - 0.2, t.z[i]), this.pose(t, i), this.sc);
-          mesh.setColorAt(counts[tier][model], treeTint(s, t.x[i], t.z[i], this.tint));
+          mesh.setColorAt(counts[tier][model], this.tint.fromArray(t.mesh!.geometry.getAttribute('tree').array, i * 4));
           mesh.setMatrixAt(counts[tier][model]++, this.m4);
         }
       }

@@ -85,10 +85,10 @@ export class CrowdGear {
           mesh.frustumCulled = false;
           mesh.castShadow = detail;
           mesh.receiveShadow = true;
-          mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          mesh.instanceMatrix.setUsage(THREE.StreamDrawUsage);
           if (m.material.userData.headwearTint || m.material.userData.jacketTint) {
             mesh.setColorAt(0, white);
-            mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage);
+            mesh.instanceColor!.setUsage(THREE.StreamDrawUsage);
           }
           this.group.add(mesh);
           return mesh;

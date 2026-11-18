@@ -40,7 +40,7 @@ class ChairBatch {
       mesh.visible = false;
       const shared = this.matrices.get(part.motion);
       if (shared) mesh.instanceMatrix = shared;
-      else this.matrices.set(part.motion, mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage));
+      else this.matrices.set(part.motion, mesh.instanceMatrix.setUsage(THREE.StreamDrawUsage));
       const bounds = part.geometry.boundingSphere!;
       const pivot = part.motion === 'restraint' ? Math.hypot(BAR_PIVOT.x, BAR_PIVOT.y, BAR_PIVOT.z) : 0;
       this.reach = Math.max(this.reach, pivot + bounds.center.length() + bounds.radius);

@@ -143,7 +143,6 @@ export class BaseLife {
   private queues: LiftQueue[] = [];
   private destinations: NavNode[] = [];
   private built = false;
-  private clock = 0;
   private frameNo = 0;
   private r = rng(4217);
   /** Resort Day: 0..1 share of the usual crowd at this hour. */
@@ -276,7 +275,8 @@ export class BaseLife {
   }
 
   /** Build the navigation graph and populate the base once terrain, buildings and nearby trees exist. */
-  private build() {
+  prepare() {
+    if (this.built) return;
     this.built = true;
     const lodgeDoor = walkable.pois.find((p) => p.tag === 'south-door');
     const centers = [
@@ -460,8 +460,8 @@ export class BaseLife {
   }
 
   update(dt: number, camera: THREE.Vector3, playerLoadLift: number) {
-    this.clock += dt; this.frameNo++;
-    if (!this.built) { if (this.clock > 2.5) this.build(); return; }
+    this.frameNo++;
+    if (!this.built) return;
     // Lift queues: 2.6 s before a chair carrying riders reaches the load line, the front row merges into
     // its seat lanes; when that chair passes the line, they are its riders.
     for (const q of this.queues) {

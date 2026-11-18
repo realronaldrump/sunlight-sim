@@ -65,9 +65,9 @@ export class CulledInstances extends THREE.InstancedMesh {
       view?.mesh.dispose();
       const capacity = 2 ** Math.ceil(Math.log2(count));
       const mesh = new THREE.InstancedMesh(this.geometry, this.material, capacity);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceMatrix.setUsage(THREE.StreamDrawUsage);
       if (this.instanceColor) {
-        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.StreamDrawUsage);
       }
       mesh.frustumCulled = false;
       mesh.matrixWorld = this.matrixWorld;

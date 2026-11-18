@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { SnowballFights } from './world/snowballs';
 import { Heightfield, browserLoader } from './terrain/heightfield';
+import { batchStaticShadows } from './rendering/staticShadows';
 import { TerrainRenderer } from './terrain/terrainRenderer';
 import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrainMaterial';
 import { Environment } from './sky/environment';
@@ -244,7 +245,7 @@ export class Game {
     };
 
     this.terrainMat = createTerrainMaterial();
-    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.forChunk, this.resort.runs);
+    this.terrain = new TerrainRenderer(this.hf, this.terrainMat.forChunk, this.terrainMat.intersectsCutout, this.resort.runs);
     this.terrain.splitFactor = Q.terrainSplit;
     this.scene.add(this.terrain.group);
     this.env = new Environment(this.scene, this.renderer, this.camera, { shadows: Q.shadows, shadowMapSize: Q.shadowMapSize, cascades: Q.cascades, shadowFar: Q.shadowFar });
@@ -319,6 +320,11 @@ export class Game {
     this.terrainMat.setCutouts(walkable.cutouts);
     for (const g of this.lifts.group.children) if (!(g as THREE.InstancedMesh).isInstancedMesh) mergeStatic(g);
     mergeStatic(this.runs.group);
+    if (Q.shadows) {
+      batchStaticShadows(staticGroup);
+      batchStaticShadows(this.runs.group);
+      for (const group of this.lifts.group.children) if (group instanceof THREE.Group) batchStaticShadows(group);
+    }
     this.camRig = new CameraRig(this.camera, this.renderer.domElement, (x, z) => this.hf.heightAt(x, z));
     this.camRig.blocked = (x, z) => this.colliders.query(x, z).some((c) => c.type === 'box' && Math.hypot(c.x - x, c.z - z) < 12);
     this.hud = new Hud();
@@ -453,6 +459,8 @@ export class Game {
     // Compile carrier/character/terrain materials before play. A cold shader stall
     // must not consume the first approaching chair after the UI reports readiness.
     this.setLoading(.98, 'Preparing mountain graphics');
+    this.baseLife?.prepare();
+    this.baseLife?.update(0, this.camera.position, -1);
     // Async pipeline completion can stall across browser contexts on either
     // backend. A real warm frame compiles and uploads behind the loading overlay,
     // without making multiplayer startup depend on a never-settling driver promise.

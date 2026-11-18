@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 import { Heightfield, HeightTile } from './heightfield';
 import { GroomingField, type GroomingRun } from './grooming';
 import { needsLandmarkDetail } from './landmarkDetail';
+import { TerrainOcclusion, type CutoutTest } from './terrainOcclusion';
+import { TerrainGroup } from './terrainPages';
 import { TerrainChunkMesh } from './terrainShadows';
 import { EARTH_R_EFF } from '../../../shared/world';
 
@@ -13,7 +15,7 @@ const SKIRT_VERTS = 4 * VERTS;
 
 interface Chunk {
   L: number; cx: number; cn: number;
-  mesh: THREE.Mesh | null;
+  mesh: TerrainChunkMesh | null;
   building: boolean;
   lastUsed: number;
 }
@@ -54,7 +56,7 @@ function getIndex(): THREE.BufferAttribute {
 }
 
 export class TerrainRenderer {
-  readonly group = new THREE.Group();
+  readonly group = new TerrainGroup(getIndex());
   private chunks = new Map<string, Chunk>();
   private frame = 0;
   splitFactor = 1.5;
@@ -69,10 +71,12 @@ export class TerrainRenderer {
   private viewer = new THREE.Vector3();
   private lastSplit = NaN;
   private lastSelection = 0;
+  private occlusion: TerrainOcclusion;
   private grooming: GroomingField;
 
-  constructor(private hf: Heightfield, private materialForChunk: (x: number, z: number, size: number) => THREE.Material, runs: GroomingRun[] = []) {
+  constructor(private hf: Heightfield, private materialForChunk: (x: number, z: number, size: number) => [THREE.Material, THREE.Material], intersectsCutout: CutoutTest, runs: GroomingRun[] = []) {
     this.grooming = new GroomingField(runs);
+    this.occlusion = new TerrainOcclusion(intersectsCutout);
     this.group.name = 'terrain';
     const L = hf.maxLevel;
     // roots: all chunks of the top level covered by its tiles
@@ -130,7 +134,7 @@ export class TerrainRenderer {
         const ti = i0 + i, tj = j0 + j;
         const h = H[tj * N + ti];
         const k = (j * VERTS + i) * 3;
-        pos[k] = i * r; pos[k + 1] = h; pos[k + 2] = -j * r;
+        pos[k] = ox + i * r; pos[k + 1] = h; pos[k + 2] = -on - j * r;
         const hl = H[tj * N + ti - 1], hr = H[tj * N + ti + 1];
         const hs = H[(tj - 1) * N + ti], hn = H[(tj + 1) * N + ti];
         // gradient in (x, n); game normal = (-dh/dx, 1, +dh/dn) since z = -n
@@ -161,11 +165,11 @@ export class TerrainRenderer {
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('grooming', new THREE.BufferAttribute(grooming, 2));
     g.setIndex(getIndex());
-    g.boundingBox = new THREE.Box3(new THREE.Vector3(0, minH - skirt, -C), new THREE.Vector3(C, maxH, 0));
+    g.boundingBox = new THREE.Box3(new THREE.Vector3(ox, minH - skirt, -on - C), new THREE.Vector3(ox + C, maxH, -on));
     g.boundingSphere = new THREE.Sphere();
     g.boundingBox.getBoundingSphere(g.boundingSphere);
     const z = -on - C;
-    const m = new TerrainChunkMesh(g, this.materialForChunk(ox, z, C), CELLS);
+    const m = new TerrainChunkMesh(g, this.materialForChunk(ox, z, C), CELLS, ox, -on, C);
     const bounds = new THREE.Box3(new THREE.Vector3(ox, minH - skirt, z), new THREE.Vector3(ox + C, maxH, -on));
     m.intersectsFrustum = frustum => {
       // Match the shader's viewer-relative curvature, including when the shadow camera tests this tile.
@@ -174,7 +178,6 @@ export class TerrainRenderer {
       bounds.min.y = minH - skirt - (dx * dx + dz * dz) / (2 * EARTH_R_EFF) - 0.1;
       return frustum.intersectsBox(bounds);
     };
-    m.position.set(ox, 0, -on);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
     m.receiveShadow = true;
@@ -203,7 +206,7 @@ export class TerrainRenderer {
     if (this.frame % 120 === 0) {
       for (const [k, c] of this.chunks) {
         if (this.frame - c.lastUsed > 600 && c.lastUsed !== this.lastSelection && c.mesh && !c.mesh.parent) {
-          c.mesh.geometry.dispose();
+          c.mesh.release();
           this.chunks.delete(k);
         }
       }
@@ -253,8 +256,11 @@ export class TerrainRenderer {
     }
     // attach visible set
     const want = new Set(visible.map((c) => c.mesh!));
-    for (const m of [...this.group.children]) if (!want.has(m as THREE.Mesh)) this.group.remove(m);
-    for (const m of want) if (m.parent !== this.group) this.group.add(m);
+    let changed = false;
+    for (const m of [...this.group.children]) if (!want.has(m as TerrainChunkMesh)) { this.group.remove(m); changed = true; }
+    for (const m of want) if (m.parent !== this.group) { this.group.add(m); changed = true; }
+    if (changed) this.group.regroup();
+    this.occlusion.update(p, this.group.children, changed);
     this.visibleCount = visible.length;
     this.triangles = visible.length * CELLS * CELLS * 2;
     // Newly built parents may expose another level on the next visit.

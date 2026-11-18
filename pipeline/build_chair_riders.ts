@@ -70,8 +70,8 @@ function posedRider(hat: Hat) {
         geo.attributes.jacket?.getX(i) ?? Number(!!mat.userData.jacketTint),
         geo.attributes.skinTone?.getX(i) ?? 0,
         Number(!!mat.userData.headwearTint),
-        geo.attributes.roughness?.getX(i) ?? mat.roughness,
-        mat.metalness,
+        geo.attributes.gearFinish?.getX(i) ?? geo.attributes.roughness?.getX(i) ?? mat.roughness,
+        geo.attributes.gearFinish?.getY(i) ?? mat.metalness,
         Number(!!skinned.isSkinnedMesh),
       );
     }

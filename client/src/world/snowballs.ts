@@ -47,7 +47,7 @@ export class SnowballFights {
     this.world = new SnowballWorld((x, z) => g.probe.height(x, z), g.colliders);
     this.world.onHit = hit => { if (hit.target === this.myId) g.player.knockBySnowball(hit); else g.ambient?.knockDown(hit); };
     this.ball = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.12, 2), new THREE.MeshStandardNodeMaterial({ color: 0xf5faff, roughness: .93 }), SNOWBALL.max * 4);
-    this.ball.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.ball.count = 0;
+    this.ball.instanceMatrix.setUsage(THREE.StreamDrawUsage); this.ball.count = 0;
     this.ball.frustumCulled = false; this.ball.castShadow = this.ball.receiveShadow = true; this.ball.name = 'flying-snowballs';
     this.group.add(this.ball, this.powder.mesh);
     const style = document.createElement('style'); style.textContent = css; document.head.append(style);
@@ -195,7 +195,7 @@ export class SnowballFights {
         this.dummy.position.set(p.x, p.y, p.z); this.dummy.scale.setScalar(scale); this.dummy.updateMatrix(); this.ball.setMatrixAt(n++, this.dummy.matrix);
       }
     }
-    this.ball.count = n; if (n) this.ball.instanceMatrix.needsUpdate = true;
+    this.ball.count = n; this.ball.visible = n > 0; if (n) this.ball.instanceMatrix.needsUpdate = true;
     this.powder.update(dt); this.pops.update(dt, g.camera);
     this.flashFor = Math.max(0, this.flashFor - dt); this.flash.style.opacity = String(Math.min(.6, this.flashFor * 2));
     const show = g.ready && g.input.enabled && !g.flyMode && actors[0].active;

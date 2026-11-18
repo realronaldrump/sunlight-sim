@@ -81,7 +81,7 @@ export class SeatedRiders {
       g.setIndex(template.index);
       for (const [name, attr] of Object.entries(template.attributes)) g.setAttribute(name, attr);
       const paint = new THREE.InstancedInterleavedBuffer(new Float32Array(capacity * 13), 13).setUsage(
-        THREE.DynamicDrawUsage,
+        THREE.StreamDrawUsage,
       );
       for (const [i, name] of ['riderColor', 'riderAccent', 'riderSkin', 'riderHat'].entries())
         g.setAttribute(name, new THREE.InterleavedBufferAttribute(paint, 3, i * 3));
@@ -93,7 +93,7 @@ export class SeatedRiders {
       m.frustumCulled = false;
       m.castShadow = index % 2 === 0;
       m.receiveShadow = true;
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.instanceMatrix.setUsage(THREE.StreamDrawUsage);
       parent.add(m);
       return m;
     });
