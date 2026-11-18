@@ -18,7 +18,8 @@
 
 - Reproduced all three gates crossing the ski-away lane. At the far edge of the old stand prompt, seat clearance ranged from 0.27 m on Primo to 1.46 m on Tercero. Rebuilt the upper cable, winter table and runout, moved the trip wand onto the turnaround, corrected Primo's loaded side, and placed the unload and bar signs using the shared station geometry.
 - Added checks for early and late release from all ten seats, boot and wand alignment, restraint stowage, the direction of each turnaround, saved guest rides and multiplayer release positions. The isolated production build, all 220 unit tests and the five data pipeline checks pass. Every seat clears the wheel, grounded and moving forward, from both edges of the stand window.
-- Next verification is the Chromium and WebKit station views, two riders in one room, and the matching client and server release. Concurrent graphics and Grizzly Road work is active in the checkout.
+- Chromium rendered all three corrected exits and passed the three-station manual ski-away case, both terminal rendering backends and the networked chair fall. The side views exposed a narrow shoulder under the upper operator huts. The winter surface now supports all four corners of each hut and blends back into the hillside. On the revised surface the largest corner-to-corner height difference is 0.23 m.
+- The original automatic Segundo browser check sometimes boarded a different chair while capturing the loading view. Its setup now holds the intended chair before contact and resumes its individual clock at normal speed. Final verification covers the revised platforms in both browsers and the public client and multiplayer service.
 
 ## Resort character graphics (November 17, 2026, released)
 

@@ -840,7 +840,8 @@ export class Game {
     const ride = this.player.ride!, path = this.lifts.paths[ride.lift];
     const grip = path.loopPoint(path.chairU(ride.chair, this.lifts.now(ride.lift))).p, top = path.def.top;
     const look = this.tmpV3.set(grip.x, grip.y - 2.0, grip.z);
-    const want = this.tmpV2.set(top[0] - path.ax * 7 + path.rx * 10, top[1] + 1.5, top[2] - path.az * 7 + path.rz * 10);
+    const want = this.tmpV2.set(top[0] + path.ax * 8 - path.uphillSide * path.rx * 9, path.stationHeight(true) + 2.6,
+      top[2] + path.az * 8 - path.uphillSide * path.rz * 9);
     want.y = Math.max(want.y, this.probe.height(want.x, want.z) + 1.6);
     if (!this.missedCam) { this.missedCam = true; this.camera.position.lerp(want, 0.6); }
     else this.camera.position.lerp(want, Math.min(1, dt * 3));

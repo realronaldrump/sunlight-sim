@@ -57,6 +57,17 @@ describe('Sunlight boarding and riding', () => {
     }
   });
 
+  it('supports the upper operator hut on the groomed shoulder beside the stand line', () => {
+    for (const p of paths) {
+      const corners = [];
+      for (const dh of [-1.9, 1.9]) for (const dr of [-1.9, 1.9]) {
+        const rope = p.ropePoint(p.horiz - 3 + dh, 1), across = p.uphillSide * (4.5 + dr);
+        corners.push(stations.height(rope.x + p.rx * across, rope.z + p.rz * across));
+      }
+      expect(Math.max(...corners) - Math.min(...corners)).toBeLessThan(.3);
+    }
+  });
+
   it('uses exactly the displayed snow triangles as the physics surface', () => {
     for (const ramp of stations.ramps) {
       for (let i = 1; i < ramp.rows - 1; i += 5) for (let j = 1; j < ramp.cols - 1; j += 3) {

@@ -1,7 +1,7 @@
 // Chairlift rendering (towers, terminals, bull wheels, sagging haul rope, moving chairs) and chair
 // transforms for riders. Chair motion comes from shared/lifts.ts on the shared lift clock.
 import * as THREE from 'three/webgpu';
-import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
+import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET, TOP_HUT_OUTSIDE } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
 import { LiftClock } from '../../../shared/liftClock';
@@ -290,8 +290,9 @@ export class LiftSystem {
         place(t.object, p.x, s.ground, p.z, top ? -path.ax : path.ax, top ? -path.az : path.az, t.colliders, s.cable + 2);
         // The upper operator looks across the stand-up table from outside the loaded strand.
         const hutSide = top ? path.uphillSide : -1;
-        const hutX = p.x + path.rx * hutSide * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
-        const hutZ = p.z + path.rz * hutSide * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
+        const hutDistance = GAUGE / 2 + (top ? TOP_HUT_OUTSIDE : 4.5);
+        const hutX = p.x + path.rx * hutSide * hutDistance + path.ax * (top ? -3 : 3);
+        const hutZ = p.z + path.rz * hutSide * hutDistance + path.az * (top ? -3 : 3);
         const hut = buildHut(style, top);
         hut.object.position.set(hutX, s.ground, hutZ);
         hut.object.rotation.y = Math.atan2(-hutSide * path.rx, -hutSide * path.rz);

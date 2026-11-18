@@ -39,7 +39,7 @@ export class LiftRideControls {
     this.stand.classList.toggle('go', ready);
     const soon = (unload?.soon ?? Infinity) < 8;
     this.stand.classList.toggle('soon', soon && !ready);
-    const text = ready ? 'STAND UP! · Space' : unload?.phase === 'missed' ? 'Missed the ramp!' : soon ? 'Ramp ahead · get ready · Space' : 'Stand up at the top · Space';
+    const text = ready ? 'STAND UP! · Space' : unload?.phase === 'missed' ? 'Missed the ramp!' : soon ? 'Ramp ahead · skis forward' : 'Stand up at the top · Space';
     if (this.stand.textContent !== text) this.stand.textContent = text;
     const remaining = Math.ceil(Math.max(0, seconds) / rate);
     const label = `${name} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} to top`;

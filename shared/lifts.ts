@@ -32,6 +32,7 @@ export const RIDER_ROOT_BELOW_SEAT = 0.44; // seated hip joint is 0.54 m above o
 export const RIDER_ROOT_FORWARD = 0.25; // seated hips are 0.25 m behind the model origin
 export const BOARD_FACING_COS = Math.cos(35 * Math.PI / 180);
 export const OPEN_BAR_ANGLE = 102 * Math.PI / 180;
+export const TOP_HUT_OUTSIDE = unloadProfile.hutOutside;
 
 export interface P3 { x: number; y: number; z: number }
 

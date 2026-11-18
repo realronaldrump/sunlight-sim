@@ -6,13 +6,21 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('/?autostart=1&ambient=0&autounload=1');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
-  await page.evaluate(liftName => {
+  await page.evaluate(async liftName => {
     const g = (window as any).game, li = g.lifts.paths.findIndex((p: any) => p.def.name === liftName), path = g.lifts.paths[li];
     // Put a chair with ambient occupants three seconds from loading. Only the test changes
     // the clock; the app still performs the real boarding/unloading state transitions.
-    const chair = g.lifts.riders[li].slots[0].chair, t = g.lifts.now();
+    await g.hf.ensureArea(0, path.def.bottom[0], -path.def.bottom[2], 100);
+    const chair = g.lifts.riders[li].slots[0].chair, t = g.lifts.now(li);
     const arrival = t + ((path.loadU - path.chairU(chair, t) + path.loopLen) % path.loopLen) / path.def.speed;
-    g.lifts.clockOffset += arrival - t - 3;
+    // Hold this specific chair before contact while the first view compiles and is captured.
+    const clock = g.lifts.clocks[li], start = arrival - g.lifts.clockOffset - 1.4;
+    clock.now = () => start;
+    g.startTestChair = () => {
+      delete clock.now;
+      const wall = Date.now() / 1000;
+      clock.sync({ time: start, at: wall, rate: 1 }, wall);
+    };
     const lp = path.loadPoint(), off = path.seatOffset(0);
     g.player.teleport(lp.x + path.rx * off, lp.z + path.rz * off, lp.heading);
     document.getElementById('help')?.classList.add('hidden');
@@ -24,10 +32,11 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   }, name);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `screenshots/lift-${name}-loading.png` });
+  await page.evaluate(() => (window as any).game.startTestChair());
   await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride), { timeout: 20_000 }).toBe(true);
   await page.waitForTimeout(1500);
   const seated = await page.evaluate(() => {
-    const g = (window as any).game, r = g.player.ride, path = g.lifts.paths[r.lift], p = path.riderPoint(r.chair, r.seat, g.lifts.now()).p;
+    const g = (window as any).game, r = g.player.ride, path = g.lifts.paths[r.lift], p = path.riderPoint(r.chair, r.seat, g.lifts.now(r.lift)).p;
     return { error: Math.hypot(g.player.st.pos.x - p.x, g.player.st.pos.y - p.y, g.player.st.pos.z - p.z), seat: r.seat, duration: path.rideTime() };
   });
   expect(seated.error).toBeLessThan(0.2);
@@ -36,18 +45,18 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   await page.screenshot({ path: `screenshots/lift-${name}-seated.png` });
   await page.evaluate(() => {
     const g = (window as any).game, r = g.player.ride, path = g.lifts.paths[r.lift];
-    g.lifts.clockOffset += (path.unloadU + path.loadU) / 2 / path.def.speed - path.chairU(r.chair, g.lifts.now()) / path.def.speed;
+    g.lifts.clockOffset += ((path.unloadU + path.loadU) / 2 - path.chairU(r.chair, g.lifts.now(r.lift))) / path.def.speed;
   });
   await page.waitForTimeout(300);
   const middle = await page.evaluate(() => {
     const g = (window as any).game, r = g.player.ride, path = g.lifts.paths[r.lift], riders = g.lifts.riders[r.lift];
     const occupied = riders.slots.map((s: any, i: number) => s.chair === r.chair ? i : -1).filter((i: number) => i >= 0);
-    const seat = path.seatPoint(r.chair, r.seat, g.lifts.now()).p;
+    const seat = path.seatPoint(r.chair, r.seat, g.lifts.now(r.lift)).p;
     const overlapping = riders.batches.meshes.some((mesh: any) => {
       const matrix = mesh.instanceMatrix.array;
       return Array.from({ length: mesh.count }, (_, i) => Math.hypot(matrix[i*16+12]-seat.x, matrix[i*16+13]-seat.y, matrix[i*16+14]-seat.z)).some(d => d < 3);
     });
-    return { remaining: path.remainingRideTime(r.chair, g.lifts.now()), total: path.rideTime(), hidden: !overlapping, count: occupied.length };
+    return { remaining: path.remainingRideTime(r.chair, g.lifts.now(r.lift)), total: path.rideTime(), hidden: !overlapping, count: occupied.length };
   });
   expect(middle.count).toBeGreaterThan(0);
   expect(middle.hidden).toBe(true);
@@ -55,7 +64,7 @@ for (const name of ['Primo', 'Segundo', 'Tercero']) test(`${name}: load, ride, n
   await page.screenshot({ path: `screenshots/lift-${name}-riding.png` });
   await page.evaluate(() => {
     const g = (window as any).game;
-    g.lifts.clockOffset += g.player.ride.unloadAt - g.lifts.now() - 1.5;
+    g.lifts.clockOffset += g.player.ride.unloadAt - g.lifts.now(g.player.ride.lift) - 1.5;
   });
   await expect.poll(() => page.evaluate(() => (window as any).game.player.ride), { timeout: 10_000 }).toBeNull();
   await page.waitForTimeout(700);

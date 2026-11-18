@@ -17,6 +17,7 @@ test('all three summit tables let the skier glide straight past the turning chai
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/?autostart=1&mute=1&ambient=0&autounload=0');
   await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  await page.addStyleTag({ content: 'body > :not(#app):not(#lift-ride-controls) { visibility: hidden !important; }' });
   for (const name of ['Primo', 'Segundo', 'Tercero']) {
     await rideNearTop(page, name);
     const surface = await page.evaluate(async () => {
@@ -28,9 +29,10 @@ test('all three summit tables let the skier glide straight past the turning chai
       const side = p.uphillSide;
       g.camera.fov = 48; g.camera.updateProjectionMatrix();
       g.onFrame = [() => {
-        g.camera.position.set(up.x + p.ax * 10 + side * p.rx * 10, floor + 4.0,
-          up.z + p.az * 10 + side * p.rz * 10);
-        g.camera.lookAt(up.x + p.ax * 1.5, floor + 1.5, up.z + p.az * 1.5);
+        g.camera.position.set(up.x + p.ax * 14 + side * p.rx * 4, floor + 3.1,
+          up.z + p.az * 14 + side * p.rz * 4);
+        const look = g.player.ride ? .5 : 3.5;
+        g.camera.lookAt(up.x + p.ax * look, floor + .9, up.z + p.az * look);
       }];
       g.unfreezeTestChair = () => {
         delete clock.now;

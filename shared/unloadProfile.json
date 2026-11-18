@@ -5,6 +5,7 @@
   "exitGrade": 0.16,
   "rollLength": 3,
   "runout": 13,
+  "hutOutside": 4.5,
   "lifts": {
     "Primo": { "uphillSide": -1, "topGuide": 5.8 },
     "Segundo": { "uphillSide": 1, "topGuide": 5.2 },

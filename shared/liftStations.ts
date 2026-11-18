@@ -21,7 +21,7 @@ export class StationRamp {
     const line = top ? path.unloadH : LOAD_OFFSET;
     this.start = line - (top ? 26 : 16);
     this.end = line + (top ? unloadProfile.runout + 11 : 14);
-    this.halfWidth = top ? 8 : 5;
+    this.halfWidth = top ? 11 : 5;
     this.cols = 1 + 2 * this.halfWidth / this.step;
     this.rows = Math.round((this.end - this.start) / this.step) + 1;
     for (let i = 0; i < this.rows; i++) for (let j = 0; j < this.cols; j++) {
@@ -30,8 +30,16 @@ export class StationRamp {
       const x = p.x + path.rx * across, z = p.z + path.rz * across;
       const base = ground(x, z);
       const d = h - line;
-      const width = path.def.seats * 0.3 + 0.5 + (top ? 1.7 * smooth(d / unloadProfile.runout) : 0);
-      const lateral = 1 - smooth((Math.abs(across) - width) / (this.halfWidth - width));
+      let width = path.def.seats * 0.3 + 0.5 + (top ? 1.7 * smooth(d / unloadProfile.runout) : 0);
+      const outside = across * path.uphillSide > 0;
+      if (top && outside) {
+        // The operator stands beside the skiers on the same groomed bench. Support the
+        // whole hut footprint, then feather this shoulder back into the hillside.
+        const shelf = smooth((d + 12) / 7) * (1 - smooth((d - 3) / 6));
+        width += (unloadProfile.hutOutside + 2.3 - width) * shelf;
+      }
+      const shoulder = top && !outside ? 7 : this.halfWidth;
+      const lateral = 1 - smooth((Math.abs(across) - width) / (shoulder - width));
       const entry = line - (top ? UNLOAD_WINDOW.before : 2);
       const exit = line + (top ? unloadProfile.runout : 2);
       const longitudinal = smooth((h - this.start) / (entry - this.start)) * (1 - smooth((h - exit) / (this.end - exit)));
