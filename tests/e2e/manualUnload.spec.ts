@@ -34,11 +34,13 @@ test('all three summit tables let the skier glide straight past the turning chai
         const look = g.player.ride ? .5 : 3.5;
         g.camera.lookAt(up.x + p.ax * look, floor + .9, up.z + p.az * look);
       }];
-      g.unfreezeTestChair = () => {
+      window.addEventListener('keydown', function resume(event) {
+        if (event.code !== 'Space') return;
+        window.removeEventListener('keydown', resume, true);
         delete clock.now;
         const wall = Date.now() / 1000;
         clock.sync({ time: fixed, at: wall, rate: 1 }, wall);
-      };
+      }, true);
       const mesh = g.lifts.group.getObjectByName(p.def.name + '-unload-snow-ramp');
       return !!mesh?.geometry.getAttribute('grooming');
     });
@@ -46,9 +48,11 @@ test('all three summit tables let the skier glide straight past the turning chai
     await expect(page.locator('#lift-stand')).toContainText('STAND UP');
     await page.waitForTimeout(400);
     await page.screenshot({ path: `screenshots/unload-stations/${info.project.name}-${name}-table.jpg` });
-    await page.keyboard.press('Space');
+    await page.bringToFront();
+    await page.keyboard.down('Space');
     await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride)).toBe(false);
-    await page.evaluate(() => (window as any).game.unfreezeTestChair());
+    await expect.poll(() => page.evaluate(() => (window as any).game.player.lastInput.stop)).toBe(false);
+    await page.keyboard.up('Space');
     await expect.poll(() => page.evaluate(name => {
       const g = (window as any).game, p = g.lifts.paths.find((p: any) => p.def.name === name);
       const s = g.player.st, up = p.unloadPoint();

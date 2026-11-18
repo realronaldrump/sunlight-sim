@@ -823,6 +823,7 @@ export class Game {
     if (!ride) return;
     // Jumping off needs a server that accepts it; older servers keep the rider seated.
     const result = this.player.standUp(!this.net || this.net.supportsManualUnload);
+    if (result === 'ok') this.input.consumeStandPress();
     if (result === 'early') {
       const st = this.player.st, ft = Math.max(1, Math.round((st.pos.y - this.probe.height(st.pos.x, st.pos.z) + 0.9) * 3.28084));
       const s = Math.ceil(this.lifts.paths[ride.lift].readyIn(ride.chair, this.lifts.now(ride.lift)) / this.lifts.clocks[ride.lift].rate);
@@ -923,9 +924,9 @@ export class Game {
         if (this.onFoot.active) { if (!this.options.visible) this.onFoot.update(dt, this.input.walk()); this.parkSkierAtWalker(); }
       } else {
       if (actions.skis && this.input.enabled) this.toggleSkis();
-      const inp = this.input.ski(dt);
       if (actions.getUp && this.input.enabled) this.player.getUp();
       if (actions.standUp && this.input.enabled && this.player.ride) this.standUp();
+      const inp = this.input.ski(dt);
       this.player.autoUnload = this.autoUnloadSetting || (!!this.net && !this.net.supportsManualUnload);
       if (actions.camera && this.input.enabled) this.hud.toast(`Camera: ${{ chase: 'chase', first: 'first person', side: 'side profile' }[this.camRig.cycle()]}`);
       this.player.update(dt, inp, !this.ready || this.options.visible || this.trailMap.visible);

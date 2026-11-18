@@ -18,6 +18,8 @@ export class InputManager {
   private padPrev: boolean[] = [];
   enabled = true;
   private focused = true;
+  private standSpaceHeld = false;
+  private standPadHeld = false;
   steerSmoothed = 0;
 
   constructor() {
@@ -28,13 +30,23 @@ export class InputManager {
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('keyup', (e) => {
+      this.keys.delete(e.code);
+      if (e.code === 'Space') this.standSpaceHeld = false;
+    });
     window.addEventListener('blur', () => { this.focused = false; this.clear(); });
     window.addEventListener('focus', () => { this.focused = true; });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.clear(); });
   }
 
-  clear() { this.keys.clear(); this.pressed.clear(); this.steerSmoothed = 0; }
+  clear() { this.keys.clear(); this.pressed.clear(); this.steerSmoothed = 0; this.standSpaceHeld = this.standPadHeld = false; }
+
+  /** Standing and hockey stopping share a control. The press that stands the rider
+   * up is consumed until that key or button is released. */
+  consumeStandPress() {
+    this.standSpaceHeld = this.keys.has('Space');
+    this.standPadHeld = !!this.pad()?.buttons[0]?.pressed;
+  }
 
   private pad(): Gamepad | null {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -50,8 +62,10 @@ export class InputManager {
     if (k.has('KeyD') || k.has('ArrowRight')) steer += 1;
     if (k.has('KeyW') || k.has('ArrowUp')) fwd = 1;
     if (k.has('KeyS') || k.has('ArrowDown')) back = 1;
-    let stop = k.has('Space');
     const p = this.pad();
+    const padStop = !!p?.buttons[0]?.pressed;
+    if (!padStop) this.standPadHeld = false;
+    const stop = (k.has('Space') && !this.standSpaceHeld) || (padStop && !this.standPadHeld);
     let analog = false;
     if (p) {
       const ax = p.axes[0] ?? 0, ay = p.axes[1] ?? 0;
@@ -60,7 +74,6 @@ export class InputManager {
       if (ay > 0.2) back = Math.min(1, (ay - 0.2) / 0.6);
       if (p.buttons[7]?.value > 0.2) back = Math.max(back, p.buttons[7].value); // RT brake
       if (p.buttons[6]?.value > 0.3) fwd = 1; // LT tuck
-      if (p.buttons[0]?.pressed) stop = true;
     }
     // keyboard steering ramps in (weight shift takes time) so taps make small turns
     if (!analog) {

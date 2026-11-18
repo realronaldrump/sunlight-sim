@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three/webgpu';
 import { Player } from '../../client/src/skier/player';
+import { InputManager } from '../../client/src/skier/input';
 import type { LiftSystem } from '../../client/src/lifts/liftSystem';
 import { LiftPath, LOAD_SEAT_HEIGHT, UNLOAD_WINDOW } from '../../shared/lifts';
 import { LiftStations } from '../../shared/liftStations';
@@ -199,6 +200,24 @@ describe('Sunlight boarding and riding', () => {
 });
 
 describe('manual disembark at the top', () => {
+  it('consumes held stand controls separately and accepts a fresh brake press after release', () => {
+    const surface = new EventTarget(), button = { pressed: true };
+    vi.stubGlobal('window', surface); vi.stubGlobal('document', new EventTarget());
+    vi.stubGlobal('navigator', { getGamepads: () => [{ connected: true, axes: [], buttons: [button] }] });
+    try {
+      const input = new InputManager();
+      input.keys.add('Space'); input.consumeStandPress();
+      expect(input.ski(1 / 60).stop).toBe(false);
+      button.pressed = false; input.ski(1 / 60);
+      button.pressed = true;
+      expect(input.ski(1 / 60).stop).toBe(true);
+      button.pressed = false;
+      surface.dispatchEvent(Object.assign(new Event('keyup'), { code: 'Space' }));
+      input.keys.add('Space');
+      expect(input.ski(1 / 60).stop).toBe(true);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('stands from any seat at either edge of the window and coasts clear of the turnaround', () => {
     for (const [i, path] of paths.entries()) for (let seat = 0; seat < path.def.seats; seat++) {
       for (const d of [-UNLOAD_WINDOW.before + .01, UNLOAD_WINDOW.after - .01]) {
