@@ -8,6 +8,7 @@ export const CABLE_RADIUS = .03;
 
 export function cableLineGeometry(path: LiftPath, side: number) {
   const distances = new Set(path.def.supports.map(s => Math.max(0, Math.min(path.horiz, s.s))));
+  distances.add(path.topGuideH);
   const n = Math.ceil(path.horiz / 1.5);
   for (let i = 0; i <= n; i++) distances.add(path.horiz * i / n);
   const H = [...distances].sort((a, b) => a - b), rings = 6;

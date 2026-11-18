@@ -50,7 +50,33 @@ export function readGuestCheckpoint(value: unknown, nav: GuestNavigation): Guest
   if (r && (!lift(r.lift) || !Number.isInteger(r.chair) || r.chair < 0 || r.chair >= nav.lifts[r.lift].chairCount ||
     !Number.isInteger(r.seat) || r.seat < 0 || r.seat >= nav.lifts[r.lift].def.seats ||
     !Number.isFinite(r.boardedAt) || !Number.isFinite(r.unloadAt))) return null;
-  return { ...p, festivities: readSantaFestivities(p.festivities, p.age, (x, z) => nav.contains(x, z)) };
+  const saved = structuredClone(p);
+  saved.festivities = readSantaFestivities(p.festivities, p.age, (x, z) => nav.contains(x, z));
+  // Checkpoints can outlive changes to the measured carrier loop and the loaded strand.
+  // Keep the same seat and distance up the mountain when its old clock maps elsewhere.
+  if (saved.ride) {
+    const ride = saved.ride, path = nav.lifts[ride.lift], time = saved.liftTimes[ride.lift];
+    const expected = path.riderPoint(ride.chair, ride.seat, time).p;
+    if (distance(expected, s.pos) > .5 || Math.abs(time + path.remainingRideTime(ride.chair, time) - ride.unloadAt) > .5) {
+      const up = path.unloadPoint(ride.seat);
+      const h = path.unloadH + (s.pos.x - up.x) * path.ax + (s.pos.z - up.z) * path.az;
+      const u = Math.min(path.unloadU, path.sAtH(h));
+      const shift = (u - path.chairU(ride.chair, time)) / path.def.speed;
+      saved.liftTimes[ride.lift] += shift;
+      ride.boardedAt += shift;
+      ride.unloadAt = saved.liftTimes[ride.lift] + (path.unloadU - u) / path.def.speed;
+      saved.st.pos = path.riderPoint(ride.chair, ride.seat, saved.liftTimes[ride.lift]).p;
+    }
+  }
+  saved.route.forEach((wp, i, route) => {
+    if (wp.lift === undefined) return;
+    const link = nav.liftLinks.find(l => l.index === wp.lift);
+    if (!link) return;
+    Object.assign(wp, link.load);
+    if (route[i - 1]?.gate === 'approach') Object.assign(route[i - 1], link.approach);
+    if (route[i + 1]?.gate === 'exit') Object.assign(route[i + 1], link.exit);
+  });
+  return saved;
 }
 
 /** One continuous skier per world. Visitors can get a greeting without changing his route. */
@@ -168,10 +194,11 @@ export class MountainGuest {
     st.pos = root.p; st.heading = root.heading;
     st.speed = path.def.speed;
     if (time < ride.unloadAt) return;
-    // Release at the seat transform, retaining forward cable velocity. Gravity
-    // and the shared groomed ramp put the skis onto the snow on the next steps.
+    // At the stand line the skis are already on the winter table.
     this.s.ride = null;
-    st.mode = 'air'; st.modeTime = 0; st.grounded = false;
+    st.pos.y = this.nav.probe.height(st.pos.x, st.pos.z);
+    this.nav.probe.normal(st.pos.x, st.pos.z, st.normal);
+    st.mode = 'skiing'; st.modeTime = 0; st.grounded = true;
     st.vel = { x: path.ax * path.def.speed, y: 0, z: path.az * path.def.speed };
     st.edge = 0; st.skid = 0; st.tuck = 0; st.plow = 0;
   }

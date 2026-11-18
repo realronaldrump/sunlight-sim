@@ -1,5 +1,11 @@
 # Decisions
 
+## Upper station unloading (November 17, 2026)
+
+- Facing uphill, Primo carries riders on the left and Segundo on the right. The photos of their replacement lifts show the approaching chair, the operator's view of the unloading lane and the separation between the snow exit and the returning carrier. Tercero retains its right-hand approach and the open Riblet chair depicted in the older survey. [Primo photos](https://liftblog.com/primo-sunlight-co-2/) · [Segundo photos](https://liftblog.com/segundo-sunlight-co-2/) · [Tercero photos](https://liftblog.com/tercero-sunlight-co/)
+- Use the surveyed ground as the lower bound for the winter snow. Shape an approach bank, a short contact table and a flared downhill runout. The upper cable passes through the terminal's existing line-guide sheaves before running level into the wheel. Fit the bullwheel altitude above all seat lanes and the returning carrier. A skier can stand from 2.5 m before to 1.5 m after the marked line. Target clearance at the line is 0.52 m. The 2.5 percent table grade rolls into a 16 percent descent over 3 m. The dimensions, grades and detector angle are estimates from the photographs and terrain.
+- Primo and Segundo stow the restraint above the carrier header before the table. Empty chairs circulate with the bar up. The yellow unload sign is at the stand line. The striped wand is on the return half of the turn at seated shin height. The established missed-unload gag begins on contact there. Players get up in their own lane, carry the chair's speed and can receive a final push from the bench while still on the table. Multiplayer sends the chosen point of release.
+
 Clarifications and choices made by the agents. Append new entries; do not delete old ones (mark superseded instead).
 
 ## D1. Coordinate system

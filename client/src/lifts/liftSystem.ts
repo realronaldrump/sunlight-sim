@@ -2,7 +2,7 @@
 // transforms for riders. Chair motion comes from shared/lifts.ts on the shared lift clock.
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET, UNLOAD_OFFSET } from '../../../shared/lifts';
+import { LiftPath, LiftDef, GAUGE, HANGER, LOAD_OFFSET } from '../../../shared/lifts';
 import type { Collider } from '../../../shared/collision';
 import { LiftStations } from '../../../shared/liftStations';
 import { LiftClock } from '../../../shared/liftClock';
@@ -27,6 +27,7 @@ export class LiftSystem {
   private chairMeshes: { near: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; far: { mesh: THREE.InstancedMesh; motion: ChairMotion }[]; labels: THREE.InstancedMesh }[] = [];
   /** Ambient riders: per lift, list of (chair, seat) occupied by other (non-player) skiers. */
   private riders: { batches: SeatedRiders; slots: { chair: number; seat: number }[]; colors: Float32Array }[] = [];
+  private passengerChairs: Set<number>[] = [];
   /** Who is actually sitting on each chair trip: boarded from a lift line, or a regular seen from the start. */
   private trips = new Map<string, Trip>();
   readonly clocks: LiftClock[] = [];
@@ -85,6 +86,7 @@ export class LiftSystem {
       const riderColors = new Float32Array(slots.length * 3);
       for (let i = 0; i < slots.length; i++) col.setHex(RIDER_PALETTE[Math.floor(rnd() * RIDER_PALETTE.length)]).toArray(riderColors, i * 3);
       this.riders.push({ batches, slots, colors: riderColors });
+      this.passengerChairs.push(new Set(slots.map(s => s.chair)));
     }
   }
 
@@ -166,6 +168,7 @@ export class LiftSystem {
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(ramp.positions, 3));
       geometry.setIndex(ramp.indices); geometry.computeVertexNormals();
       const mesh = new THREE.Mesh(geometry, mat); mesh.receiveShadow = true;
+      mesh.userData.keep = true; // preserve the snow shader's grooming attribute through static batching
       mesh.name = `${ramp.path.def.name}-${ramp.top ? 'unload' : 'load'}-snow-ramp`;
       group.add(mesh);
     }
@@ -183,10 +186,12 @@ export class LiftSystem {
       if (!kind) return;
       let gmax = -Infinity;
       for (const [dx, dz] of [[-1.6, -1.8], [1.6, -1.8], [-1.6, 1.8], [1.6, 1.8], [0, 0]]) gmax = Math.max(gmax, height(o.position.x + dx, o.position.z + dz));
+      const oldY = o.position.y;
       if (kind === 'floor') o.position.y = gmax + 0.12;
       else if (kind === 'hut') o.position.y = gmax + 1.3;
       else if (kind === 'footing') o.position.y = gmax - 1.6;
       else o.position.y = gmax + 3.2;
+      if (o.userData.hutCollider) o.userData.hutCollider.top += o.position.y - oldY;
     });
   }
 
@@ -224,16 +229,19 @@ export class LiftSystem {
         const t = buildTerminal(style, top, s.cable - s.ground, 2.5, cableAt);
         t.object.name = `${def.name}-${top ? 'top' : 'bottom'}-${t.kind}-terminal`;
         place(t.object, p.x, s.ground, p.z, top ? -path.ax : path.ax, top ? -path.az : path.az, t.colliders, s.cable + 2);
-        // operator hut beside the terminal (left side, away from the loading side), door facing the line
-        const hutX = p.x - path.rx * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
-        const hutZ = p.z - path.rz * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
+        // The upper operator looks across the stand-up table from outside the loaded strand.
+        const hutSide = top ? path.uphillSide : -1;
+        const hutX = p.x + path.rx * hutSide * (GAUGE / 2 + 4.5) + path.ax * (top ? -3 : 3);
+        const hutZ = p.z + path.rz * hutSide * (GAUGE / 2 + 4.5) + path.az * (top ? -3 : 3);
         const hut = buildHut(style, top);
         hut.object.position.set(hutX, s.ground, hutZ);
-        hut.object.rotation.y = Math.atan2(path.rx, path.rz);
+        hut.object.rotation.y = Math.atan2(-hutSide * path.rx, -hutSide * path.rz);
         hut.object.userData.settle = 'floor';
         g.add(hut.object);
         const e = Math.max(hut.hx, hut.hz);
-        this.colliders.push({ type: 'box', x: hutX, z: hutZ, hx: e, hz: e, yaw, top: s.ground + hut.height });
+        const hutCollider: Collider = { type: 'box', x: hutX, z: hutZ, hx: e, hz: e, yaw, top: s.ground + hut.height };
+        hut.object.userData.hutCollider = hutCollider;
+        this.colliders.push(hutCollider);
       }
     }
     const cable = new THREE.Mesh(cableLoopGeometry(path), rope);
@@ -246,7 +254,7 @@ export class LiftSystem {
     g.add(stripe);
     g.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true; });
     g.traverse(o => {
-      if (o.userData.spin) this.spinners.push({ lift: this.paths.indexOf(path), object: o, speed: def.speed, radius: o.userData.spin.radius, direction: o.userData.spin.direction });
+      if (o.userData.spin) this.spinners.push({ lift: this.paths.indexOf(path), object: o, speed: def.speed, radius: o.userData.spin.radius, direction: path.uphillSide });
     });
     this.group.add(g);
   }
@@ -291,7 +299,8 @@ export class LiftSystem {
         this.e.set(swing.pitch, lp.heading, bank + swing.roll, 'YXZ'); this.q.setFromEuler(this.e);
         this.m4.compose(new THREE.Vector3(lp.p.x, lp.p.y, lp.p.z), this.q, new THREE.Vector3(1, 1, 1));
         bar.copy(this.m4).multiply(local.makeTranslation(BAR_PIVOT.x, BAR_PIVOT.y, BAR_PIVOT.z));
-        bar.multiply(local.makeRotationX(path.restraintAngle(lp.h, lp.uphill)));
+        const hasRiders = this.reservedTrips.has(`${li}/${i}`) || (!this.closed && this.passengerChairs[li].has(i));
+        bar.multiply(local.makeRotationX(path.restraintAngle(lp.h, lp.uphill, hasRiders)));
         const next = path.loopPoint(u + .1).p;
         const pitch = Math.atan2(next.y - lp.p.y, Math.hypot(next.x - lp.p.x, next.z - lp.p.z));
         // The carrier swings below the grip. The grip stays aligned to the cable.
@@ -319,7 +328,7 @@ export class LiftSystem {
         R.slots.forEach((slot, k) => {
           const info = this.seatTransform(li, slot.chair, slot.seat, t, p);
           const trip = `${li}/${slot.chair}`;
-          if (!info.uphill || info.h < LOAD_OFFSET + .2 || info.h > path.horiz - UNLOAD_OFFSET + .3 || this.reservedTrips.has(trip)) return;
+          if (!info.uphill || info.h < LOAD_OFFSET + .2 || info.h >= path.unloadH || this.reservedTrips.has(trip)) return;
           const look = this.trips.get(trip)?.guests[slot.seat]?.look
             ?? regularLook(li, slot.chair, slot.seat, color.fromArray(R.colors, k * 3).getHex());
           this.e.set(0, info.heading, 0, 'YXZ'); this.q.setFromEuler(this.e);

@@ -12,6 +12,51 @@ async function rideNearTop(page: Page, lift: string) {
   await page.evaluate(() => { const g = (window as any).game, r = g.player.ride; g.lifts.clockOffset += r.unloadAt - g.lifts.now(r.lift) - 6; });
 }
 
+test('all three summit tables let the skier glide straight past the turning chair', async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/?autostart=1&mute=1&ambient=0&autounload=0');
+  await page.waitForFunction(() => (window as any).game?.ready, null, { timeout: 120_000 });
+  for (const name of ['Primo', 'Segundo', 'Tercero']) {
+    await rideNearTop(page, name);
+    const surface = await page.evaluate(async () => {
+      const g = (window as any).game, r = g.player.ride, p = g.lifts.paths[r.lift];
+      const clock = g.lifts.clocks[r.lift], fixed = r.unloadAt - g.lifts.clockOffset;
+      clock.now = () => fixed;
+      await g.hf.ensureArea(0, p.def.top[0], -p.def.top[2], 100);
+      const up = p.unloadPoint(r.seat), floor = g.probe.height(up.x, up.z);
+      const side = p.uphillSide;
+      g.camera.fov = 48; g.camera.updateProjectionMatrix();
+      g.onFrame = [() => {
+        g.camera.position.set(up.x + p.ax * 10 + side * p.rx * 10, floor + 4.0,
+          up.z + p.az * 10 + side * p.rz * 10);
+        g.camera.lookAt(up.x + p.ax * 1.5, floor + 1.5, up.z + p.az * 1.5);
+      }];
+      g.unfreezeTestChair = () => {
+        delete clock.now;
+        const wall = Date.now() / 1000;
+        clock.sync({ time: fixed, at: wall, rate: 1 }, wall);
+      };
+      const mesh = g.lifts.group.getObjectByName(p.def.name + '-unload-snow-ramp');
+      return !!mesh?.geometry.getAttribute('grooming');
+    });
+    expect(surface).toBe(true);
+    await expect(page.locator('#lift-stand')).toContainText('STAND UP');
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `screenshots/unload-stations/${info.project.name}-${name}-table.jpg` });
+    await page.keyboard.press('Space');
+    await expect.poll(() => page.evaluate(() => !!(window as any).game.player.ride)).toBe(false);
+    await page.evaluate(() => (window as any).game.unfreezeTestChair());
+    await expect.poll(() => page.evaluate(name => {
+      const g = (window as any).game, p = g.lifts.paths.find((p: any) => p.def.name === name);
+      const s = g.player.st, up = p.unloadPoint();
+      return s.grounded && s.mode === 'skiing' ? (s.pos.x - up.x) * p.ax + (s.pos.z - up.z) * p.az : 0;
+    }, name), { timeout: 15_000, intervals: [150] }).toBeGreaterThan(7);
+    await page.screenshot({ path: `screenshots/unload-stations/${info.project.name}-${name}-exit.jpg` });
+  }
+  expect(errors).toEqual([]);
+});
+
 test('stand up on the ramp with Space, or miss it and end up in a yard sale', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

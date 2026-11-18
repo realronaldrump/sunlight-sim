@@ -190,6 +190,16 @@ describe('multiplayer rooms', () => {
     expect(f.room.seats.size).toBe(0);
   });
 
+  it('shows a friend standing in their actual seat lane and at their chosen point on the table', () => {
+    const f = boardFixture(), a = f.join(), b = f.join();
+    f.room.handle(a.p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 2 });
+    f.at(f.chair.arrive + f.lift.rideTime() - .6);
+    f.room.handle(a.p.id, { type: 'unload', rampOffset: -1.5 });
+    const up = f.lift.unloadPoint(2, f.lift.unloadH - 1.5);
+    expect(a.p.s.x).toBeCloseTo(up.x, 8); expect(a.p.s.z).toBeCloseTo(up.z, 8);
+    expect(b.c.msgs.at(-1)).toMatchObject({ type: 'unloaded', id: a.p.id, s: { x: a.p.s.x, z: a.p.s.z, mode: 'skiing' } });
+  });
+
   it('frees the seat of a rider whose client never reported getting off, after a grace period', () => {
     const f = boardFixture(), { p } = f.join();
     f.room.handle(p.id, { type: 'board', lift: 0, chair: f.chair.index, seat: 0 });

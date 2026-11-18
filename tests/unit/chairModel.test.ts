@@ -1,8 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { buildChairModel } from '../../client/src/lifts/chairModel';
-import { HANGER } from '../../shared/lifts';
+import { BAR_PIVOT, buildChairModel } from '../../client/src/lifts/chairModel';
+import { HANGER, OPEN_BAR_ANGLE } from '../../shared/lifts';
+import { Vector3 } from 'three/webgpu';
 
 describe('chair carrier geometry', () => {
+  it('parks the padded lap bar above the passengers, close to the carrier header', () => {
+    for (const [name, seats] of [['Primo', 4], ['Segundo', 3]] as const) {
+      const parts = buildChairModel(name, seats);
+      const pad = parts.find(p => p.motion === 'restraint' && p.finish === 'vinyl')!;
+      const closed = pad.geometry.boundingBox!.getCenter(new Vector3());
+      const open = closed.clone().applyAxisAngle(new Vector3(1, 0, 0), OPEN_BAR_ANGLE).add(BAR_PIVOT);
+      expect(closed.add(BAR_PIVOT).z).toBeLessThan(-.35);
+      expect(open.y + HANGER).toBeGreaterThan(1.28);
+      expect(open.z).toBeGreaterThan(.25);
+      expect(open.z).toBeLessThan(.65);
+      for (const part of parts) part.geometry.dispose();
+    }
+  });
   for (const [name, seats] of [['Primo', 4], ['Segundo', 3], ['Tercero', 3]] as const) {
     it(`${name} keeps both detail levels finite, at human scale, with the same seat surface`, () => {
       const counts: number[] = [];

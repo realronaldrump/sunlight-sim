@@ -38,7 +38,7 @@ export type ClientMsg =
   | { type: 'join'; room: string; name: string; color: string; controlMode?: 'skier' | 'drone' }
   | { type: 'state'; s: NetSkier; teleport?: boolean; drone?: NetDrone | null }
   | { type: 'board'; lift: number; chair: number; seat: number }
-  | { type: 'unload' }
+  | { type: 'unload'; rampOffset?: number }
   | { type: 'liftFall'; swing: ChairSwing; /** jumped off by choice, before the ramp */ jump?: boolean }
   | { type: 'liftSpeed'; rate?: LiftSpeed; cancel?: boolean; fast?: boolean }
   | { type: 'chat'; text: string }
@@ -57,7 +57,7 @@ export type ServerMsg =
   | { type: 'santaTraces'; traces: SantaTraces }
   | ({ type: 'boarded'; id: string } & NetRide)
   | { type: 'boardRejected'; reason: string }
-  | { type: 'unloaded'; id: string }
+  | { type: 'unloaded'; id: string; s?: NetSkier }
   | { type: 'liftFell'; id: string; s: NetSkier }
   | { type: 'correct'; s: NetSkier }
   | { type: 'chat'; id: string; name: string; text: string }

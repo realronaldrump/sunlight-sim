@@ -23,7 +23,7 @@ for (const webgl of [false, true]) test(`Sunlight terminal and tower review (${w
           g.camera.position.set(centre.x + p.rx * distance - p.ax * distance * direction, centre.y + (view === 'tower' ? 2 : 4), centre.z + p.rz * distance - p.az * distance * direction);
           g.camera.lookAt(centre.x, centre.y + (view === 'tower' ? .5 : 1), centre.z);
           if (wheel) {
-            const sample = { time: g.lifts.now(wheel.lift), angle: wheel.object.rotation.y, speed: wheel.speed, radius: wheel.radius };
+            const sample = { time: g.lifts.now(wheel.lift), angle: wheel.object.rotation.y, speed: wheel.speed * p.uphillSide, radius: wheel.radius };
             if (!g.wheelReview.before) g.wheelReview.before = sample;
             else if (!g.wheelReview.after && sample.time - g.wheelReview.before.time >= .25) g.wheelReview.after = sample;
           }

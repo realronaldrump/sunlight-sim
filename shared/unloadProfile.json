@@ -1,0 +1,13 @@
+{
+  "offset": 3.5,
+  "window": { "before": 2.5, "after": 1.5 },
+  "tableGrade": 0.025,
+  "exitGrade": 0.16,
+  "rollLength": 3,
+  "runout": 13,
+  "lifts": {
+    "Primo": { "uphillSide": -1, "topGuide": 5.8 },
+    "Segundo": { "uphillSide": 1, "topGuide": 5.2 },
+    "Tercero": { "uphillSide": 1, "topGuide": 6.5 }
+  }
+}

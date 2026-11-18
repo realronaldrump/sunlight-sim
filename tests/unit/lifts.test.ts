@@ -90,14 +90,28 @@ describe('lifts', () => {
     }
   });
 
+  it('uses the photographed loaded side and keeps carriers facing their actual path on both turns', () => {
+    for (const p of paths) {
+      const lane = p.unloadPoint(), across = (lane.x - p.def.top[0]) * p.rx + (lane.z - p.def.top[2]) * p.rz;
+      expect(across).toBeCloseTo(p.def.name === 'Primo' ? -2.6 : 2.6);
+      for (const start of [p.lineLen, 2 * p.lineLen + Math.PI * 2.6]) {
+        for (let d = .1; d < 8; d += .3) {
+          const a = p.loopPoint(start + d), b = p.loopPoint(start + d + .001);
+          const forward = (b.p.x - a.p.x) * -Math.sin(a.heading) + (b.p.z - a.p.z) * -Math.cos(a.heading);
+          expect(forward).toBeCloseTo(.001, 6);
+        }
+      }
+    }
+  });
+
   it('keeps seats level on the line and banks outward smoothly around bullwheels', () => {
     for (const p of paths) {
       expect(p.chairBank(p.loadU)).toBe(0);
       expect(p.chairBank(p.unloadU)).toBe(0);
       expect(p.chairBank(p.lineLen)).toBeCloseTo(0, 12);
       const bank = p.chairBank(p.lineLen + Math.PI * 5.2 / 4);
-      expect(bank).toBeGreaterThan(0);
-      expect(bank).toBeLessThan(0.26);
+      expect(Math.sign(bank)).toBe(p.def.name === 'Primo' ? -1 : 1);
+      expect(Math.abs(bank)).toBeLessThan(0.26);
     }
   });
 

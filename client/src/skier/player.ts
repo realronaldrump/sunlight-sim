@@ -5,7 +5,7 @@ import { ColliderGrid } from '../../../shared/collision';
 import { SkierModel } from './skierModel';
 import { orientSkier } from './orientation';
 import type { LiftSystem } from '../lifts/liftSystem';
-import { BOARD_FACING_COS } from '../../../shared/lifts';
+import { BOARD_FACING_COS, HANGER, SEAT_TOP, RIDER_ROOT_BELOW_SEAT, UNLOAD_GRACE } from '../../../shared/lifts';
 import { carriedSwing, createChairSwing, stepChairSwing, swingingRiderPoint, chairReleaseVelocity, type ChairSwing } from '../../../shared/chairSwing';
 import { MISSED, missedSwing, flingVelocity } from '../../../shared/missedUnload';
 import { snowballKnockdown, type SnowballHit, type SnowballFall } from '../../../shared/snowballs';
@@ -24,7 +24,9 @@ export class Player {
   /** A wave or a point downhill, blended in and out by the game. */
   gesture: { kind: 'wave' | 'point'; amount: number; yaw?: number } | null = null;
   justUnloaded = false;
-  onUnload?: (lift: number, teleport: boolean) => void;
+  onUnload?: (lift: number, teleport: boolean, rampOffset?: number) => void;
+  private pushingChair: RideState | null = null;
+  private standingRootLift = 0;
   onBoard?: (ride: RideState) => void;
   onLiftFall?: (ride: RideState, swing: ChairSwing) => void;
   chairSwing = createChairSwing();
@@ -73,6 +75,7 @@ export class Player {
   get rideSwing() { return carriedSwing(this.chairSwing, this.ride ? this.lifts.chairSwing?.(this.ride.lift, this.ride.chair) : undefined); }
 
   teleport(x: number, z: number, heading: number) {
+    this.pushingChair = null; this.standingRootLift = 0;
     this.snowballFall = undefined;
     this.model.resetSnowballs();
     if (this.ride) { const l = this.ride.lift; this.ride = null; this.onUnload?.(l, true); }
@@ -134,6 +137,7 @@ export class Player {
   board(lift: number, chair: number, seat: number) {
     const path = this.lifts.paths[lift], t = this.lifts.now(lift);
     if (!path || !Number.isInteger(chair) || chair < 0 || chair >= path.chairCount || !Number.isInteger(seat) || seat < 0 || seat >= path.def.seats) return;
+    this.pushingChair = null; this.standingRootLift = 0;
     const target = path.riderPoint(chair, seat, t).p;
     this.pickupOffset = this.position.sub(new THREE.Vector3(target.x, target.y, target.z));
     this.pickupHeading = this.st.heading;
@@ -155,18 +159,47 @@ export class Player {
     const path = this.lifts.paths[this.ride.lift];
     const lift = this.ride.lift;
     const seat = this.ride.seat;
-    const up = path.unloadPoint(seat);
-    // standing up by hand: off the seat right where the chair is over the ramp
-    const x = here ? this.st.pos.x : up.x, z = here ? this.st.pos.z : up.z;
+    const t = this.lifts.now(lift);
+    const h = here ? path.hAtS(path.chairU(this.ride.chair, t)) : path.unloadH;
+    const { x, z, heading } = path.unloadPoint(seat, h);
+    const snow = this.probe.height(x, z);
+    this.standingRootLift = skipped ? 0 : path.cableY(h) - HANGER + SEAT_TOP - RIDER_ROOT_BELOW_SEAT - snow;
+    this.pushingChair = skipped ? null : this.ride;
     this.missed = null;
     this.ride = null;
     this.pickupOffset = null;
-    this.st = createSkier({ x, y: this.probe.height(x, z), z }, up.heading);
+    this.st = createSkier({ x, y: snow, z }, heading);
+    this.probe.normal(x, z, this.st.normal);
     this.st.mode = 'skiing';
     this.st.vel = { x: path.ax * path.def.speed, y: 0, z: path.az * path.def.speed };
     this.st.speed = path.def.speed;
     if (skipped) this.sitBlend = 0;
-    this.onUnload?.(lift, skipped);
+    this.onUnload?.(lift, skipped, h - path.unloadH);
+  }
+
+  /** A standing skier can still feel the bench against their calves on the short contact table.
+   * Follow only a cushion that actually catches up, until the skier clears it or the chair turns. */
+  private pushFromUnloadingChair(t: number) {
+    const r = this.pushingChair;
+    if (!r) return;
+    const path = this.lifts.paths[r.lift], st = this.st;
+    if (!st.grounded || st.mode === 'fallen' || t > r.unloadAt + (path.lineLen - path.unloadU) / path.def.speed) {
+      this.pushingChair = null;
+      return;
+    }
+    const contact = path.riderPoint(r.chair, r.seat, t).p;
+    const dx = contact.x - st.pos.x, dz = contact.z - st.pos.z;
+    const behind = dx * path.ax + dz * path.az;
+    if (Math.abs(dx * path.rx + dz * path.rz) > .45 || Math.abs(behind) > .65) {
+      this.pushingChair = null;
+      return;
+    }
+    if (behind <= 0) return;
+    st.pos.x += path.ax * behind; st.pos.z += path.az * behind;
+    st.pos.y = this.terrainHeight(st.pos.x, st.pos.z);
+    const gain = Math.max(0, path.def.speed - st.vel.x * path.ax - st.vel.z * path.az);
+    st.vel.x += path.ax * gain; st.vel.z += path.az * gain;
+    st.speed = Math.hypot(st.vel.x, st.vel.y, st.vel.z);
   }
 
   /** A denied multiplayer pickup returns to the saved snow contact, never midair. */
@@ -276,15 +309,16 @@ export class Player {
       st.vel = chairReleaseVelocity(path, r.chair, r.seat, t, this.rideSwing);
       if (this.missed) { if (this.missed.tau >= MISSED.loopsEnd) { this.fling(); st = this.st; } }
       // A rider who is away (flying the drone, in the menus) is set down like with auto disembark.
-      else if (this.autoUnload || parked ? t >= r.unloadAt || !info.uphill : path.unloadPhase(lp.h, lp.uphill) === 'missed') {
-        if (this.autoUnload || parked) { this.unload(); st = this.st; } else this.startMissed();
-      }
+      else if ((this.autoUnload || parked || t > r.unloadAt + UNLOAD_GRACE) && t >= r.unloadAt) {
+        this.unload(); st = this.st;
+      } else if (t >= r.unloadAt + (path.detectorU - path.unloadU) / path.def.speed) this.startMissed();
       else if (released) this.fallFromLift();
     } else if (!parked || this.tumble) {
       const from = { ...st.pos };
       // waiting in a loading lane: plant the poles and hold the spot on the sloped loading snow
       if (!input.push && st.speed < 1.5 && this.lifts.paths.some((p) => p.inBoardingApproach(st.pos.x, st.pos.z))) input = { ...input, hold: true };
       stepSkier(st, input, this.probe, dt);
+      if (this.pushingChair) this.pushFromUnloadingChair(times[this.pushingChair.lift]);
       this.colliders.collide(st);
       this.inLoadZone = -1;
       this.liftPreparation = 0;
@@ -345,15 +379,17 @@ export class Player {
       st.heading = this.pickupHeading + Math.atan2(Math.sin(point.heading - this.pickupHeading), Math.cos(point.heading - this.pickupHeading)) * blend;
       this.sitBlend = this.pickupSitStart + (1 - this.pickupSitStart) * blend;
       if (progress === 1) this.pickupOffset = null;
-    } else this.sitBlend += ((this.ride ? 1 : 0) - this.sitBlend) * Math.min(1, dt * 5);
+    } else if (this.ride) this.sitBlend += (1 - this.sitBlend) * Math.min(1, dt * 5);
+    else this.sitBlend = Math.max(0, this.sitBlend - dt / .55);
     this.model.root.position.set(st.pos.x, st.pos.y, st.pos.z);
-    if (!this.ride) this.model.root.position.y += this.sitBlend * .18;
+    if (!this.ride && st.grounded) this.model.root.position.y += this.sitBlend * this.standingRootLift;
     orientSkier(this.model.root, st.heading, this.ride || !st.grounded ? undefined : st.normal);
     if (this.ride) this.model.root.rotation.set(this.rideSwing.pitch, st.heading, this.rideSwing.roll, 'YXZ');
     else if (this.tumble) this.model.root.rotation.set(this.tumble.pitch, st.heading, this.tumble.roll, 'YXZ');
-    const footGroundY = this.ride ? this.probe.height(st.pos.x - Math.sin(st.heading) * .2, st.pos.z - Math.cos(st.heading) * .2) - st.pos.y : undefined;
+    const footGroundY = this.ride ? this.probe.height(st.pos.x - Math.sin(st.heading) * .2, st.pos.z - Math.cos(st.heading) * .2) - st.pos.y
+      : st.grounded && this.sitBlend > 0 ? st.pos.y - this.model.root.position.y : undefined;
     const groundNormal = this.ride ? this.terrainNormal(st.pos.x, st.pos.z) : st.normal;
-    const footGroundPitch = Math.atan2(groundNormal.x * Math.sin(st.heading) + groundNormal.z * Math.cos(st.heading), groundNormal.y);
+    const footGroundPitch = this.ride ? Math.atan2(groundNormal.x * Math.sin(st.heading) + groundNormal.z * Math.cos(st.heading), groundNormal.y) : 0;
     this.model.update({
       speed: st.speed, edge: st.edge, plow: st.plow, tuck: st.tuck, skid: st.skid, fallen: this.fallenBlend,
       sitting: this.sitBlend, liftPreparation: this.liftPreparation, footGroundY, footGroundPitch, time: this.time, pushing: input.push && st.speed < 4 && st.mode !== 'fallen' && !this.ride,

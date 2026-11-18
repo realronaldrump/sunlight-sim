@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { LiftPath } from '../../shared/lifts';
 import { cableLineGeometry, cableLoopGeometry, CABLE_RADIUS } from '../../client/src/lifts/cableGeometry';
 import { buildTerminal, buildTower } from '../../client/src/lifts/liftStructures';
+import { MissedUnloadGates } from '../../client/src/lifts/missedUnloadGate';
 import { mergeStatic } from '../../client/src/world/mergeStatic';
 
 const paths = JSON.parse(readFileSync('client/public/world/resort.json', 'utf8')).lifts.map((d: any) => new LiftPath(d)) as LiftPath[];
@@ -13,6 +14,25 @@ beforeAll(() => {
 });
 
 describe('lift structure and rope alignment', () => {
+  it('puts the trip wand on the turning chair, clear of every straight ski-away lane', () => {
+    const gates = new MissedUnloadGates(paths, () => 2750);
+    for (const [i, path] of paths.entries()) {
+      const gate = gates.position(i)!;
+      const lane = path.unloadPoint();
+      const mount = gates.group.getObjectByName(path.def.name + '-overrun-detector')!;
+      mount.updateMatrixWorld(true);
+      for (const band of mount.children[0].children) {
+        const p = band.getWorldPosition(new THREE.Vector3());
+        const across = (p.x - lane.x) * path.rx + (p.z - lane.z) * path.rz;
+        expect(Math.abs(across), path.def.name).toBeGreaterThan(path.def.seats * .3 + .8);
+      }
+      const t = path.detectorU / path.def.speed, seat = (path.def.seats - 1) / 2;
+      const bench = path.seatPoint(0, seat, t), rider = path.riderPoint(0, seat, t);
+      expect(gate.y).toBeCloseTo(bench.p.y - .4, 3);
+      expect(Math.hypot(gate.x - rider.p.x, gate.z - rider.p.z)).toBeCloseTo(.2, 3);
+    }
+  });
+
   it('puts the visible cable centre exactly through every shared tower support', () => {
     for (const p of paths) for (const side of [-1, 1]) {
       const g = cableLineGeometry(p, side), a = g.attributes.position, H = g.userData.sampleDistances as number[];

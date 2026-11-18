@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { LiftPath, LiftDef, BOARD_FACING_COS, UNLOAD_GRACE, UNLOAD_SLOWDOWN } from '../../shared/lifts';
+import { LiftPath, LiftDef, BOARD_FACING_COS, UNLOAD_GRACE, UNLOAD_SLOWDOWN, UNLOAD_WINDOW } from '../../shared/lifts';
 import { DRONE, FlightArea } from '../../shared/dronePhysics';
 import { LiftClock, isLiftSpeed, type LiftSpeed } from '../../shared/liftClock';
 import { CHAIR_SWING, carriedSwing, createChairSwing, swingEnergy, chairReleaseVelocity, swingingRiderPoint, validChairSwing, type ChairSwing } from '../../shared/chairSwing';
@@ -127,14 +127,17 @@ export class Room {
     clock.setRate(owner?.liftSpeed ?? 1, owner?.unloadAt === undefined ? undefined : owner.unloadAt - UNLOAD_SLOWDOWN);
   }
 
-  private unload(p: Player) {
+  private unload(p: Player, rampOffset = 0) {
     if (!p.ride) return;
-    const path = this.lifts[p.ride.lift], up = path.unloadPoint(p.ride.seat);
-    p.s = { ...p.s, x: up.x, y: path.stationHeight(true), z: up.z, heading: up.heading,
+    const path = this.lifts[p.ride.lift];
+    const h = path.unloadH + (Number.isFinite(rampOffset) ? Math.max(-UNLOAD_WINDOW.before, Math.min(UNLOAD_WINDOW.after, rampOffset)) : 0);
+    const up = path.unloadPoint(p.ride.seat, h);
+    const y = this.guest?.nav.probe.height(up.x, up.z) ?? path.stationHeight(true, h);
+    p.s = { ...p.s, x: up.x, y, z: up.z, heading: up.heading,
       vx: path.ax * path.def.speed, vy: 0, vz: path.az * path.def.speed, mode: 'skiing', edge: 0, plow: 0, tuck: 0, fallen: 0 };
     p.t = now();
     this.freeSeat(p);
-    this.broadcast({ type: 'unloaded', id: p.id });
+    this.broadcast({ type: 'unloaded', id: p.id, s: p.s });
   }
 
   handle(id: string, msg: ClientMsg) {
@@ -258,7 +261,7 @@ export class Room {
         return;
       }
       case 'unload':
-        this.unload(p);
+        this.unload(p, msg.rampOffset);
         return;
       case 'liftFall': {
         const swing = msg.swing, previous = p.s.swing;

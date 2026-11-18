@@ -1,6 +1,7 @@
 // Maintained winter snow pads over the measured bare-earth DEM. Their triangle grid is
 // shared by drawing and skiing; the underlying terrain is never flattened or rewritten.
-import { GAUGE, LiftPath, LOAD_OFFSET, UNLOAD_OFFSET } from './lifts';
+import { GAUGE, LiftPath, LOAD_OFFSET, UNLOAD_WINDOW } from './lifts';
+import unloadProfile from './unloadProfile.json';
 import type { TerrainProbe, Vec3 } from './skiPhysics';
 
 const smooth = (v: number) => { const t = Math.max(0, Math.min(1, v)); return t * t * (3 - 2 * t); };
@@ -9,29 +10,38 @@ export class StationRamp {
   readonly step = 0.5;
   readonly start: number;
   readonly end: number;
-  readonly halfWidth = 5;
+  readonly halfWidth: number;
   readonly rows: number;
-  readonly cols = 21;
+  readonly cols: number;
   readonly heights: number[] = [];
   readonly positions: number[] = [];
   readonly indices: number[] = [];
 
   constructor(readonly path: LiftPath, readonly top: boolean, ground: (x: number, z: number) => number) {
-    const line = top ? path.horiz - UNLOAD_OFFSET : LOAD_OFFSET;
-    this.start = line - (top ? 18 : 16);
-    this.end = line + (top ? 30 : 14);
+    const line = top ? path.unloadH : LOAD_OFFSET;
+    this.start = line - (top ? 26 : 16);
+    this.end = line + (top ? unloadProfile.runout + 11 : 14);
+    this.halfWidth = top ? 8 : 5;
+    this.cols = 1 + 2 * this.halfWidth / this.step;
     this.rows = Math.round((this.end - this.start) / this.step) + 1;
     for (let i = 0; i < this.rows; i++) for (let j = 0; j < this.cols; j++) {
       const h = this.start + i * this.step, across = -this.halfWidth + j * this.step;
       const p = path.ropePoint(h, 1);
       const x = p.x + path.rx * across, z = p.z + path.rz * across;
       const base = ground(x, z);
-      const width = path.def.seats * 0.3 + 0.5;
+      const d = h - line;
+      const width = path.def.seats * 0.3 + 0.5 + (top ? 1.7 * smooth(d / unloadProfile.runout) : 0);
       const lateral = 1 - smooth((Math.abs(across) - width) / (this.halfWidth - width));
-      const longitudinal = smooth((h - this.start) / (line - 2 - this.start)) * (1 - smooth((h - line - 2) / (this.end - line - 2)));
-      // Follow the gently descending rope at unload, then continue down an exit ramp.
-      const target = top && h > line ? path.stationHeight(true) - (h - line) * 0.08 : path.stationHeight(top, h);
-      const y = base + Math.max(0, target - base) * lateral * longitudinal + 0.015;
+      const entry = line - (top ? UNLOAD_WINDOW.before : 2);
+      const exit = line + (top ? unloadProfile.runout : 2);
+      const longitudinal = smooth((h - this.start) / (entry - this.start)) * (1 - smooth((h - exit) / (this.end - exit)));
+      // The arrival bank rises to the table; its crest never follows the steep last cable span.
+      const target = top && h < entry
+        ? path.stationHeight(true, entry) - .14 * (entry - h)
+        : path.stationHeight(top, h);
+      const fill = lateral * longitudinal;
+      const y = top ? base - .025 + (Math.max(0, target - base) + .033) * fill
+        : base + Math.max(0, target - base) * fill + .015;
       this.heights.push(y); this.positions.push(x, y, z);
       if (i < this.rows - 1 && j < this.cols - 1) {
         const a = i * this.cols + j, b = a + 1, c = a + this.cols, d = c + 1;
@@ -43,7 +53,7 @@ export class StationRamp {
   height(x: number, z: number): number | null {
     const p = this.path, dx = x - p.def.bottom[0], dz = z - p.def.bottom[2];
     const u = (dx * p.ax + dz * p.az - this.start) / this.step;
-    const v = (dx * p.rx + dz * p.rz - GAUGE / 2 + this.halfWidth) / this.step;
+    const v = (dx * p.rx + dz * p.rz - p.uphillSide * GAUGE / 2 + this.halfWidth) / this.step;
     if (u < 0 || v < 0 || u >= this.rows - 1 || v >= this.cols - 1) return null;
     const i = Math.floor(u), j = Math.floor(v), a = i * this.cols + j;
     const f = u - i, g = v - j, H = this.heights;

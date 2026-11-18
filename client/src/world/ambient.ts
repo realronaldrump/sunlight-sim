@@ -117,10 +117,15 @@ export class AmbientSkiers {
     const pool = fits.length ? fits : near;
     const run = pool[Math.floor(Math.random() * pool.length)];
     // straight off the unload ramp, peel away to the side, then join the run's line
-    const fx = -Math.sin(up.heading), fz = -Math.cos(up.heading), side = seat < (path.def.seats - 1) / 2 ? -1 : 1;
-    const lead = [{ x: up.x, z: up.z }, { x: up.x + fx * 5, z: up.z + fz * 5 }, { x: up.x + fx * 10 - fz * side * 6, z: up.z + fz * 10 + fx * side * 6 }];
+    const fx = path.ax, fz = path.az, side = path.uphillSide;
+    const lead = [up, { x: up.x + fx * 5, z: up.z + fz * 5 }, { x: up.x + fx * 11 - fz * side * 4, z: up.z + fz * 11 + fx * side * 4 }];
     const pts = this.waypoints(run.points);
-    return this.agent([...lead, ...pts], run, true, guest, up.heading);
+    const skier = this.agent([...lead, ...pts], run, true, guest, up.heading);
+    if (skier) {
+      skier.st.mode = 'skiing'; skier.st.speed = path.def.speed;
+      skier.st.vel = { x: fx * path.def.speed, y: 0, z: fz * path.def.speed };
+    }
+    return skier;
   }
 
   private onSlopeNear(near: THREE.Vector3) {

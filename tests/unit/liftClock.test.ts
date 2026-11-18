@@ -31,7 +31,7 @@ describe('lift speed control', () => {
       wall+=.4;room.snapshot();
       expect(room.liftClocks[0].rate).toBe(rate);
       expect(room.liftClocks[0].now()-before).toBeCloseTo(rate*.4,7);
-      expect(room.liftClocks[1].now()).toBe(wall);
+      expect(room.liftClocks[1].now()).toBe(Date.now() / 1000);
     }
     room.handle(a.id,{type:'liftSpeed',rate:16});room.handle(b.id,{type:'liftSpeed',rate:2});
     room.handle(a.id,{type:'liftSpeed',cancel:true});expect(room.liftClocks[0].rate).toBe(2);

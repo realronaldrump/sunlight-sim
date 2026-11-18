@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three/webgpu';
 import { Player } from '../../client/src/skier/player';
 import type { LiftSystem } from '../../client/src/lifts/liftSystem';
-import { LiftPath, LOAD_SEAT_HEIGHT } from '../../shared/lifts';
+import { LiftPath, LOAD_SEAT_HEIGHT, UNLOAD_WINDOW } from '../../shared/lifts';
 import { LiftStations } from '../../shared/liftStations';
 import { ColliderGrid } from '../../shared/collision';
 import { loadWorld, makeProbe } from '../harness/world';
@@ -33,6 +33,22 @@ function fixture(index: number) {
 }
 
 describe('Sunlight boarding and riding', () => {
+  it('keeps every offered stand-up position at ski contact height, then drops the exit away in front', () => {
+    for (const p of paths) for (let seat = 0; seat < p.def.seats; seat++) {
+      const line = p.hAtS(p.unloadU), lane = p.unloadPoint(seat);
+      const snow = (d: number) => stations.height(lane.x + p.ax * d, lane.z + p.az * d);
+      for (let d = -UNLOAD_WINDOW.before; d <= UNLOAD_WINDOW.after; d += .25) {
+        const t = p.sAtH(line + d) / p.def.speed, cushion = p.seatPoint(0, seat, t).p;
+        expect(Math.abs(cushion.y - snow(d) - LOAD_SEAT_HEIGHT), `${p.def.name} seat ${seat} at ${d} m`).toBeLessThan(.115);
+      }
+      const lip = UNLOAD_WINDOW.after;
+      expect(snow(-UNLOAD_WINDOW.before) - snow(-UNLOAD_WINDOW.before - 8)).toBeGreaterThan(.6);
+      for (let d = lip + 2; d < lip + 10; d += .5) {
+        expect(snow(d) - snow(d + .5)).toBeGreaterThan(.05);
+      }
+    }
+  });
+
   it('has knee-height snow-to-seat clearance across every load and unload lane', () => {
     for (const p of paths) for (const top of [false, true]) for (let seat = 0; seat < p.def.seats; seat++) {
       const t = (top ? p.unloadU : p.loadU) / p.def.speed;
@@ -172,6 +188,32 @@ describe('Sunlight boarding and riding', () => {
 });
 
 describe('manual disembark at the top', () => {
+  it('stands from any seat at either edge of the window and coasts clear of the turnaround', () => {
+    for (const [i, path] of paths.entries()) for (let seat = 0; seat < path.def.seats; seat++) {
+      for (const d of [-UNLOAD_WINDOW.before + .01, UNLOAD_WINDOW.after - .01]) {
+        const f = fixture(i), player = f.player;
+        const n = path.nextChairAt(path.loadU, f.now());
+        f.at(n.arrive); player.board(i, n.index, seat); player.autoUnload = false;
+        const at = n.arrive + (path.sAtH(path.unloadH + d) - path.loadU) / path.def.speed;
+        f.at(at);
+        expect(player.standUp()).toBe('ok');
+        const root = path.riderPoint(n.index, seat, at).p;
+        expect(Math.hypot(root.x - player.st.pos.x, root.z - player.st.pos.z)).toBeLessThan(.001);
+        const up = path.unloadPoint(seat);
+        for (let frame = 0; frame < 180; frame++) {
+          f.at(f.now() + 1 / 30);
+          if ((player.st.pos.x - up.x) * path.ax + (player.st.pos.z - up.z) * path.az > 8) break;
+        }
+        const dx = player.st.pos.x - up.x, dz = player.st.pos.z - up.z;
+        expect(dx * path.ax + dz * path.az, `${path.def.name} seat ${seat}, release ${d}`).toBeGreaterThan(8);
+        expect(Math.abs(dx * path.rx + dz * path.rz)).toBeLessThan(.8);
+        expect(player.st.grounded).toBe(true);
+        expect(player.st.mode).toBe('skiing');
+        expect(player.sitBlend).toBe(0);
+      }
+    }
+  });
+
   function nearTop(index: number) {
     const f = fixture(index);
     f.player.autoUnload = false;
@@ -204,7 +246,14 @@ describe('manual disembark at the top', () => {
   for (let index = 0; index < 3; index++) it(`misses the ramp of lift ${index}: loops round the bull wheel, gets flung, yard sale`, () => {
     const f = nearTop(index), { player, path } = f;
     const events: string[] = [];
-    player.onMissed = (e) => events.push(e);
+    player.onMissed = (e) => {
+      if (e === 'gate') {
+        const u = path.chairU(player.ride!.chair, f.now());
+        expect(u).toBeGreaterThanOrEqual(path.detectorU - .0001);
+        expect(u - path.detectorU).toBeLessThan(path.def.speed / 30 + .0001);
+      }
+      events.push(e);
+    };
     let maxPitch = 0, landedAt: { x: number; y: number; z: number } | null = null;
     for (let i = 0; i < 30 * 30 && !landedAt; i++) {
       f.at(f.now() + 1 / 30);

@@ -1,10 +1,9 @@
-// Missed-unload gates: an orange wand on a post just past the end of each top unload ramp, at the
-// height of a seated rider's skis. A rider who stays seated clips it; the wand whips forward and springs
-// back. (On a real lift it would stop the lift; the sim plays it for laughs, see shared/missedUnload.)
+// The unload sign marks the snow table. The separate trip wand only sweeps the
+// chair turnaround, below an empty bench and across the shins of a seated rider.
 import * as THREE from 'three/webgpu';
-import { SEAT_SPACING, UNLOAD_OFFSET, UNLOAD_WINDOW, type LiftPath } from '../../../shared/lifts';
+import { SEAT_SPACING, type LiftPath } from '../../../shared/lifts';
 
-interface Gate { pivot: THREE.Group; hit: number; at: THREE.Vector3 }
+interface Gate { pivot: THREE.Group; hit: number; at: THREE.Vector3; side: number }
 
 export class MissedUnloadGates {
   readonly group = new THREE.Group();
@@ -12,51 +11,79 @@ export class MissedUnloadGates {
 
   constructor(paths: LiftPath[], height: (x: number, z: number) => number) {
     this.group.name = 'missed-unload-gates';
-    const post = new THREE.MeshStandardNodeMaterial({ color: 0x3a3d40, roughness: 0.5, metalness: 0.6 });
-    const orange = new THREE.MeshStandardNodeMaterial({ color: 0xff6a13, roughness: 0.45 });
-    const white = new THREE.MeshStandardNodeMaterial({ color: 0xf2f2f0, roughness: 0.5 });
-    const sign = new THREE.MeshStandardNodeMaterial({ map: signTexture(), roughness: 0.6 });
+    const metal = new THREE.MeshStandardNodeMaterial({ color: 0x525b5e, roughness: .55, metalness: .55 });
+    const orange = new THREE.MeshStandardNodeMaterial({ color: 0xff621e, roughness: .55 });
+    const white = new THREE.MeshStandardNodeMaterial({ color: 0xf2f2f0, roughness: .6 });
+    const unload = signMaterial('UNLOAD', 'HERE'), raise = signMaterial('RAISE', 'BAR');
+    const prepare = signMaterial('PREPARE TO', 'UNLOAD');
+
     for (const path of paths) {
-      const h = path.horiz - UNLOAD_OFFSET + UNLOAD_WINDOW.after + 0.35;
-      const reach = path.def.seats * SEAT_SPACING / 2 + 0.55, rope = path.ropePoint(h, 1);
-      const x = rope.x + path.rx * reach, z = rope.z + path.rz * reach, y = height(x, z);
-      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = Math.atan2(path.rx, path.rz);
-      // local +z points away from the lift line (the post stands outside the seats), +x uphill; the wand reaches back across the seats
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.3, 10), post); p.position.y = 0.65; g.add(p);
-      const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.3), sign); plate.position.set(-0.07, 1.05, 0); plate.rotation.y = -Math.PI / 2; g.add(plate);
-      const pivot = new THREE.Group(); pivot.position.set(0, 0.58, 0); g.add(pivot);
-      const length = path.def.seats * SEAT_SPACING + 1.0;
+      const side = path.uphillSide, half = path.def.seats * SEAT_SPACING / 2;
+      const marker = (h: number, material: THREE.Material, boardY: number, name: string) => {
+        const rope = path.ropePoint(h, 1);
+        const x = rope.x - side * path.rx * (half + .53), z = rope.z - side * path.rz * (half + .53);
+        const ground = height(x, z);
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(.038, .045, boardY - ground, 8), metal);
+        mast.position.set(x, (ground + boardY) / 2, z);
+        const board = new THREE.Mesh(new THREE.BoxGeometry(.59, .56, .035), [metal, metal, metal, metal, material, metal]);
+        board.name = path.def.name + '-' + name;
+        board.rotation.y = path.loadPoint().heading; // local +Z faces the arriving skier
+        board.position.set(x, boardY, z);
+        this.group.add(mast, board);
+      };
+      marker(path.unloadH, unload, path.stationHeight(true) + 1.16, 'unload-here');
+      marker(path.raiseBarH, path.def.name === 'Tercero' ? prepare : raise,
+        path.cableY(path.raiseBarH) - 2.05, 'approach-sign');
+
+      const time = path.detectorU / path.def.speed;
+      const rider = path.riderPoint(0, (path.def.seats - 1) / 2, time);
+      const heading = rider.heading, rx = Math.cos(heading), rz = -Math.sin(heading);
+      // Place the wand across the boots on this actual chair pose, including the outward bank.
+      const at = new THREE.Vector3(rider.p.x - Math.sin(heading) * .2, rider.p.y + .04,
+        rider.p.z - Math.cos(heading) * .2);
+      const reach = half + .45;
+      const x = at.x + rx * side * reach, z = at.z + rz * side * reach;
+      const ground = height(x, z), postTop = at.y + .21;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(.045, .055, postTop - ground, 10), metal);
+      post.position.set(x, (postTop + ground) / 2, z);
+      const mount = new THREE.Group();
+      mount.name = path.def.name + '-overrun-detector';
+      mount.position.set(x, at.y, z); mount.rotation.y = heading;
+      const pivot = new THREE.Group(); mount.add(pivot);
+      const length = 2 * reach;
       for (let i = 0; i < 6; i++) {
-        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, length / 6, 8), i % 2 ? white : orange);
-        seg.rotation.x = Math.PI / 2; seg.position.z = -(i + 0.5) * length / 6; pivot.add(seg);
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, length / 6, 8), i % 2 ? white : orange);
+        band.rotation.z = Math.PI / 2;
+        band.position.x = -side * (i + .5) * length / 6;
+        pivot.add(band);
       }
-      for (const m of g.children) m.castShadow = true;
-      this.group.add(g);
-      this.gates.push({ pivot, hit: Infinity, at: new THREE.Vector3(rope.x, y + 0.7, rope.z) });
+      this.group.add(post, mount);
+      this.gates.push({ pivot, hit: Infinity, at, side });
     }
+    this.group.traverse(o => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
   }
 
-  /** The skis clip the wand: it whips forward and springs back. */
-  trigger(lift: number) { const g = this.gates[lift]; if (g) g.hit = 0; }
-  /** Where the comic "BONK!" goes. */
+  trigger(lift: number) { const gate = this.gates[lift]; if (gate) gate.hit = 0; }
   position(lift: number) { return this.gates[lift]?.at; }
 
   update(dt: number) {
-    for (const g of this.gates) {
-      if (!Number.isFinite(g.hit)) continue;
-      g.hit += dt;
-      const a = 1.35 * Math.exp(-2.4 * g.hit) * Math.cos(9 * g.hit);
-      g.pivot.rotation.y = -Math.max(-0.5, a);
-      if (g.hit > 4) { g.hit = Infinity; g.pivot.rotation.y = 0; }
+    for (const gate of this.gates) {
+      if (!Number.isFinite(gate.hit)) continue;
+      gate.hit += dt;
+      gate.pivot.rotation.y = -gate.side * 1.65 * Math.exp(-2.8 * gate.hit) * Math.sin(10 * gate.hit);
+      if (gate.hit > 3) { gate.hit = Infinity; gate.pivot.rotation.y = 0; }
     }
   }
 }
 
-function signTexture() {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 180;
+function signMaterial(first: string, second: string) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 240;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#ffd400'; g.fillRect(0, 0, 256, 180); g.strokeStyle = '#111'; g.lineWidth = 10; g.strokeRect(5, 5, 246, 170);
-  g.fillStyle = '#111'; g.font = 'bold 42px Helvetica, Arial, sans-serif'; g.textAlign = 'center';
-  g.fillText('UNLOAD', 128, 70); g.fillText('HERE!', 128, 130);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  g.fillStyle = '#ffcf26'; g.fillRect(0, 0, 256, 240);
+  g.strokeStyle = '#252627'; g.lineWidth = 7; g.strokeRect(7, 7, 242, 226);
+  g.fillStyle = '#17191b'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold 48px Helvetica, Arial, sans-serif'; g.fillText(first, 128, 86, 222);
+  g.font = 'bold 58px Helvetica, Arial, sans-serif'; g.fillText(second, 128, 160, 222);
+  const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardNodeMaterial({ map, roughness: .72 });
 }

@@ -7,7 +7,7 @@ import json, math
 import numpy as np
 from scipy import ndimage
 from pyproj import Transformer
-from config import RAW, PROC, PUBLIC, ORIGIN_E, ORIGIN_N
+from config import ROOT, RAW, PROC, PUBLIC, ORIGIN_E, ORIGIN_N
 from official_runs import OFFICIAL, RENAME, BY_ID
 
 T = Transformer.from_crs(4326, 26913, always_xy=True)
@@ -23,6 +23,7 @@ LIFT_SPECS = {
 STATION_CABLE_H = 3.6     # cable height above ground at bull wheels (m); seat ~0.6 m above snow at load
 MIN_CLEAR = 7.5           # minimum cable height above ground along spans (m)
 SAG_FRAC = 0.018          # midspan sag as fraction of span length
+UNLOAD = json.loads((ROOT / "shared/unloadProfile.json").read_text())
 
 
 class DEM:
@@ -93,24 +94,31 @@ def main(lifts_only=False):
                             changed = True
             if not changed:
                 break
-        # Winter unload pad: maintain a gentle downhill exit over the summer DEM's
-        # ridge rather than making outer-seat riders climb a bare-earth lip. Terminal
-        # and tower heights are modeling estimates, not surveyed hardware dimensions.
-        unload_h = horiz - 6.5
-        exit_h = np.arange(unload_h, horiz + 8.01, 0.5)
+        # Fit the winter table and its downhill pitch over the unmodified DEM, including
+        # the edges of the outer skis. The upper terminal's guide feeds a level bullwheel.
+        unload_h = horiz - UNLOAD["offset"]
+        d = np.arange(-UNLOAD["window"]["before"], UNLOAD["runout"] + .01, .25)
+        exit_h = unload_h + d
+        roll = np.clip(d, 0, UNLOAD["rollLength"])
+        drop = UNLOAD["tableGrade"] * d + (UNLOAD["exitGrade"] - UNLOAD["tableGrade"]) * (
+            roll ** 2 / (2 * UNLOAD["rollLength"]) + np.maximum(0, d - UNLOAD["rollLength"]))
         right = np.array([axis[1], -axis[0]])
+        side = UNLOAD["lifts"][name]["uphillSide"]
         required_floor = -float("inf")
-        for seat in range(spec["seats"]):
-            across = 2.6 + (seat - (spec["seats"] - 1) / 2) * 0.6
+        for offset in np.linspace(-spec["seats"] * .3 - .25, spec["seats"] * .3 + .25, 17):
+            across = side * 2.6 + offset
             ex = A[0] + axis[0] * exit_h + right[0] * across
             en = A[1] + axis[1] * exit_h + right[1] * across
-            required_floor = max(required_floor, float(np.max(dem.h(ex, en) + 0.08 * (exit_h - unload_h))) + 0.05)
-        i = int(np.searchsorted(s, unload_h) - 1)
-        t = (unload_h - s[i]) / (s[i + 1] - s[i])
-        cable = top[i] + (top[i + 1] - top[i]) * t - 4 * SAG_FRAC * (s[i + 1] - s[i]) * t * (1 - t)
-        raise_by = max(0, required_floor - (cable - 3.0 + 0.035 - 0.52))
-        top[i:] += raise_by
-        slope_len = float(sum(math.hypot(s[i + 1] - s[i], top[i + 1] - top[i]) for i in range(len(s) - 1)))
+            required_floor = max(required_floor, float(np.max(dem.h(ex, en) + drop)) + .08)
+        # Clear the far side of the wheel as well: the return chair and its trip wand
+        # pass over different ground from the straight ski-away lane.
+        angle = np.linspace(0, np.pi, 49)
+        for radius in [2.6 - spec["seats"] * .3, 2.6, 2.6 + spec["seats"] * .3]:
+            arc = B[:, None] + radius * (axis[:, None] * np.sin(angle) + side * right[:, None] * np.cos(angle))
+            required_floor = max(required_floor, float(np.max(dem.h(*arc))) + .12)
+        top[-1] = max(top[-1], required_floor + 3.0 - .035 + .52)
+        guide_h = horiz - UNLOAD["lifts"][name]["topGuide"]
+        slope_len = float(np.hypot(np.diff(np.insert(s, -1, guide_h)), np.diff(np.insert(top, -1, top[-1]))).sum())
         spacing = spec["seats"] * spec["speed"] * 3600 / spec["capacity"]
         out["lifts"].append({
             "name": name, "osmId": w["id"], "kind": spec["type"], "seats": spec["seats"], "speed": spec["speed"],

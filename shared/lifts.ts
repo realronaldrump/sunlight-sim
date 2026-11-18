@@ -1,6 +1,7 @@
 // Chairlift geometry and timing shared by client, server and tests.
 // A lift is a closed haul-rope loop: uphill line, top bull wheel, downhill line, bottom bull wheel.
 // Chair positions are a pure function of (lift clock time), so every client and the server agree.
+import unloadProfile from './unloadProfile.json';
 
 export interface LiftSupport { s: number; kind: 'bottom' | 'tower' | 'top'; ground: number; cable: number }
 export interface LiftDef {
@@ -16,11 +17,11 @@ export const GAUGE = 5.2;        // m between uphill and downhill rope
 export const HANGER = 3.0;       // m from rope to seat surface
 export const SAG_FRAC = 0.018;   // must match pipeline/build_osm.py
 export const LOAD_OFFSET = 7.0;  // m from bottom bull wheel center to the load line
-export const UNLOAD_OFFSET = 6.5; // m before the top bull wheel center where riders stand up
+export const UNLOAD_OFFSET = unloadProfile.offset;
 export const SEAT_SPACING = 0.6;
 /** Manual unloading: metres of ramp before and after the unload line where a seated rider can stand up.
- * Past it the chair heads for the bull wheel (the missed-unload gate stands at the far end). */
-export const UNLOAD_WINDOW = { before: 3.5, after: 3.5 };
+ * Beyond this window the skier's straight exit and the chair's turnaround diverge. */
+export const UNLOAD_WINDOW = unloadProfile.window;
 /** A sped-up lift returns to normal speed this many lift seconds before the unload line, so riders can get ready. */
 export const UNLOAD_SLOWDOWN = 9;
 /** The server frees a seat this long after the unload line if a client never reported getting off. */
@@ -30,6 +31,7 @@ export const LOAD_SEAT_HEIGHT = 0.52; // estimated maintained snow-to-seat clear
 export const RIDER_ROOT_BELOW_SEAT = 0.44; // seated hip joint is 0.54 m above origin; pelvis rests 0.10 m above cushion
 export const RIDER_ROOT_FORWARD = 0.25; // seated hips are 0.25 m behind the model origin
 export const BOARD_FACING_COS = Math.cos(35 * Math.PI / 180);
+export const OPEN_BAR_ANGLE = 102 * Math.PI / 180;
 
 export interface P3 { x: number; y: number; z: number }
 
@@ -37,6 +39,8 @@ export class LiftPath {
   readonly def: LiftDef;
   readonly ax: number; readonly az: number;      // unit horizontal axis bottom->top (game x,z)
   readonly rx: number; readonly rz: number;      // unit right-hand side when facing uphill
+  readonly uphillSide: number;                   // +1 right, -1 left, as seen riding uphill
+  readonly topGuideH: number;                    // line-side sheaves feeding the upper bullwheel
   readonly horiz: number;
   readonly lineLen: number;                      // 3D rope length along one line (approx)
   readonly loopLen: number;
@@ -53,6 +57,9 @@ export class LiftPath {
     // facing uphill along (ax, az); right = (-az, ax) rotated: right of forward f=(fx,fz) in x/z with y up is (-fz, fx)?
     // forward (0,-1) (north) -> right is east (1,0) => right = (-fz, fx)
     this.rx = -this.az; this.rz = this.ax;
+    const terminal = unloadProfile.lifts[def.name as keyof typeof unloadProfile.lifts];
+    this.uphillSide = terminal?.uphillSide ?? 1;
+    this.topGuideH = Math.max(def.supports.at(-2)!.s, this.horiz - (terminal?.topGuide ?? 5.2));
     // tabulate rope length vs horizontal distance
     const N = Math.max(200, Math.ceil(this.horiz / 2));
     let acc = 0, prevY = this.cableY(0);
@@ -74,10 +81,11 @@ export class LiftPath {
   cableY(h: number): number {
     const S = this.def.supports;
     if (h <= S[0].s) return S[0].cable;
+    if (h >= this.topGuideH) return S[S.length - 1].cable;
     for (let i = 0; i < S.length - 1; i++) {
       const a = S[i], b = S[i + 1];
       if (h <= b.s) {
-        const L = b.s - a.s;
+        const L = (b.kind === 'top' ? this.topGuideH : b.s) - a.s;
         const t = L > 0 ? (h - a.s) / L : 0;
         return a.cable + (b.cable - a.cable) * t - 4 * SAG_FRAC * L * t * (1 - t);
       }
@@ -96,11 +104,11 @@ export class LiftPath {
     return H[lo] + (H[hi] - H[lo]) * t;
   }
 
-  /** Point on the rope at horizontal distance h, side +1 = uphill line (right), -1 = downhill line. */
+  /** +1 follows the loaded strand, -1 the return. Zero follows the mast centreline. */
   ropePoint(h: number, side: number, out: P3 = { x: 0, y: 0, z: 0 }): P3 {
     const b = this.def.bottom;
-    out.x = b[0] + this.ax * h + this.rx * side * GAUGE / 2;
-    out.z = b[2] + this.az * h + this.rz * side * GAUGE / 2;
+    out.x = b[0] + this.ax * h + this.rx * side * this.uphillSide * GAUGE / 2;
+    out.z = b[2] + this.az * h + this.rz * side * this.uphillSide * GAUGE / 2;
     out.y = this.cableY(h);
     return out;
   }
@@ -121,15 +129,15 @@ export class LiftPath {
     u -= L;
     const arc = Math.PI * R;
     if (u < arc) {
-      // around the top bull wheel from right side to left side
+      // around the top bullwheel from the loaded side to the return
       const a = u / R; // 0..pi
       const t = this.def.top;
       const cx = t[0], cz = t[2];
-      const ox = Math.cos(a) * R, of = Math.sin(a) * R; // along right axis, forward axis
+      const ox = this.uphillSide * Math.cos(a) * R, of = Math.sin(a) * R;
       out.x = cx + this.rx * ox + this.ax * of;
       out.z = cz + this.rz * ox + this.az * of;
       out.y = this.cableY(this.horiz);
-      return { p: out, heading: fwdHeading + a, uphill: false, h: this.horiz };
+      return { p: out, heading: fwdHeading + this.uphillSide * a, uphill: false, h: this.horiz };
     }
     u -= arc;
     if (u < L) {
@@ -140,11 +148,11 @@ export class LiftPath {
     u -= L;
     const a = Math.min(Math.PI, u / R);
     const bt = this.def.bottom;
-    const ox = -Math.cos(a) * R, of = -Math.sin(a) * R;
+    const ox = -this.uphillSide * Math.cos(a) * R, of = -Math.sin(a) * R;
     out.x = bt[0] + this.rx * ox + this.ax * of;
     out.z = bt[2] + this.rz * ox + this.az * of;
     out.y = this.cableY(0);
-    return { p: out, heading: fwdHeading + Math.PI + a, uphill: true, h: 0 };
+    return { p: out, heading: fwdHeading + Math.PI + this.uphillSide * a, uphill: true, h: 0 };
   }
 
   /** Loop parameter of chair i at lift clock time t (seconds). */
@@ -154,7 +162,11 @@ export class LiftPath {
 
   /** Loop parameter of the load line (where riders are scooped up). */
   get loadU() { return this.sAtH(LOAD_OFFSET); }
-  get unloadU() { return this.sAtH(this.horiz - UNLOAD_OFFSET); }
+  get unloadH() { return this.horiz - UNLOAD_OFFSET; }
+  get unloadU() { return this.sAtH(this.unloadH); }
+  /** Detector on the return half of the upper turn. The straight ski-away lane stays open. */
+  get detectorU() { return this.lineLen + .72 * Math.PI * GAUGE / 2; }
+  get raiseBarH() { return this.unloadH - UNLOAD_WINDOW.before - 12; }
   sAtH(h: number) {
     h = Math.max(0, Math.min(this.horiz, h));
     const T = this.sTable, H = this.hTable;
@@ -183,8 +195,8 @@ export class LiftPath {
     const p = this.ropePoint(LOAD_OFFSET, 1);
     return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
   }
-  unloadPoint(seat = (this.def.seats - 1) / 2): { x: number; z: number; heading: number } {
-    const p = this.ropePoint(this.horiz - UNLOAD_OFFSET, 1);
+  unloadPoint(seat = (this.def.seats - 1) / 2, h = this.unloadH): { x: number; z: number; heading: number } {
+    const p = this.ropePoint(h + RIDER_ROOT_FORWARD - .12, 1);
     const off = this.seatOffset(seat);
     p.x += this.rx * off; p.z += this.rz * off;
     return { x: p.x, z: p.z, heading: Math.atan2(-this.ax, -this.az) };
@@ -212,8 +224,14 @@ export class LiftPath {
     return lp;
   }
 
-  stationHeight(top: boolean, h = top ? this.horiz - UNLOAD_OFFSET : LOAD_OFFSET) {
-    return this.cableY(Math.max(0, Math.min(this.horiz, h))) - HANGER + SEAT_TOP - LOAD_SEAT_HEIGHT;
+  stationHeight(top: boolean, h = top ? this.unloadH : LOAD_OFFSET) {
+    if (!top) return this.cableY(h) - HANGER + SEAT_TOP - LOAD_SEAT_HEIGHT;
+    const d = h - this.unloadH;
+    const { tableGrade, exitGrade, rollLength } = unloadProfile;
+    // Integral of the grade: a shallow contact table rolls smoothly into the downhill pitch.
+    const roll = Math.min(Math.max(d, 0), rollLength);
+    const drop = tableGrade * d + (exitGrade - tableGrade) * (roll * roll / (2 * rollLength) + Math.max(0, d - rollLength));
+    return this.cableY(this.horiz) - HANGER + SEAT_TOP - LOAD_SEAT_HEIGHT - drop;
   }
 
   /** Catch a chair which actually crossed the load line, including across a slow render frame. */
@@ -268,17 +286,17 @@ export class LiftPath {
   inBoardingApproach(x: number, z: number) {
     const dx = x - this.def.bottom[0], dz = z - this.def.bottom[2];
     const along = dx * this.ax + dz * this.az, across = dx * this.rx + dz * this.rz;
-    return along >= -1 && along <= LOAD_OFFSET + 13 && Math.abs(across - GAUGE / 2) <= this.def.seats * SEAT_SPACING / 2 + .4;
+    return along >= -1 && along <= LOAD_OFFSET + 13 && Math.abs(across - this.uphillSide * GAUGE / 2) <= this.def.seats * SEAT_SPACING / 2 + .4;
   }
 
   remainingRideTime(chair: number, t: number) {
     return Math.max(0, (this.unloadU - this.chairU(chair, t)) / this.def.speed);
   }
 
-  restraintAngle(h: number, uphill: boolean) {
+  restraintAngle(h: number, uphill: boolean, occupied = true) {
     const smooth = (v: number) => { const x = Math.max(0, Math.min(1, v)); return x * x * (3 - 2 * x); };
-    const closed = uphill ? smooth((h - LOAD_OFFSET - 4) / 10) * smooth((this.horiz - UNLOAD_OFFSET - h - 6) / 14) : 0;
-    return (1 - closed) * Math.PI * 0.96;
+    const closed = occupied && uphill ? smooth((h - LOAD_OFFSET - 4) / 10) * (1 - smooth((h - this.raiseBarH) / 10)) : 0;
+    return (1 - closed) * OPEN_BAR_ANGLE;
   }
 
   /** Smooth quasi-static outward bank on the bullwheel, from v²/r and gravity.
@@ -288,7 +306,7 @@ export class LiftPath {
     const arc = Math.PI * GAUGE / 2;
     const a = u >= this.lineLen && u < this.lineLen + arc ? (u - this.lineLen) / arc
       : u >= 2 * this.lineLen + arc ? (u - 2 * this.lineLen - arc) / arc : 0;
-    return Math.atan(this.def.speed ** 2 / ((GAUGE / 2) * 9.81)) * Math.sin(Math.PI * a) ** 2;
+    return a === 0 ? 0 : this.uphillSide * Math.atan(this.def.speed ** 2 / ((GAUGE / 2) * 9.81)) * Math.sin(Math.PI * a) ** 2;
   }
 
   /** Is a ground point inside the load zone (in front of the uphill line, near the load line)? */
@@ -297,7 +315,7 @@ export class LiftPath {
     const dx = x - b[0], dz = z - b[2];
     const along = dx * this.ax + dz * this.az;
     const across = dx * this.rx + dz * this.rz;
-    return along > LOAD_OFFSET - 4.5 && along < LOAD_OFFSET + 1.2 && Math.abs(across - GAUGE / 2) < this.def.seats * SEAT_SPACING / 2 + 0.2;
+    return along > LOAD_OFFSET - 4.5 && along < LOAD_OFFSET + 1.2 && Math.abs(across - this.uphillSide * GAUGE / 2) < this.def.seats * SEAT_SPACING / 2 + 0.2;
   }
 
   rideTime() { return (this.unloadU - this.loadU) / this.def.speed; }
@@ -305,12 +323,12 @@ export class LiftPath {
   /** Where a seated rider is relative to the top ramp: still riding, able to stand up, or past it. */
   unloadPhase(h: number, uphill: boolean): 'riding' | 'ready' | 'missed' {
     if (!uphill) return 'missed';
-    const line = this.horiz - UNLOAD_OFFSET;
+    const line = this.unloadH;
     return h < line - UNLOAD_WINDOW.before ? 'riding' : h <= line + UNLOAD_WINDOW.after ? 'ready' : 'missed';
   }
 
   /** Lift-clock seconds until chair reaches the start of the stand-up window (negative once inside it). */
   readyIn(chair: number, t: number) {
-    return (this.sAtH(this.horiz - UNLOAD_OFFSET - UNLOAD_WINDOW.before) - this.chairU(chair, t)) / this.def.speed;
+    return (this.sAtH(this.unloadH - UNLOAD_WINDOW.before) - this.chairU(chair, t)) / this.def.speed;
   }
 }

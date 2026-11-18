@@ -23,6 +23,22 @@ beforeAll(async () => {
 });
 
 describe('the resident skier', () => {
+  it('reanchors an older chair clock and saved lift waypoints on the corrected strand', () => {
+    const nav = world.navigation, link = nav.liftLinks.find(l => nav.lifts[l.index].def.name === 'Primo')!;
+    const path = nav.lifts[link.index], seat = link.seat, time = path.sAtH(path.horiz * .6) / path.def.speed;
+    const p = path.riderPoint(0, seat, time).p;
+    const state = new MountainGuest(nav, world.colliders, 9).checkpoint();
+    state.st.pos = { x: p.x + 5.2 * path.rx, y: p.y, z: p.z + 5.2 * path.rz };
+    state.ride = { lift: link.index, chair: 0, seat, boardedAt: 0, unloadAt: time + 300 };
+    state.liftTimes[link.index] = time + 90;
+    state.route = [{ ...link.approach }, { ...link.load, lift: link.index }, { ...link.exit }];
+    for (const wp of state.route) wp.x += 5.2;
+    const saved = readGuestCheckpoint(state, nav)!;
+    expect(saved.liftTimes[link.index]).toBeCloseTo(time, 6);
+    expect(distance(saved.st.pos, p)).toBeLessThan(.001);
+    expect(saved.ride?.unloadAt).toBeCloseTo(path.unloadU / path.def.speed, 6);
+    expect(saved.route).toEqual([link.approach, { ...link.load, lift: link.index }, link.exit]);
+  });
   it('shares the physical base map board with the player renderer', () => {
     const { x, z, yaw } = BASE_TRAIL_MAP, height = world.navigation.probe.height(x, z);
     const playerGrid = new ColliderGrid();

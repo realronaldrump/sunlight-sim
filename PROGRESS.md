@@ -1,5 +1,11 @@
 # Progress
 
+## Upper station unloading (November 17, 2026)
+
+- Reproduced all three gates crossing the ski-away lane. At the far edge of the old stand prompt, seat clearance ranged from 0.27 m on Primo to 1.46 m on Tercero. Rebuilt the upper cable, winter table and runout, moved the trip wand onto the turnaround, corrected Primo's loaded side, and placed the unload and bar signs using the shared station geometry.
+- Added checks for early and late release from all ten seats, boot and wand alignment, restraint stowage, the direction of each turnaround, saved guest rides and multiplayer release positions. The isolated production build, all 220 unit tests and the five data pipeline checks pass. Every seat clears the wheel, grounded and moving forward, from both edges of the stand window.
+- Next verification is the Chromium and WebKit station views, two riders in one room, and the matching client and server release. Concurrent graphics and Grizzly Road work is active in the checkout.
+
 ## Resort character graphics (November 17, 2026, released)
 
 - The player, multiplayer friends, slope skiers, base crowds and chair passengers share UV-mapped winter clothing, four CC0 facial albedos, articulated gloves and rebuilt ski equipment. Walking and skiing guests keep the same headwear, colours and build throughout a trip. Ski school has mesh bibs, the instructors and patrol have printed uniforms, and lift operators wear crew jackets. Santa and the sign walker have tailored costume details. See D43 and CREDITS.

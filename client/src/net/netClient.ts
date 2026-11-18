@@ -226,9 +226,9 @@ export class NetClient {
       this.send({ type: 'board', lift, chair, seat });
       this.player.board(lift, chair, seat);
     };
-    this.player.onUnload = (_lift, teleport) => {
+    this.player.onUnload = (_lift, teleport, rampOffset) => {
       this.pendingBoard = null;
-      this.send({ type: 'unload' });
+      this.send({ type: 'unload', rampOffset });
       if (teleport) this.markTeleport();
     };
     this.player.onLiftFall = (_ride, swing) => {
@@ -317,7 +317,10 @@ export class NetClient {
       case 'unloaded': {
         if (m.id === this.id && this.player.ride && !this.player.missed) this.player.unload();
         const r = this.remotes.get(m.id);
-        if (r) { r.ride = null; r.pickupOffset = null; }
+        if (r) {
+          r.ride = null; r.pickupOffset = null;
+          if (m.s) r.samples = [{ t: this.serverNow(), s: m.s }];
+        }
         break;
       }
       case 'correct':
@@ -452,10 +455,11 @@ export class NetClient {
           continue;
         }
       }
-      if (!loading) r.sit += ((r.ride ? 1 : 0) - r.sit) * Math.min(1, dt * 5);
+      if (!loading) r.sit = r.ride ? r.sit + (1 - r.sit) * Math.min(1, dt * 5) : Math.max(0, r.sit - dt / .55);
       const pos = r.model.root.position;
-      const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y : undefined;
-      const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y);
+      const footGroundY = r.ride ? this.player.terrainHeight(pos.x - Math.sin(heading) * .2, pos.z - Math.cos(heading) * .2) - pos.y
+        : r.sit > 0 && s.mode === 'skiing' ? 0 : undefined;
+      const n = this.player.terrainNormal(pos.x, pos.z), footGroundPitch = r.ride ? Math.atan2(n.x * Math.sin(heading) + n.z * Math.cos(heading), n.y) : 0;
       r.model.update({ speed, edge: s.edge, plow: s.plow, tuck: s.tuck, skid: 0, fallen: s.fallen, sitting: r.sit, footGroundY, footGroundPitch, liftPreparation: r.ride ? 1 : 0, time: r.time, pushing: false,
         terrain: this.player.terrain, airborne: !!tumble || s.mode === 'air', rockX: swing?.leanX, rockZ: swing?.leanZ, slipping: swing?.slip,
         gesture: s.act && !r.ride ? { kind: s.act, amount: r.act, yaw: s.actYaw } : undefined });

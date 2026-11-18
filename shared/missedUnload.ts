@@ -2,12 +2,12 @@
 // A rider who does not stand up on the ramp clips the missed-unload gate, is whirled around the top
 // bull wheel in two full loops of the chair about its grip, and is flung onto the snow beside the
 // station. Deliberately exaggerated: real lifts stop at the gate. Times are real seconds since the
-// chair passed the end of the stand-up window.
+// occupied chair reached the trip wand on the return half of the upper turn.
 import type { LiftPath } from './lifts';
 import type { ChairSwing } from './chairSwing';
 
 export const MISSED = {
-  loopsStart: 1.1,        // the chair reaches the bull wheel and the whirl begins
+  loopsStart: 1.1,        // delay from wand contact to the comic whirl
   loopsEnd: 3.5,          // the rider lets go
   loops: 2,               // full turns of the chair about the grip
   flingSpeed: 9.5,        // m/s across the snow at release
@@ -36,7 +36,7 @@ export function missedSwing(tau: number, out: ChairSwing): ChairSwing {
 
 /** Launch velocity: away from the returning chairs and a little back down the slope, plus a high arc. */
 export function flingVelocity(path: LiftPath) {
-  let dx = path.rx * 0.85 - path.ax * 0.5, dz = path.rz * 0.85 - path.az * 0.5;
+  let dx = path.uphillSide * path.rx * 0.85 - path.ax * 0.5, dz = path.uphillSide * path.rz * 0.85 - path.az * 0.5;
   const n = Math.hypot(dx, dz); dx /= n; dz /= n;
   return { x: dx * MISSED.flingSpeed, y: MISSED.flingLift, z: dz * MISSED.flingSpeed };
 }

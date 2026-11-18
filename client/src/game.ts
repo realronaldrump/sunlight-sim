@@ -270,8 +270,8 @@ export class Game {
     this.setLoading(0.25, 'Loading terrain near the base');
     await this.hf.ensureArea(0, spawn.x, -spawn.z, 300);
     await Promise.all(this.resort.lifts.flatMap((l) => [this.hf.ensureArea(0, l.bottom[0], -l.bottom[2], 40), this.hf.ensureArea(0, l.top[0], -l.top[2], 40)]));
-    this.lifts.settle((x, z) => this.hf.heightAt(x, z));
     this.probe = this.lifts.buildStationSurfaces(this.probe);
+    this.lifts.settle(this.probe.height);
     this.mountainGuest = new MountainGuestView(this.lifts, this.probe);
     this.scene.add(this.mountainGuest.group);
     this.dressStationSnow();
@@ -652,7 +652,7 @@ export class Game {
       const b = path.def.bottom;
       for (let i = 0; i < pos.count; i++) {
         const dx = pos.getX(i) - b[0], dz = pos.getZ(i) - b[2];
-        groom[i * 2] = dx * path.rx + dz * path.rz - GAUGE / 2;
+        groom[i * 2] = dx * path.rx + dz * path.rz - path.uphillSide * GAUGE / 2;
         groom[i * 2 + 1] = dx * path.ax + dz * path.az;
       }
       mesh.geometry.setAttribute('grooming', new THREE.BufferAttribute(groom, 2));
