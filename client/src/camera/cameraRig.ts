@@ -2,7 +2,7 @@
 import * as THREE from 'three/webgpu';
 
 export type CamMode = 'chase' | 'first' | 'side';
-interface BodyMotion { pitch: number; roll: number; airborne: boolean; fallen: boolean; impact: number; linePitch?: number }
+interface BodyMotion { pitch: number; roll: number; airborne: boolean; fallen: boolean; impact: number; linePitch?: number; eye?: THREE.Vector3 }
 
 export class CameraRig {
   enabled = true;
@@ -78,7 +78,7 @@ export class CameraRig {
     if (this.mode === 'first') {
       const offset = new THREE.Vector3(0, riding ? 1.15 : motion?.fallen ? .48 : 1.62, 0);
       if (riding || motion?.airborne) offset.applyEuler(new THREE.Euler(motion?.pitch ?? 0, heading, motion?.roll ?? 0, 'YXZ'));
-      const eye = target.clone().add(offset).addScaledVector(dir, 0.15);
+      const eye = motion?.eye ? motion.eye.clone() : target.clone().add(offset).addScaledVector(dir, 0.15);
       eye.y += impact;
       eye.y = Math.max(eye.y, this.ground(eye.x, eye.z) + .3);
       cam.position.copy(eye);

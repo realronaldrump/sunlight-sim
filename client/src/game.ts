@@ -813,7 +813,8 @@ export class Game {
     this.camRig.update(dt, this.cameraTarget(), st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
       { pitch: this.player.ride ? this.player.rideSwing.pitch : this.player.tumble?.pitch ?? 0,
         roll: this.player.ride ? this.player.rideSwing.roll : this.player.tumble?.roll ?? 0,
-        airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact, linePitch });
+        airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact, linePitch,
+        eye: this.camRig.mode === 'first' && linePitch !== undefined ? this.player.model.eyePosition(this.tmpV3) : undefined });
   }
 
   /** Space on the chair: stand up on the ramp, or a friendly nudge if the ramp is not here yet. */

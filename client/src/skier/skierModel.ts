@@ -87,6 +87,11 @@ export class SkierModel {
   throwSnowball(yaw: number) { this.snowThrow = { age: 0, yaw }; }
   resetSnowballs() { this.snowFall = this.snowThrow = null; }
 
+  /** Eye position at the center of the goggle lens, including stance and sidehill lean. */
+  eyePosition(out: THREE.Vector3) {
+    return this.headGear.localToWorld(out.set(0, .035, -.15));
+  }
+
   constructor(jacket = new THREE.Color('#d33a2c'), lod: 'full' | 'crowd' = 'full', skin = new THREE.Color(1, 1, 1), costume?: SkierCostume) {
     this.human = new HumanBody(jacket, skin, lod);
     this.headGear = costume?.headGear ?? headwear('helmet');

@@ -43,6 +43,8 @@ Graphics use a phone-sized rendering budget, antialiasing, shorter tree detail r
 
 Start on skis just west of the main lodge deck, beside a ski rack. Press W to push off, then ski down to Segundo or Tercero. Use **Teleport to base** in the pause menu to return to the racks. Primo loads farther up the mountain.
 
+On skis, **Your line** shows the pitch uphill or downhill over 33 ft in your direction of travel. **Fall line** shows the steepest direction across the snow underfoot. To ski the first dip on Grizzly Road, take Primo to the summit and follow Grizzly Road at the Ute fork, or select Grizzly Road on the pause-menu travel map.
+
 | Key | Action |
 |---|---|
 | A / D or arrow keys | Edge and turn (weight shift, so turns build up) |
