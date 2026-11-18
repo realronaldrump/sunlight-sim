@@ -112,6 +112,16 @@ export function headingFromDir(x: number, z: number) {
   return Math.atan2(-x, -z);
 }
 
+/** Signed pitch over 10 horizontal meters along the skier's travel. Positive is uphill. */
+export function skiLinePitch(st: SkierState, terrain: TerrainProbe): number | undefined {
+  if (!st.grounded || (st.mode !== 'standing' && st.mode !== 'skiing')) return undefined;
+  const speed = Math.hypot(st.vel.x, st.vel.z);
+  const dx = 5 * (speed > 0.5 ? st.vel.x / speed : -Math.sin(st.heading));
+  const dz = 5 * (speed > 0.5 ? st.vel.z / speed : -Math.cos(st.heading));
+  const { x, z } = st.pos;
+  return Math.atan2(terrain.height(x + dx, z + dz) - terrain.height(x - dx, z - dz), 10) * 180 / Math.PI;
+}
+
 function wrapAngle(a: number) {
   while (a > Math.PI) a -= 2 * Math.PI;
   while (a < -Math.PI) a += 2 * Math.PI;

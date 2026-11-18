@@ -100,3 +100,8 @@ All recordings below are [CC0 1.0](https://creativecommons.org/publicdomain/zero
 - The portrait head adapts MediaPipe's Apache 2.0 canonical face connectivity to the detected facial landmarks, adds the back of the head, and uses ear geometry from the CC0 skier asset. Attribution and license are shipped in `client/public/models/santa-portrait-LICENSE.txt`. [MediaPipe source](https://github.com/google-ai-edge/mediapipe/blob/v0.10.32/mediapipe/modules/face_geometry/data/canonical_face_model.obj)
 
 - Santa's sack, holly, wrapped parcels, brass ornament, spark variant and gift-tag artwork are original procedural art. The sleigh jingle and discovery chord use original additive synthesis through the existing audio graph.
+
+
+### Grizzly Road summit opening
+
+The ski line and clearing were traced from the public-domain USGS CO Central Western 2016 elevation/canopy and USDA 2023 NAIP imagery, tied to the existing OpenStreetMap trail junctions. Tucker's March 15, 2025 ski footage was used as a winter visual reference, particularly the two shoulders and the narrowing at the saddle. [USGS tile](https://www.sciencebase.gov/catalog/item/5eaa4a5c82cefae35a21f08c) · [NAIP collection](https://planetarycomputer.microsoft.com/dataset/naip) · [Winter reference](https://www.youtube.com/watch?v=3abiGYPLiOU&t=54s)

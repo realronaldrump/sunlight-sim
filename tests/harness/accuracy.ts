@@ -9,7 +9,7 @@ export async function ingameStats() {
   const byName = new Map<string, typeof resort.runs>();
   for (const r of resort.runs) { if (!byName.has(r.name)) byName.set(r.name, []); byName.get(r.name)!.push(r); }
   for (const [name, ways] of byName) {
-    let len3 = 0, lenH = 0, hiMax = -Infinity, loMin = Infinity, max10 = 0;
+    let len3 = 0, lenH = 0, lineDrop = 0, hiMax = -Infinity, loMin = Infinity, max10 = 0;
     for (const r of ways) {
       if (r.kind !== 'line') continue;
       await loadAreaForPath(hf, r.points, 20);
@@ -25,26 +25,30 @@ export async function ingameStats() {
       }
       const last = r.points.at(-1)!;
       samples.push({ x: last[0], z: last[2], h: hf.heightAt(last[0], last[2]) });
+      lineDrop += Math.abs(samples[0].h - samples.at(-1)!.h);
+      const distance = [0];
       for (let i = 1; i < samples.length; i++) {
         const dh = Math.hypot(samples[i].x - samples[i - 1].x, samples[i].z - samples[i - 1].z);
+        distance.push(distance[i - 1] + dh);
         lenH += dh; len3 += Math.hypot(dh, samples[i].h - samples[i - 1].h);
       }
       for (const s of samples) { hiMax = Math.max(hiMax, s.h); loMin = Math.min(loMin, s.h); }
       // steepest 10 m pitch along the centerline
-      let acc = 0, j = 0;
+      let j = 0;
       for (let i = 1; i < samples.length; i++) {
-        acc += Math.hypot(samples[i].x - samples[i - 1].x, samples[i].z - samples[i - 1].z);
-        while (acc > 10 && j < i) {
-          acc -= Math.hypot(samples[j + 1].x - samples[j].x, samples[j + 1].z - samples[j].z); j++;
-        }
-        if (acc >= 9) max10 = Math.max(max10, Math.atan(Math.abs(samples[i].h - samples[j].h) / acc) * 180 / Math.PI);
+        const start = distance[i] - 10;
+        if (start < 0) continue;
+        while (distance[j + 1] <= start) j++;
+        const t = (start - distance[j]) / (distance[j + 1] - distance[j]);
+        const height = samples[j].h + t * (samples[j + 1].h - samples[j].h);
+        max10 = Math.max(max10, Math.atan2(Math.abs(samples[i].h - height), 10) * 180 / Math.PI);
       }
     }
     if (lenH === 0) continue;
     const drop = hiMax - loMin;
     out[name] = {
       difficulty: ways[0].difficulty, lengthM: Math.round(len3), horizM: Math.round(lenH), top: Math.round(hiMax), bottom: Math.round(loMin),
-      dropM: Math.round(drop), avgDeg: +((Math.atan(drop / lenH) * 180) / Math.PI).toFixed(1), maxCenterline10mDeg: +max10.toFixed(1),
+      dropM: Math.round(drop), avgDeg: +((Math.atan(lineDrop / lenH) * 180) / Math.PI).toFixed(1), maxCenterline10mDeg: +max10.toFixed(1),
     };
   }
   return out;

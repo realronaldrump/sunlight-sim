@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { SnowballFights } from './world/snowballs';
-import { Heightfield } from './terrain/heightfield';
+import { Heightfield, browserLoader } from './terrain/heightfield';
 import { TerrainRenderer } from './terrain/terrainRenderer';
 import { createTerrainMaterial, TerrainMaterialHandles } from './terrain/terrainMaterial';
 import { Environment } from './sky/environment';
@@ -73,11 +73,14 @@ import { formatDistance as fmtDist, formatFeet } from './ui/units';
 import { skiWithBindings, skiPole } from './skier/skiEquipment';
 import type { Poi } from './world/walkable';
 import type { RemoteSkier } from './net/netClient';
-import { collideCylinder } from '../../shared/skiPhysics';
+import { collideCylinder, skiLinePitch } from '../../shared/skiPhysics';
 
 export const WORLD_BASE = (import.meta.env.BASE_URL || '/') + 'world';
 
-export interface RunInfo { id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][]; outline?: number[][][] }
+export interface RunInfo {
+  id: number; name: string; difficulty: string; grooming: string; kind: string; points: number[][]; outline?: number[][][];
+  stats?: { lengthM: number | null; dropM: number; avgDeg: number; maxDeg: number };
+}
 export interface ResortData { lifts: LiftDef[]; runs: RunInfo[]; buildings: any[]; roads: any[]; peaks: any[]; boundary?: number[][]; map?: { x0: number; x1: number; z0: number; z1: number } }
 
 
@@ -220,7 +223,7 @@ export class Game {
     const [_, resort, surface] = await Promise.all([
       this.hf.init(),
       fetch(`${WORLD_BASE}/resort.json`, { cache: 'no-cache' }).then((r) => r.json()),
-      SurfaceMap.load(WORLD_BASE, async (p) => (await fetch(p)).arrayBuffer()).catch(() => null),
+      SurfaceMap.load(WORLD_BASE, browserLoader).catch(() => null),
       loadHumanAsset((import.meta.env.BASE_URL || '/').replace(/\/$/, '')),
       loadSeatedRiders(),
       loadSantaLikeness().catch(e => console.warn('Santa portrait textures unavailable', e)),
@@ -799,7 +802,7 @@ export class Game {
     this.camera.rotation.set(this.fly.pitch, this.fly.yaw, 0, 'YXZ');
   }
 
-  private updateCamera(dt: number) {
+  private updateCamera(dt: number, linePitch?: number) {
     if (this.drone?.active) return;
     if (this.flyMode) { this.updateFlyCamera(dt); return; }
     if (this.onFoot?.active) return;
@@ -810,7 +813,7 @@ export class Game {
     this.camRig.update(dt, this.cameraTarget(), st.heading, this.tmpV, this.player.fallLine(this.tmpV2), !!this.player.ride,
       { pitch: this.player.ride ? this.player.rideSwing.pitch : this.player.tumble?.pitch ?? 0,
         roll: this.player.ride ? this.player.rideSwing.roll : this.player.tumble?.roll ?? 0,
-        airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact });
+        airborne: !!this.player.tumble, fallen: st.mode === 'fallen' && st.grounded, impact: st.lastImpact, linePitch });
   }
 
   /** Space on the chair: stand up on the ramp, or a friendly nudge if the ramp is not here yet. */
@@ -975,7 +978,9 @@ export class Game {
         if (c.active && Math.abs(c.x - this.player.st.pos.x) < 4 && Math.abs(c.z - this.player.st.pos.z) < 4) collideCylinder(this.player.st, c.x, c.z, 2.6);
       }
     }
-    this.updateCamera(dt);
+    const linePitch = !this.drone.active && !this.flyMode && !this.onFoot.active && !this.player.ride
+      ? skiLinePitch(this.player.st, this.probe) : undefined;
+    this.updateCamera(dt, linePitch);
     this.mountainGuest.update(dt, this.camera, resortClock.now(), this.env.night.value);
     this.snowballs.update(dt);
     if (this.mountainGuest.observe(dt, this.camera, this.input.enabled && !this.flyMode && !document.hidden, this.colliders)) {
@@ -1007,7 +1012,7 @@ export class Game {
 
     const st = this.player.st;
     const mapPos = this.drone.state?.pos ?? st.pos;
-    const run = this.player.ride && !this.drone.active ? null : (this.runAt(mapPos.x, mapPos.z) as (RunInfo & { stats?: { avgDeg: number; maxDeg: number } }) | null);
+    const run = this.player.ride && !this.drone.active ? null : this.runAt(mapPos.x, mapPos.z);
     const mapSelf = { name: this.drone.active ? 'Your drone' : this.playerName, color: this.playerColor, x: mapPos.x, z: mapPos.z, heading: this.drone.state?.yaw ?? st.heading, self: true };
     const mapOthers = [...this.remoteMapPlayers(), ...(this.drone.active && !this.droneOnly ? [{ name: 'Your skier', color: this.playerColor, x: st.pos.x, z: st.pos.z, heading: st.heading }] : [])];
     const santa = this.options.showSantaOnMap ? this.mountainGuest.pose : null;
@@ -1030,7 +1035,7 @@ export class Game {
       lift: this.drone.active ? null : this.player.ride ? this.lifts.paths[this.player.ride.lift].def.name : null,
       active: !this.droneOnly && this.ready && !this.trailMap.visible, drone: this.drone.active,
     });
-    this.hud.update(dt, this.onFoot.active ? this.onFoot.st.speed : st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run);
+    this.hud.update(dt, this.onFoot.active ? this.onFoot.st.speed : st.speed, this.player.ride ? 0 : st.slopeDeg, st.pos.y, this.modeLabel(), run, linePitch);
     this.drone.hud.update(dt,this.drone.state,this.drone.fpv,Math.hypot(mapPos.x-st.pos.x,mapPos.z-st.pos.z),
       this.drone.area.nearest(mapPos.x,mapPos.z).remaining,this.ready,this.trailMap.visible || this.options.visible,!this.input.enabled);
     const ride = this.player.ride, lift = ride ? this.lifts.paths[ride.lift] : null;

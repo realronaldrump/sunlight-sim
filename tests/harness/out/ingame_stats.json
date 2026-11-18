@@ -1,17 +1,17 @@
 {
  "Zephyr": {
   "difficulty": "black",
-  "lengthM": 658,
+  "lengthM": 666,
   "horizM": 619,
   "top": 2912,
   "bottom": 2705,
   "dropM": 207,
-  "avgDeg": 18.5,
+  "avgDeg": 18.4,
   "maxCenterline10mDeg": 32.5
  },
  "Rebel": {
   "difficulty": "blue",
-  "lengthM": 874,
+  "lengthM": 875,
   "horizM": 837,
   "top": 2894,
   "bottom": 2662,
@@ -31,13 +31,13 @@
  },
  "Grizzly Road": {
   "difficulty": "green",
-  "lengthM": 2571,
-  "horizM": 2541,
+  "lengthM": 2579,
+  "horizM": 2546,
   "top": 3002,
   "bottom": 2662,
   "dropM": 340,
   "avgDeg": 7.6,
-  "maxCenterline10mDeg": 21
+  "maxCenterline10mDeg": 22.4
  },
  "The Parks": {
   "difficulty": "green",
@@ -51,7 +51,7 @@
  },
  "Ute": {
   "difficulty": "green",
-  "lengthM": 3394,
+  "lengthM": 3398,
   "horizM": 3340,
   "top": 3002,
   "bottom": 2484,
@@ -71,113 +71,113 @@
  },
  "Defiance": {
   "difficulty": "black",
-  "lengthM": 984,
+  "lengthM": 986,
   "horizM": 920,
   "top": 2871,
   "bottom": 2554,
   "dropM": 317,
   "avgDeg": 19,
-  "maxCenterline10mDeg": 31.1
+  "maxCenterline10mDeg": 31.4
  },
  "Midland Traverse": {
   "difficulty": "black",
-  "lengthM": 971,
+  "lengthM": 974,
   "horizM": 965,
   "top": 2574,
   "bottom": 2501,
   "dropM": 73,
-  "avgDeg": 4.3,
-  "maxCenterline10mDeg": 14.4
+  "avgDeg": 4.4,
+  "maxCenterline10mDeg": 14.2
  },
  "Deception": {
   "difficulty": "double",
-  "lengthM": 594,
+  "lengthM": 600,
   "horizM": 543,
   "top": 2796,
   "bottom": 2574,
   "dropM": 222,
   "avgDeg": 22.2,
-  "maxCenterline10mDeg": 40.1
+  "maxCenterline10mDeg": 40.2
  },
  "Teeds Run": {
   "difficulty": "double",
-  "lengthM": 326,
+  "lengthM": 329,
   "horizM": 283,
   "top": 2708,
   "bottom": 2551,
-  "dropM": 157,
-  "avgDeg": 29.1,
-  "maxCenterline10mDeg": 42.2
+  "dropM": 158,
+  "avgDeg": 29.2,
+  "maxCenterline10mDeg": 43.2
  },
  "The Heathen": {
   "difficulty": "double",
-  "lengthM": 138,
+  "lengthM": 139,
   "horizM": 111,
   "top": 2712,
   "bottom": 2632,
   "dropM": 80,
   "avgDeg": 35.7,
-  "maxCenterline10mDeg": 46.9
+  "maxCenterline10mDeg": 46.4
  },
  "Tod's Ride": {
   "difficulty": "double",
-  "lengthM": 144,
+  "lengthM": 145,
   "horizM": 125,
-  "top": 2628,
+  "top": 2629,
   "bottom": 2563,
   "dropM": 66,
-  "avgDeg": 27.8,
-  "maxCenterline10mDeg": 38.3
+  "avgDeg": 27.9,
+  "maxCenterline10mDeg": 38.7
  },
  "Banzai": {
   "difficulty": "double",
-  "lengthM": 165,
+  "lengthM": 166,
   "horizM": 142,
   "top": 2657,
   "bottom": 2576,
   "dropM": 81,
-  "avgDeg": 29.8,
-  "maxCenterline10mDeg": 41.4
+  "avgDeg": 29.7,
+  "maxCenterline10mDeg": 41.8
  },
  "Devil's Dare": {
   "difficulty": "double",
-  "lengthM": 162,
+  "lengthM": 163,
   "horizM": 141,
   "top": 2619,
   "bottom": 2543,
   "dropM": 76,
   "avgDeg": 28.3,
-  "maxCenterline10mDeg": 37.1
+  "maxCenterline10mDeg": 37
  },
  "Gnarly Knob": {
   "difficulty": "black",
-  "lengthM": 481,
+  "lengthM": 484,
   "horizM": 450,
   "top": 2766,
   "bottom": 2617,
   "dropM": 150,
   "avgDeg": 18.4,
-  "maxCenterline10mDeg": 32.7
+  "maxCenterline10mDeg": 33.2
  },
  "Inspiration": {
   "difficulty": "black",
-  "lengthM": 435,
+  "lengthM": 441,
   "horizM": 388,
   "top": 2742,
   "bottom": 2550,
   "dropM": 192,
   "avgDeg": 26.3,
-  "maxCenterline10mDeg": 34.5
+  "maxCenterline10mDeg": 34.1
  },
  "The Alamo": {
   "difficulty": "double",
-  "lengthM": 476,
+  "lengthM": 479,
   "horizM": 427,
   "top": 2748,
   "bottom": 2546,
   "dropM": 202,
   "avgDeg": 25.3,
-  "maxCenterline10mDeg": 35.3
+  "maxCenterline10mDeg": 36
  },
  "Rapid Transit": {
   "difficulty": "double",
@@ -187,7 +187,7 @@
   "bottom": 2653,
   "dropM": 88,
   "avgDeg": 34.4,
-  "maxCenterline10mDeg": 40.5
+  "maxCenterline10mDeg": 41.4
  },
  "Loop": {
   "difficulty": "green",
@@ -201,7 +201,7 @@
  },
  "Midway": {
   "difficulty": "green",
-  "lengthM": 984,
+  "lengthM": 985,
   "horizM": 967,
   "top": 2662,
   "bottom": 2484,
@@ -211,7 +211,7 @@
  },
  "Sun King": {
   "difficulty": "blue",
-  "lengthM": 973,
+  "lengthM": 974,
   "horizM": 924,
   "top": 2954,
   "bottom": 2662,
@@ -231,13 +231,13 @@
  },
  "Blue Catwalk": {
   "difficulty": "blue",
-  "lengthM": 772,
+  "lengthM": 774,
   "horizM": 753,
   "top": 2986,
   "bottom": 2835,
   "dropM": 150,
   "avgDeg": 11.3,
-  "maxCenterline10mDeg": 25.2
+  "maxCenterline10mDeg": 25.1
  },
  "Lower Beaujolais": {
   "difficulty": "blue",
@@ -257,7 +257,7 @@
   "bottom": 2545,
   "dropM": 62,
   "avgDeg": 12.6,
-  "maxCenterline10mDeg": 27.5
+  "maxCenterline10mDeg": 27.4
  },
  "Enchanted Forest": {
   "difficulty": "blue",
@@ -267,7 +267,7 @@
   "bottom": 2578,
   "dropM": 27,
   "avgDeg": 4.5,
-  "maxCenterline10mDeg": 17.4
+  "maxCenterline10mDeg": 17.2
  },
  "Tercero": {
   "difficulty": "green",
@@ -297,7 +297,7 @@
   "bottom": 2782,
   "dropM": 53,
   "avgDeg": 6.1,
-  "maxCenterline10mDeg": 12.6
+  "maxCenterline10mDeg": 12.5
  },
  "Ute Cutoff": {
   "difficulty": "blue",
@@ -306,8 +306,8 @@
   "top": 2835,
   "bottom": 2736,
   "dropM": 99,
-  "avgDeg": 10.1,
-  "maxCenterline10mDeg": 25.3
+  "avgDeg": 9.2,
+  "maxCenterline10mDeg": 24.7
  },
  "Fliprock": {
   "difficulty": "blue",
@@ -336,72 +336,72 @@
   "top": 2979,
   "bottom": 2878,
   "dropM": 101,
-  "avgDeg": 12,
+  "avgDeg": 11.9,
   "maxCenterline10mDeg": 28
  },
  "Holiday Hill": {
   "difficulty": "black",
-  "lengthM": 401,
+  "lengthM": 404,
   "horizM": 368,
   "top": 2649,
   "bottom": 2498,
   "dropM": 151,
   "avgDeg": 22.3,
-  "maxCenterline10mDeg": 34.8
+  "maxCenterline10mDeg": 34.3
  },
  "Frying Pan Alley": {
   "difficulty": "black",
-  "lengthM": 343,
+  "lengthM": 345,
   "horizM": 314,
   "top": 2637,
-  "bottom": 2508,
-  "dropM": 129,
-  "avgDeg": 22.3,
-  "maxCenterline10mDeg": 34.6
+  "bottom": 2509,
+  "dropM": 128,
+  "avgDeg": 22.2,
+  "maxCenterline10mDeg": 34.8
  },
  "W. Wishbone": {
   "difficulty": "black",
-  "lengthM": 340,
+  "lengthM": 343,
   "horizM": 318,
   "top": 2631,
   "bottom": 2523,
   "dropM": 108,
   "avgDeg": 18.7,
-  "maxCenterline10mDeg": 35
+  "maxCenterline10mDeg": 35.8
  },
  "E. Wishbone Alley": {
   "difficulty": "black",
-  "lengthM": 258,
+  "lengthM": 261,
   "horizM": 236,
   "top": 2612,
   "bottom": 2511,
   "dropM": 101,
   "avgDeg": 23.2,
-  "maxCenterline10mDeg": 31.6
+  "maxCenterline10mDeg": 32.2
  },
  "Sherman Forest": {
   "difficulty": "black",
-  "lengthM": 193,
+  "lengthM": 194,
   "horizM": 173,
   "top": 2595,
   "bottom": 2517,
-  "dropM": 78,
-  "avgDeg": 24.4,
-  "maxCenterline10mDeg": 42.5
+  "dropM": 79,
+  "avgDeg": 24.5,
+  "maxCenterline10mDeg": 43.7
  },
  "Blue Finger": {
   "difficulty": "black",
-  "lengthM": 275,
+  "lengthM": 277,
   "horizM": 256,
   "top": 2927,
   "bottom": 2830,
   "dropM": 97,
   "avgDeg": 20.7,
-  "maxCenterline10mDeg": 31.7
+  "maxCenterline10mDeg": 31.4
  },
  "Peace Pipe": {
   "difficulty": "blue",
-  "lengthM": 506,
+  "lengthM": 507,
   "horizM": 475,
   "top": 2835,
   "bottom": 2669,
@@ -411,47 +411,47 @@
  },
  "Segundo": {
   "difficulty": "black",
-  "lengthM": 1174,
+  "lengthM": 1184,
   "horizM": 1124,
   "top": 2814,
   "bottom": 2513,
-  "dropM": 301,
+  "dropM": 300,
   "avgDeg": 15,
-  "maxCenterline10mDeg": 35.9
+  "maxCenterline10mDeg": 35.6
  },
  "Primo": {
   "difficulty": "black",
-  "lengthM": 719,
+  "lengthM": 723,
   "horizM": 667,
   "top": 2985,
   "bottom": 2732,
   "dropM": 252,
   "avgDeg": 20.7,
-  "maxCenterline10mDeg": 35.6
+  "maxCenterline10mDeg": 36.2
  },
  "Showdown": {
   "difficulty": "black",
-  "lengthM": 456,
+  "lengthM": 461,
   "horizM": 422,
   "top": 2660,
   "bottom": 2493,
   "dropM": 167,
   "avgDeg": 21.6,
-  "maxCenterline10mDeg": 31.6
+  "maxCenterline10mDeg": 31.9
  },
  "Cornice": {
   "difficulty": "blue",
-  "lengthM": 1299,
+  "lengthM": 1303,
   "horizM": 1273,
   "top": 2835,
   "bottom": 2613,
   "dropM": 222,
   "avgDeg": 9.9,
-  "maxCenterline10mDeg": 21
+  "maxCenterline10mDeg": 21.1
  },
  "Dawson": {
   "difficulty": "blue",
-  "lengthM": 516,
+  "lengthM": 517,
   "horizM": 488,
   "top": 2748,
   "bottom": 2595,
@@ -466,12 +466,12 @@
   "top": 2737,
   "bottom": 2566,
   "dropM": 171,
-  "avgDeg": 17.2,
+  "avgDeg": 17.1,
   "maxCenterline10mDeg": 27.6
  },
  "Joslin": {
   "difficulty": "blue",
-  "lengthM": 1007,
+  "lengthM": 1009,
   "horizM": 953,
   "top": 2909,
   "bottom": 2595,
@@ -481,13 +481,13 @@
  },
  "Blue Tango": {
   "difficulty": "blue",
-  "lengthM": 321,
+  "lengthM": 325,
   "horizM": 300,
   "top": 2785,
   "bottom": 2674,
   "dropM": 111,
   "avgDeg": 20.3,
-  "maxCenterline10mDeg": 29.8
+  "maxCenterline10mDeg": 31
  },
  "Sunburst": {
   "difficulty": "blue",
@@ -496,7 +496,7 @@
   "top": 2731,
   "bottom": 2566,
   "dropM": 165,
-  "avgDeg": 15.2,
+  "avgDeg": 13.3,
   "maxCenterline10mDeg": 25.9
  },
  "Columbine": {
@@ -541,47 +541,47 @@
  },
  "Lower Que Pasa": {
   "difficulty": "double",
-  "lengthM": 401,
+  "lengthM": 405,
   "horizM": 371,
   "top": 2559,
   "bottom": 2415,
   "dropM": 144,
   "avgDeg": 21.2,
-  "maxCenterline10mDeg": 32.6
+  "maxCenterline10mDeg": 33
  },
  "Lower Deception": {
   "difficulty": "double",
-  "lengthM": 503,
+  "lengthM": 508,
   "horizM": 477,
   "top": 2574,
   "bottom": 2422,
   "dropM": 153,
   "avgDeg": 17.8,
-  "maxCenterline10mDeg": 27.1
+  "maxCenterline10mDeg": 26.7
  },
  "Lower Defiance": {
   "difficulty": "double",
-  "lengthM": 392,
+  "lengthM": 396,
   "horizM": 367,
   "top": 2554,
   "bottom": 2421,
   "dropM": 133,
   "avgDeg": 19.9,
-  "maxCenterline10mDeg": 28.5
+  "maxCenterline10mDeg": 28.8
  },
  "Vortex": {
   "difficulty": "double",
-  "lengthM": 360,
+  "lengthM": 363,
   "horizM": 341,
   "top": 2548,
   "bottom": 2440,
   "dropM": 108,
   "avgDeg": 17.6,
-  "maxCenterline10mDeg": 26.6
+  "maxCenterline10mDeg": 26.4
  },
  "Perry's Plunge": {
   "difficulty": "double",
-  "lengthM": 653,
+  "lengthM": 654,
   "horizM": 606,
   "top": 2802,
   "bottom": 2574,
@@ -601,37 +601,37 @@
  },
  "Que Pasa": {
   "difficulty": "double",
-  "lengthM": 315,
+  "lengthM": 318,
   "horizM": 277,
   "top": 2707,
   "bottom": 2559,
   "dropM": 148,
   "avgDeg": 28.2,
-  "maxCenterline10mDeg": 35.1
+  "maxCenterline10mDeg": 35
  },
  "Aligator Alley A1": {
   "difficulty": "double",
-  "lengthM": 545,
+  "lengthM": 549,
   "horizM": 498,
   "top": 2772,
-  "bottom": 2569,
+  "bottom": 2570,
   "dropM": 202,
   "avgDeg": 22.1,
-  "maxCenterline10mDeg": 40.1
+  "maxCenterline10mDeg": 39.8
  },
  "Aligator Alley A2": {
   "difficulty": "double",
-  "lengthM": 334,
+  "lengthM": 337,
   "horizM": 292,
   "top": 2728,
   "bottom": 2569,
   "dropM": 159,
-  "avgDeg": 28.5,
-  "maxCenterline10mDeg": 37.4
+  "avgDeg": 28.6,
+  "maxCenterline10mDeg": 38.5
  },
  "Aligator Alley A3": {
   "difficulty": "double",
-  "lengthM": 385,
+  "lengthM": 388,
   "horizM": 343,
   "top": 2734,
   "bottom": 2563,
@@ -641,13 +641,13 @@
  },
  "Hike-Out Only": {
   "difficulty": "hike",
-  "lengthM": 426,
+  "lengthM": 427,
   "horizM": 421,
   "top": 2451,
   "bottom": 2413,
   "dropM": 38,
-  "avgDeg": 5.2,
-  "maxCenterline10mDeg": 17
+  "avgDeg": 4,
+  "maxCenterline10mDeg": 16.9
  },
  "Sherick Park": {
   "difficulty": "park",

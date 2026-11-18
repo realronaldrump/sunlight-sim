@@ -2,7 +2,7 @@
 import * as THREE from 'three/webgpu';
 
 export type CamMode = 'chase' | 'first' | 'side';
-interface BodyMotion { pitch: number; roll: number; airborne: boolean; fallen: boolean; impact: number }
+interface BodyMotion { pitch: number; roll: number; airborne: boolean; fallen: boolean; impact: number; linePitch?: number }
 
 export class CameraRig {
   enabled = true;
@@ -12,6 +12,7 @@ export class CameraRig {
   private smoothDir = new THREE.Vector3(0, 0, -1);
   private pos = new THREE.Vector3();
   private initialized = false;
+  private lookGrade = 0;
   private wasAirborne = false;
   private impactTime = 10;
   private impactStrength = 0;
@@ -36,11 +37,11 @@ export class CameraRig {
     }, { passive: true });
   }
 
-  reset() { this.initialized = false; this.dragging = false; this.yawOffset = 0; this.pitchOffset = 0; }
+  reset() { this.initialized = false; this.dragging = false; this.yawOffset = 0; this.pitchOffset = 0; this.lookGrade = 0; }
 
   cycle() {
     this.mode = this.mode === 'chase' ? 'first' : this.mode === 'first' ? 'side' : 'chase';
-    this.yawOffset = 0; this.pitchOffset = 0; this.initialized = false;
+    this.reset();
     return this.mode;
   }
 
@@ -66,6 +67,14 @@ export class CameraRig {
     if (!this.dragging) { this.yawOffset *= Math.pow(0.4, dt); }
     const dir = this.smoothDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yawOffset);
 
+    // Let the skier look partway down a face and back up its opposite bank.
+    // Keep a level horizon and ease the gaze through the transition.
+    if (motion?.linePitch !== undefined && this.mode !== 'side' && !riding) {
+      const angle = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(motion.linePitch, -30, 20));
+      const grade = 0.55 * Math.tan(angle) * Math.max(0, dir.dot(want));
+      this.lookGrade += (grade - this.lookGrade) * (1 - Math.exp(-3 * dt));
+    } else this.lookGrade = 0;
+
     if (this.mode === 'first') {
       const offset = new THREE.Vector3(0, riding ? 1.15 : motion?.fallen ? .48 : 1.62, 0);
       if (riding || motion?.airborne) offset.applyEuler(new THREE.Euler(motion?.pitch ?? 0, heading, motion?.roll ?? 0, 'YXZ'));
@@ -74,7 +83,7 @@ export class CameraRig {
       eye.y = Math.max(eye.y, this.ground(eye.x, eye.z) + .3);
       cam.position.copy(eye);
       const look = eye.clone().addScaledVector(dir, 10);
-      look.y += -this.pitchOffset * 6 - 1.2;
+      look.y += -this.pitchOffset * 6 - 1.2 + 10 * this.lookGrade;
       cam.lookAt(look);
       cam.rotateZ((motion?.roll ?? 0) * (riding ? .7 : .3));
       this.initialized = false;
@@ -104,6 +113,7 @@ export class CameraRig {
       const height = 2.2 + this.pitchOffset * this.distance * 0.6;
       desired = target.clone().addScaledVector(dir, -this.distance).add(new THREE.Vector3(0, height, 0));
       look = target.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(dir, 3);
+      look.y += 3 * this.lookGrade;
     }
     // keep the camera above the snow
     const g = this.ground(desired.x, desired.z);

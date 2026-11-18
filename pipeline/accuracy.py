@@ -9,6 +9,7 @@ import numpy as np
 import rasterio
 from scipy import ndimage
 from config import ROOT, RAW, PROC, PUBLIC, ORIGIN_E, ORIGIN_N
+import grizzly_road
 
 FT = 3.28084
 
@@ -46,14 +47,10 @@ def line_stats(points, h):
     dh = np.hypot(np.diff(xs), np.diff(zs))
     lenH = dh.sum(); len3 = np.hypot(dh, np.diff(hs)).sum()
     cum = np.concatenate([[0], np.cumsum(dh)])
-    max10 = 0.0
-    j = 0
-    for i in range(len(cum)):
-        while cum[i] - cum[j] > 10:
-            j += 1
-        if cum[i] - cum[j] >= 9:
-            max10 = max(max10, math.degrees(math.atan(abs(hs[i] - hs[j]) / (cum[i] - cum[j]))))
-    return len3, lenH, hs.max(), hs.min(), max10
+    end = cum >= 10
+    delta10 = hs[end] - np.interp(cum[end] - 10, cum, hs)
+    max10 = math.degrees(math.atan2(np.abs(delta10).max(initial=0), 10))
+    return len3, lenH, hs.max(), hs.min(), max10, abs(hs[0] - hs[-1])
 
 
 def main():
@@ -91,21 +88,23 @@ def main():
         mean_s = float(sl.mean()) if sl.size else float("nan")
         p98 = float(np.percentile(sl, 98)) if sl.size else float("nan")
         lines = [w for _, w in ways if w["kind"] == "line"]
-        dem_len3 = dem_lenH = 0.0; top = -1e9; bot = 1e9; dmax10 = 0.0
+        dem_len3 = dem_lenH = line_drop = 0.0; top = -1e9; bot = 1e9; dmax10 = 0.0
         for w in lines:
-            l3, lh, hi, lo, m10 = line_stats(w["points"], h)
+            l3, lh, hi, lo, m10, drop = line_stats(w["points"], h)
             dem_len3 += l3; dem_lenH += lh; top = max(top, hi); bot = min(bot, lo); dmax10 = max(dmax10, m10)
+            line_drop += drop
         if not lines:
             hs = dem[mask]
             top, bot = float(hs.max()), float(hs.min())
         g = ingame.get(name)
         row = {"name": name, "difficulty": ways[0][1]["difficulty"], "areaM2": area, "meanSlope": mean_s, "p98Slope": p98,
-               "demLen": dem_len3, "demDrop": top - bot, "demAvg": math.degrees(math.atan((top - bot) / dem_lenH)) if dem_lenH else float("nan"),
+               "demLen": dem_len3, "demDrop": top - bot, "demAvg": math.degrees(math.atan2(line_drop, dem_lenH)) if dem_lenH else float("nan"),
                "demMax10": dmax10, "top": top, "bottom": bot, "game": g}
         rows.append(row)
         for _, w in ways:
-            w["stats"] = {"lengthM": round(dem_len3) if lines else None, "dropM": round(top - bot), "avgDeg": round(mean_s, 1),
-                          "maxDeg": round(p98, 1)}
+            w["stats"] = {"lengthM": round(dem_len3) if lines else None, "dropM": round(top - bot),
+                          "avgDeg": round(row["demAvg"] if lines else mean_s, 1),
+                          "maxDeg": round(dmax10 if lines else p98, 1)}
     (PUBLIC / "resort.json").write_text(json.dumps(resort, separators=(",", ":")))
 
     # resort-level figures
@@ -138,8 +137,10 @@ def main():
         L.append(f"| {name} lift | {l['kind']} | {l['slopeLength']*FT:,.0f} ft slope length, {l['vertical']*FT:,.0f} ft vertical, {sum(1 for s in l['supports'] if s['kind']=='tower')} towers, {l['speed']} m/s | Published speed; legacy OSM geometry limitations below (DECISIONS.md D15) |")
     L.append("")
     L.append(subprocess.check_output(["npx", "tsx", "tests/harness/liftAccuracy.ts"], cwd=ROOT, text=True))
+    opening = subprocess.check_output(["npx", "tsx", "tests/harness/grizzlyRoad.ts"], cwd=ROOT, text=True)
+    L.extend(grizzly_road.accuracy_section(json.loads(opening), h))
     L.append("## Per-run comparison: in-game vs DEM\n")
-    L.append("Length is the 3D length along the OSM centerline (all ways with that name). Drop is top minus bottom along the centerline. Avg is atan(drop / horizontal length). Max 10 m is the steepest 10 m stretch along the centerline. Mean and p98 slope are fall-line slopes over the whole run area (lidar-derived boundary). Differences between game and DEM come only from the game's 1 cm height quantization and triangle interpolation.\n")
+    L.append("Length is the 3D length along the mapped ski line. Drop is highest minus lowest elevation. Average pitch uses the endpoint drop and horizontal distance of each mapped section, excluding gaps between disconnected sections. Max 10 m is the greatest pitch magnitude across a full 10 horizontal meters along a section. The map and trail badge show these line measurements for named trails. Glades mapped only as polygons use the area mean and 98th-percentile fall-line slope. The game comparison includes centimeter encoding, triangle interpolation and modeled moguls on ungroomed snow.\n")
     L.append("| Run | Diff. | Length m (game / DEM) | Drop m (game / DEM) | Avg deg (game / DEM) | Max 10 m deg (game / DEM) | Area mean / p98 slope deg | Top / bottom ft |")
     L.append("|---|---|---|---|---|---|---|---|")
     worst = 0.0
@@ -150,7 +151,10 @@ def main():
             L.append(f"| {r['name']} | {r['difficulty']} | {g['lengthM']} / {f(r['demLen'])} | {g['dropM']} / {f(r['demDrop'])} | {g['avgDeg']} / {f(r['demAvg'],1)} | {g['maxCenterline10mDeg']} / {f(r['demMax10'],1)} | {f(r['meanSlope'],1)} / {f(r['p98Slope'],1)} | {r['top']*FT:,.0f} / {r['bottom']*FT:,.0f} |")
         else:
             L.append(f"| {r['name']} | {r['difficulty']} | glade (area) | {f(r['demDrop'])} | n/a | n/a | {f(r['meanSlope'],1)} / {f(r['p98Slope'],1)} | {r['top']*FT:,.0f} / {r['bottom']*FT:,.0f} |")
-    L.append(f"\nLargest in-game vs DEM length difference: {worst*100:.2f} percent.\n")
+    checked = [r for r in rows if r["game"]]
+    avg_error = max(abs(r["demAvg"] - r["game"]["avgDeg"]) for r in checked)
+    max_error = max(abs(r["demMax10"] - r["game"]["maxCenterline10mDeg"]) for r in checked)
+    L.append(f"\nAcross {len(checked)} named ski lines, the largest game-to-DEM differences are {worst*100:.2f} percent in length, {avg_error:.2f}° in average pitch and {max_error:.2f}° in steepest 10 m pitch. Game summary angles are rounded to 0.1°.\n")
     L.append("## Base-area building evidence\n")
     lodge = next((b for b in resort["buildings"] if b.get("style") == "sunlight_lodge"), None)
     if lodge:

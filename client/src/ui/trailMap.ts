@@ -3,7 +3,7 @@
 import type { ResortData, RunInfo } from '../game';
 import { DIFF_COLOR, drawDiffSymbol } from '../runs/runs';
 import { DIFF_LABEL } from './hud';
-import { formatDistance } from './units';
+import { formatDistance, formatRunPitch } from './units';
 import { IPHONE } from '../platform';
 import type { Point } from '../../../shared/mountainGuestNavigation';
 import { drawSantaMapMarker, drawSantaMapTraces, SANTA_MAP_LABEL, type SantaMapTraces } from './santaMapMarker';
@@ -166,7 +166,9 @@ export class TrailMap {
       if(r!==this.hover){this.hover=r;this.draw();}
       if(r){
         this.tip.style.display='block';this.tip.style.left=e.clientX+14+'px';this.tip.style.top=e.clientY+10+'px';
-        this.tip.innerHTML=`<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${DIFF_LABEL[r.difficulty] ?? ''}${(r as any).stats ? ` &middot; ${formatDistance((r as any).stats.lengthM)}, avg ${(r as any).stats.avgDeg}&deg;, max ${(r as any).stats.maxDeg}&deg;` : ''}`;
+        const length = r.stats?.lengthM;
+        const details = [length != null ? formatDistance(length) : '', formatRunPitch(r)].filter(Boolean);
+        this.tip.innerHTML=`<span class="diff ${r.difficulty}"></span> <b>${r.name}</b> &middot; ${[DIFF_LABEL[r.difficulty], ...details].join(' · ')}`;
       }else this.tip.style.display='none';
     });
     this.cv.addEventListener('pointerup',e => {

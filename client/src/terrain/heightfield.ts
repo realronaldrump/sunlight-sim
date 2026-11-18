@@ -30,7 +30,8 @@ export const browserLoader: Loader = async (path, revision) => {
   // World assets have a long HTTP cache lifetime. Revalidate the index, then
   // version tile requests so a previous visit cannot mix old and new geometry.
   const url = revision ? `${path}?v=${encodeURIComponent(revision)}` : path;
-  const res = await fetch(url, path.endsWith('/terrain/index.json') ? { cache: 'no-cache' } : undefined);
+  const revalidate = path.endsWith('/terrain/index.json') || path.endsWith('/surface.bin.gz') || path.endsWith('/runs.bin.gz');
+  const res = await fetch(url, revalidate ? { cache: 'no-cache' } : undefined);
   if (!res.ok) throw new Error(`fetch ${path}: ${res.status}`);
   return res.arrayBuffer();
 };

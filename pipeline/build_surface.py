@@ -15,6 +15,8 @@ from scipy import ndimage
 from skimage.draw import polygon as draw_polygon, line as draw_line
 from skimage import measure
 from config import PROC, PUBLIC
+from build_osm import DEM
+import grizzly_road
 
 RES = 2.0
 CAT_TRACKS = {"Grizzly Road", "Ute", "Segundo Road", "Midland Traverse", "Blue Catwalk", "Hike-Out Only", "The Parks",
@@ -37,11 +39,21 @@ def main():
     def to_px(x, z):
         return (x - x0) / RES, ((-z) - n0) / RES  # col, row (rows south->north)
 
+    def footprint(polygon, row=0, col=0, shape=(H, W)):
+        x, z = np.array(polygon).T
+        cc, rr = to_px(x, z)
+        return draw_polygon(rr - row, cc - col, shape)
+
     best_d = np.full((H, W), np.inf, np.float32)
     owner = np.zeros((H, W), np.int32)  # run index + 1
     groomed = np.zeros((H, W), np.float32)
     moguls = np.zeros((H, W), np.float32)
     piste = np.zeros((H, W), np.float32)
+
+    # Both summit trails use this snow after unloading. Run ownership starts at their fork.
+    R, C = footprint(grizzly_road.SUMMIT_APRON)
+    groomed[R, C] = open_[R, C]
+    piste[R, C] = open_[R, C]
 
     # glades/areas first (lower priority than line runs where they overlap)
     for k, r in enumerate(runs):
@@ -58,6 +70,9 @@ def main():
     for k, r in enumerate(runs):
         if r["kind"] != "line":
             continue
+        is_grizzly = r["id"] == grizzly_road.OSM_WAY
+        if is_grizzly:
+            r["points"] = grizzly_road.refine_centerline(r["points"], DEM().h)
         pts = np.array(r["points"])
         cc, rr = to_px(pts[:, 0], pts[:, 2])
         line = np.zeros((H, W), bool)
@@ -80,6 +95,16 @@ def main():
         keep_labels = np.unique(lab[sub & (lab > 0)])
         mask = np.isin(lab, keep_labels) & (d <= maxhw)
         mask = ndimage.binary_closing(mask, iterations=2) & (d <= maxhw)
+        edge_soft = np.clip((maxhw - d) / 4.0, 0, 1) * mask
+        if is_grizzly:
+            # The narrow road opens onto two shoulders. Include only tree-free snow
+            # connected to this ski line, and feather the corduroy at its actual edge.
+            opening = np.zeros_like(sub)
+            R, C = footprint(grizzly_road.OPENING, r0, c0, sub.shape)
+            opening[R, C] = open_[r0:r1, c0:c1][R, C]
+            opening = ndimage.binary_propagation(sub & opening, mask=opening)
+            mask |= opening
+            edge_soft = np.maximum(edge_soft, np.minimum(1, ndimage.distance_transform_edt(opening) * RES / 4))
         bd = best_d[r0:r1, c0:c1]
         ow = owner[r0:r1, c0:c1]
         claim = mask & (d < bd)
@@ -87,7 +112,6 @@ def main():
         ow[claim] = k + 1
         # grooming / moguls
         g = r["grooming"]
-        edge_soft = np.clip((maxhw - d) / 4.0, 0, 1) * mask
         if g == "groomed" or cat:
             groomed[r0:r1, c0:c1] = np.maximum(groomed[r0:r1, c0:c1], edge_soft)
         elif g == "mixed":

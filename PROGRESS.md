@@ -1,5 +1,12 @@
 # Progress
 
+## Grizzly Road summit dip (November 17, 2026)
+
+- Retraced the opening of the green Grizzly Road across the wooded ridge saddle below Primo. The winter line and its two open shoulders follow the 2023 aerial clearing and the bare-earth and canopy lidar. The original single-width track put both shoulders and part of the shared summit approach off piste. The approach and shoulders now carry packed-snow friction, grooming and the corresponding map footprints. The trace rejoins the original line about 380 m from the trail fork.
+- Four hundred and one one-meter samples through the opening agree with the source USGS raster within 0.020 m in height and 0.10° in 10 m pitch. The roll drops 17.0 m to the trough, then rises 4.2 m. The steepest 10 m on the way in and out are 22.4° down and 8.2° up. A browser skier starting at the fork coasted through the rise without pushing. The accuracy report covers all 66 mapped line runs.
+- The HUD shows signed travel pitch beside fall-line steepness. Forward ski cameras follow part of the signed grade with a level horizon. Trail summaries use along-trail pitch for lines and identify area fall-line statistics for polygon-only glades. The two new terrain regressions failed on the original opening and passed after the change. The first isolated build, 215 unit tests and five pipeline checks passed.
+- Next, finish browser checks from the updated Primo unload, verify the signed readout and camera at the two faces, and publish the matching client and multiplayer world.
+
 ## Frame rate at native resolution (November 17, 2026, in progress)
 
 - A production build of the starting revision on the 14-core M3 Pro measured 33.7, 41.5, 38.5 and 36.1 fps in the four standard 2560 by 1440 High views. The base shadow passes alone submitted about five million lift triangles in a sampled frame.

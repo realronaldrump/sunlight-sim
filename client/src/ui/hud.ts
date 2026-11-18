@@ -1,5 +1,6 @@
 // Heads-up display: speed, slope angle, run name, altitude, hints, help panel and toasts.
-import { formatDistance, formatFeet, formatSpeedMph } from './units';
+import type { RunInfo } from '../game';
+import { formatDistance, formatFeet, formatRunPitch, formatSpeedMph } from './units';
 
 const css = `
 #hud { position: fixed; left: 16px; bottom: 16px; z-index: 10; pointer-events: none; font-variant-numeric: tabular-nums; }
@@ -45,6 +46,9 @@ export class Hud {
   private statsEl: HTMLElement; private modeEl: HTMLElement;
   private lastRun = ''; private runTimer = 0; private toastTimer = 0;
   private liftEl: HTMLElement;
+  private lineEl: HTMLElement;
+  private lineAngle: HTMLElement;
+  private lineDirection: HTMLElement;
 
   constructor() {
     const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
@@ -52,7 +56,8 @@ export class Hud {
     hud.innerHTML = `
       <div class="card"><div class="row">
         <div><div class="lbl">Speed</div><span class="big" id="h-speed">0</span><span class="unit">mph</span></div>
-        <div><div class="lbl">Slope</div><span class="big" id="h-slope">0</span><span class="unit">deg</span></div>
+        <div><div class="lbl">Fall line</div><span class="big" id="h-slope">0</span><span class="unit">°</span></div>
+        <div id="h-line" hidden><div class="lbl">Your line</div><span class="big" id="h-line-angle"></span><span class="unit" id="h-line-direction"></span></div>
       </div><div class="slope-bar"><i id="h-marker"></i></div>
       <div class="row" style="margin-top:6px;font-size:12px;opacity:.85"><span id="h-alt"></span><span id="h-mode"></span></div></div>`;
     document.body.appendChild(hud);
@@ -86,6 +91,9 @@ export class Hud {
     this.speedEl = document.getElementById('h-speed')!; this.slopeEl = document.getElementById('h-slope')!;
     this.altEl = document.getElementById('h-alt')!; this.marker = document.getElementById('h-marker')!;
     this.modeEl = document.getElementById('h-mode')!;
+    this.lineEl = document.getElementById('h-line')!;
+    this.lineAngle = document.getElementById('h-line-angle')!;
+    this.lineDirection = document.getElementById('h-line-direction')!;
     this.runEl = run; this.hintEl = hint; this.helpEl = help; this.toastEl = toast; this.statsEl = stats;
   }
 
@@ -107,9 +115,15 @@ export class Hud {
   }
   hideLiftDirection() { this.liftEl.style.display = 'none'; }
 
-  update(dt: number, speed: number, slopeDeg: number, altitude: number, mode: string, run: { name: string; difficulty: string; stats?: { avgDeg: number; maxDeg: number } } | null) {
+  update(dt: number, speed: number, slopeDeg: number, altitude: number, mode: string, run: RunInfo | null, linePitch?: number) {
     this.speedEl.textContent = formatSpeedMph(speed);
     this.slopeEl.textContent = String(Math.round(slopeDeg));
+    this.lineEl.hidden = linePitch === undefined;
+    if (linePitch !== undefined) {
+      const degrees = Math.round(Math.abs(linePitch));
+      this.lineAngle.textContent = String(degrees);
+      this.lineDirection.textContent = degrees === 0 ? '° level' : linePitch > 0 ? '° up' : '° down';
+    }
     this.marker.style.left = `${Math.min(100, (slopeDeg / 50) * 100)}%`;
     this.altEl.textContent = formatFeet(altitude);
     this.modeEl.textContent = mode;
@@ -117,7 +131,7 @@ export class Hud {
     if (key !== this.lastRun) {
       this.lastRun = key;
       if (run) {
-        const st = run.stats ? `<small>avg ${Math.round(run.stats.avgDeg)}&deg;, steepest ${Math.round(run.stats.maxDeg)}&deg;</small>` : '';
+        const st = run.stats ? `<small>${formatRunPitch(run)}</small>` : '';
         this.runEl.innerHTML = `${diffIcon(run.difficulty)}<span>${run.name}</span>${st}`;
         this.runEl.classList.add('show');
         this.runTimer = 5;
