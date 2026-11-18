@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadWorld } from '../harness/world';
-
+import { createSkier, headingFromDir, stepSkier } from '../../shared/skiPhysics';
+import { loadWorld, makeProbe } from '../harness/world';
 import { sampleGrizzlyOpening } from '../harness/grizzlyRoad';
 
 let world: Awaited<ReturnType<typeof loadWorld>>;
@@ -32,5 +32,27 @@ describe('Grizzly Road below Primo', () => {
     expect(steepest(145, 206, -1)).toBeGreaterThan(20);
     expect(steepest(255, 309, 1)).toBeGreaterThan(7);
     expect(steepest(255, 309, 1)).toBeLessThan(10);
+  });
+
+  it('runs out of momentum on the climb with a slow entry and no pole push', () => {
+    const bottom = opening[261], ahead = opening[271];
+    const heading = headingFromDir(ahead.x - bottom.x, ahead.z - bottom.z);
+    const st = createSkier({ x: bottom.x, y: bottom.height, z: bottom.z }, heading);
+    const probe = makeProbe(world.hf, world.surface);
+    const dx = -Math.sin(heading), dz = -Math.cos(heading);
+    const normal = probe.normal(bottom.x, bottom.z, st.normal);
+    const dy = -(normal.x * dx + normal.z * dz) / normal.y;
+    const horizontalSpeed = 4 / Math.hypot(1, dy);
+    st.vel = { x: horizontalSpeed * dx, y: horizontalSpeed * dy, z: horizontalSpeed * dz };
+    let farthest = 0, forwardSpeed = 4;
+    for (let i = 0; i < 600 && forwardSpeed > .1; i++) {
+      stepSkier(st, { steer: 0, tuck: false, plow: 0, stop: false, push: false }, probe, 1 / 60);
+      farthest = Math.max(farthest, dx * (st.pos.x - bottom.x) + dz * (st.pos.z - bottom.z));
+      forwardSpeed = dx * st.vel.x + dz * st.vel.z;
+    }
+    expect(farthest).toBeGreaterThan(2);
+    expect(farthest).toBeLessThan(15);
+    expect(forwardSpeed).toBeLessThanOrEqual(.1);
+    expect(st.pos.y).toBeLessThan(opening[307].height - 3);
   });
 });

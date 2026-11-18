@@ -1,8 +1,7 @@
 """Accuracy report: in-game run statistics vs values computed directly from the USGS DEM GeoTIFFs, and the
 resort vs published figures. Writes ACCURACY.md and adds per-run stats to resort.json (used by map tooltips).
 
-In-game stats come from tests/harness/accuracy.ts (the game's own Heightfield sampling). Run it first:
-  npx tsx tests/harness/accuracy.ts
+In-game stats are refreshed from tests/harness/accuracy.ts (the game's own Heightfield sampling).
 """
 import glob, gzip, json, math, struct, subprocess
 import numpy as np
@@ -56,8 +55,7 @@ def line_stats(points, h):
 def main():
     resort = json.loads((PUBLIC / "resort.json").read_text())
     ing_path = ROOT / "tests" / "harness" / "out" / "ingame_stats.json"
-    if not ing_path.exists():
-        subprocess.run(["npx", "tsx", "tests/harness/accuracy.ts"], cwd=ROOT, check=True)
+    subprocess.run(["npx", "tsx", "tests/harness/accuracy.ts"], cwd=ROOT, check=True)
     ingame = json.loads(ing_path.read_text())
     h = dem_sampler()
 
